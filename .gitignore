@@ -1,0 +1,212 @@
+# ============================================================
+# Flutter / Dart Project
+# ============================================================
+
+# Dart / Flutter generated files
+.dart_tool/
+.packages
+.pub/
+.pub-cache/
+.flutter-plugins
+.flutter-plugins-dependencies
+.metadata
+
+# Generated build output
+build/
+**/build/
+
+# Flutter generated API documentation
+**/doc/api/
+
+# Flutter ephemeral/generated platform files
+**/ios/Flutter/ephemeral/
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/Flutter/App.framework
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/Flutter/app.flx
+**/ios/Flutter/app.zip
+**/ios/Flutter/flutter_assets/
+
+**/android/.gradle/
+**/android/local.properties
+**/android/captures/
+
+**/windows/flutter/ephemeral/
+**/windows/flutter/generated_plugin_registrant.cc
+
+**/macos/Flutter/ephemeral/
+**/macos/Flutter/GeneratedPluginRegistrant.swift
+
+**/linux/flutter/ephemeral/
+**/linux/flutter/generated_plugin_registrant.cc
+
+
+# ============================================================
+# IDE / Editor
+# ============================================================
+
+# IntelliJ / Android Studio
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# VS Code
+.vscode/
+
+# Other editors
+.atom/
+.history
+*.swp
+*.swo
+
+
+# ============================================================
+# Logs / Temporary Files
+# ============================================================
+
+*.log
+*.tmp
+*.temp
+.buildlog/
+firebase-debug.log
+firebase-debug.*.log
+firestore-debug.log
+ui-debug.log
+
+
+# ============================================================
+# OS Files
+# ============================================================
+
+.DS_Store
+Thumbs.db
+
+
+# ============================================================
+# Android
+# ============================================================
+
+# Gradle generated files
+**/android/.gradle/
+**/android/**/build/
+
+# Local Android configuration
+**/android/local.properties
+
+# Signing / private keys
+**/android/key.properties
+**/android/key.jks
+**/android/keystore.jks
+*.jks
+*.keystore
+
+# Do NOT ignore the Gradle wrapper.
+# android/gradlew
+# android/gradlew.bat
+# android/gradle/wrapper/gradle-wrapper.jar
+
+
+# ============================================================
+# iOS / Xcode
+# ============================================================
+
+**/ios/Pods/
+**/ios/.generated/
+**/ios/Flutter/ephemeral/
+
+**/ios/**/.symlinks/
+**/ios/**/xcuserdata/
+**/ios/**/DerivedData/
+**/ios/**/Build/
+
+**/ios/**/*.mode1v3
+**/ios/**/*.mode2v3
+**/ios/**/*.moved-aside
+**/ios/**/*.pbxuser
+**/ios/**/*.perspectivev3
+
+**/ios/Runner/GeneratedPluginRegistrant.*
+
+
+# ============================================================
+# Firebase
+# ============================================================
+
+.firebase/
+
+# Firebase emulator / local generated files
+functions/.firebase/
+
+# Firebase debug files
+firebase-debug.log
+firebase-debug.*.log
+firestore-debug.log
+ui-debug.log
+
+
+# ============================================================
+# Node.js / Firebase Functions
+# ============================================================
+
+node_modules/
+**/node_modules/
+
+functions/node_modules/
+functions/lib/
+
+
+# ============================================================
+# Environment / Secrets
+# ============================================================
+
+.env
+.env.*
+*.env
+
+# Allow example environment files
+!.env.example
+!.env.sample
+!.env.template
+
+# Firebase / Google credentials
+serviceAccountKey.json
+**/serviceAccountKey.json
+
+# Google/Firebase platform configuration
+google-services.json
+**/google-services.json
+
+GoogleService-Info.plist
+**/GoogleService-Info.plist
+
+# Payment / private credentials
+cashfreekeys.txt
+
+
+# ============================================================
+# Project-specific private files
+# ============================================================
+
+assets/db.json
+todo and steps.txt
+
+# Local scripts/config that should not be committed
+# Uncomment only if scripts/ contains machine-specific scripts.
+# scripts/local/
+# scripts/*.local.*
+
+
+# ============================================================
+# Generated / Miscellaneous
+# ============================================================
+
+*.class
+*.pyc
+*.pyo
+
+.svn/
+
+scripts/

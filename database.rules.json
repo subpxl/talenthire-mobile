@@ -1,0 +1,10 @@
+{
+  "rules": {
+    "messages": {
+      "$conversationId": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    }
+  }
+}
