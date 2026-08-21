@@ -135,59 +135,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 16),
             ],
 
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: 16,
-              crossAxisSpacing: 16,
-              childAspectRatio: 1.1,
-              children: [
-                _buildSummaryCard(
-                  context,
-                  title: 'Active Jobs',
-                  count: state.jobs.length.toString(),
-                  icon: Icons.work,
-                  color: AppColors.primary,
-                  backgroundColor: AppCardColors.lavender,
-                  onTap: () => MainScreen.switchTab(2),
-                ),
-                _buildSummaryCard(
-                  context,
-                  title: 'Top Artists',
-                  count: state.allInfluencers.isEmpty
-                      ? '0'
-                      : state.allInfluencers.length.toString(),
-                  icon: Icons.people,
-                  color: AppColors.success,
-                  backgroundColor: AppCardColors.mint,
-                  onTap: () => MainScreen.switchTab(1),
-                ),
-                _buildSummaryCard(
-                  context,
-                  title: 'Unread Messages',
-                  count: state.totalUnreadMessages.toString(),
-                  icon: Icons.message,
-                  color: AppColors.secondary,
-                  backgroundColor: AppCardColors.salmon,
-                  onTap: () => MainScreen.switchTab(3),
-                ),
-                _buildSummaryCard(
-                  context,
-                  title: 'My Applications',
-                  count: state.applications.length.toString(),
-                  icon: Icons.assignment,
-                  color: AppColors.tertiary,
-                  backgroundColor: AppCardColors.peach,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const MyApplicationsScreen()),
-                    );
-                  },
-                ),
-              ],
-            ),
+
             const SizedBox(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,

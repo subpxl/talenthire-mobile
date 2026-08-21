@@ -1,12 +1,15 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_avatar.dart';
 import '../widgets/optimized_network_image.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/app_bottom_nav_bar.dart';
+import '../widgets/loading_dialog.dart';
 import 'main_screen.dart';
-
+import 'message_detail_screen.dart';
 class AgencyDetailScreen extends StatefulWidget {
   final String agencyId;
   final String? fallbackName;
@@ -106,6 +109,29 @@ class _AgencyDetailScreenState extends State<AgencyDetailScreen> {
     return 'AG';
   }
 
+  void _startChat(BuildContext context) async {
+    final state = context.read<AppState>();
+    
+    LoadingDialog.show(context, message: 'Starting chat...');
+    final conversation = await state.getOrCreateConversation(_name, widget.agencyId);
+    if (!context.mounted) return;
+    LoadingDialog.hide(context);
+
+    if (conversation == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You cannot message yourself.')),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MessageDetailScreen(conversation: conversation),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -157,6 +183,18 @@ class _AgencyDetailScreenState extends State<AgencyDetailScreen> {
                                     style: const TextStyle(color: AppColors.textSecondary),
                                   ),
                                 ],
+                                const SizedBox(height: 12),
+                                ElevatedButton.icon(
+                                  onPressed: () => _startChat(context),
+                                  icon: const Icon(Icons.chat_bubble_outline, size: 20),
+                                  label: const Text('Message'),
+                                  style: ElevatedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                ),
                               ],
                             ),
                           ),

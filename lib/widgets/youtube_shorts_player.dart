@@ -87,7 +87,7 @@ double _youtubeCardFooterHeight() {
   final textHeight =
       _kYoutubeCardTitleFontSize * _kYoutubeCardTitleLineHeight * _kYoutubeCardTitleMaxLines;
   final rowHeight = textHeight > _kYoutubeCardIconSize ? textHeight : _kYoutubeCardIconSize;
-  return _kYoutubeCardFooterPadding * 2 + rowHeight;
+  return _kYoutubeCardFooterPadding * 2 + rowHeight + 14.0;
 }
 
 class _YoutubeLinkCard extends StatelessWidget {

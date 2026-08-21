@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import '../utils/legal_links.dart';
 import 'app_button.dart';
 
 /// Reusable payment dialog for premium upgrade.
@@ -123,6 +124,13 @@ class _PaymentDialogState extends State<PaymentDialog> {
             TextButton(
               onPressed: _isProcessing ? null : () => Navigator.pop(context),
               child: const Text('Cancel'),
+            ),
+            const SizedBox(height: 4),
+            TextButton(
+              onPressed: _isProcessing
+                  ? null
+                  : () => openLegalPage(context, LegalLinks.refunds),
+              child: const Text('Refund & Cancellation Policy'),
             ),
           ],
         ),

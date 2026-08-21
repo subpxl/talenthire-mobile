@@ -65,7 +65,7 @@ class DefaultFirebaseOptions {
     projectId: 'talenthire-d86a1',
     storageBucket: 'talenthire-d86a1.firebasestorage.app',
     iosClientId: '483545794550-ob6hj33khbk0ekg3ouj1cmiiq782moa2.apps.googleusercontent.com',
-    iosBundleId: 'com.talenthire.app',
+    iosBundleId: 'com.bombaycastingcompany.app',
     databaseURL: 'https://talenthire-d86a1-default-rtdb.asia-southeast1.firebasedatabase.app',
   );
   static const FirebaseOptions macos = FirebaseOptions(

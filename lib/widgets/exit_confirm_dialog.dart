@@ -6,7 +6,7 @@ Future<bool> showExitConfirmDialog(BuildContext context) async {
     context: context,
     builder: (ctx) => AlertDialog(
       title: const Text('Exit app?'),
-      content: const Text('Are you sure you want to exit FSAP?'),
+      content: const Text('Are you sure you want to exit Bombay Casting Company?'),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(ctx, false),

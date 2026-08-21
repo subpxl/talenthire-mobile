@@ -122,5 +122,25 @@ service cloud.firestore {
       allow create, update: if request.auth != null && isAdmin();
       allow delete: if false;
     }
+
+    // ── account deletion requests (public web form) ───────────────────────
+    match /account_deletion_requests/{requestId} {
+      allow create: if request.resource.data.keys().hasAll([
+            'fullName',
+            'email',
+            'accountType',
+            'status',
+            'createdAt'
+          ])
+          && request.resource.data.fullName is string
+          && request.resource.data.fullName.size() > 0
+          && request.resource.data.fullName.size() <= 120
+          && request.resource.data.email is string
+          && request.resource.data.email.matches('.*@.*\\..*')
+          && request.resource.data.email.size() <= 254
+          && request.resource.data.accountType in ['artist', 'agency']
+          && request.resource.data.status == 'pending';
+      allow read, update, delete: if false;
+    }
   }
 }

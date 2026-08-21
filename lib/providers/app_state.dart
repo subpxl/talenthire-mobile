@@ -78,6 +78,77 @@ class AppState extends ChangeNotifier {
     return false;
   }
 
+  Future<bool> loginWithEmail({
+    required String email,
+    required String password,
+    required UserRole role,
+  }) async {
+    lastAuthError = null;
+
+    final credential = await authService.signInWithEmailPassword(
+      email: email,
+      password: password,
+    );
+
+    if (credential != null && credential.user != null) {
+      final firebaseUser = credential.user!;
+      userRole = role;
+
+      await _createOrFetchUser(
+        uid: firebaseUser.uid,
+        name: firebaseUser.displayName ?? email.split('@').first,
+        email: firebaseUser.email ?? email.trim(),
+        role: role,
+      );
+
+      isAuthenticated = true;
+      notifyListeners();
+      return true;
+    }
+
+    lastAuthError = authService.lastError ?? 'Sign in failed.';
+    notifyListeners();
+    return false;
+  }
+
+  Future<bool> registerWithEmail({
+    required String email,
+    required String password,
+    required UserRole role,
+    String name = '',
+  }) async {
+    lastAuthError = null;
+
+    final credential = await authService.registerWithEmailPassword(
+      email: email,
+      password: password,
+      name: name.trim().isNotEmpty ? name.trim() : email.split('@').first,
+    );
+
+    if (credential != null && credential.user != null) {
+      final firebaseUser = credential.user!;
+      userRole = role;
+      final displayName = name.trim().isNotEmpty
+          ? name.trim()
+          : email.split('@').first;
+
+      await _createOrFetchUser(
+        uid: firebaseUser.uid,
+        name: displayName,
+        email: firebaseUser.email ?? email.trim(),
+        role: role,
+      );
+
+      isAuthenticated = true;
+      notifyListeners();
+      return true;
+    }
+
+    lastAuthError = authService.lastError ?? 'Registration failed.';
+    notifyListeners();
+    return false;
+  }
+
   Future<bool> loginWithOtp({
     required String verificationId,
     required String otp,
@@ -155,7 +226,7 @@ class AppState extends ChangeNotifier {
       if (userDoc.exists) {
         user = User.fromJson(userDoc.data()!);
         userRole = user!.role;
-        needsDobVerification = user!.birthYear == null || user!.birthMonth == null;
+        needsDobVerification = user!.birthYear == null || user!.birthMonth == null || user!.birthDay == null;
       } else {
         user = User(
           id: uid,
@@ -180,21 +251,27 @@ class AppState extends ChangeNotifier {
       if (userDoc.exists) {
         user = User.fromJson(userDoc.data()!);
         userRole = user!.role;
-        needsDobVerification = user!.birthYear == null || user!.birthMonth == null;
+        needsDobVerification = user!.birthYear == null || user!.birthMonth == null || user!.birthDay == null;
       }
 
-      await _loadInfluencerData(uid);
-      await _loadApplications(uid);
-      await _loadSavedJobs(uid);
+      // Run independent data loads in parallel instead of sequentially.
+      // This cuts login wait from ~10 round trips to ~2.
+      await Future.wait([
+        _loadInfluencerData(uid),
+        _loadApplications(uid),
+        _loadSavedJobs(uid),
+        _loadTransactions(uid),
+        _loadSharedData(),
+        NotificationService().registerForUser(uid),
+      ]);
+
       _listenToConversations(uid);
       _listenToApplications(uid);
-      await _loadTransactions(uid);
-      await _loadSharedData();
-      await NotificationService().registerForUser(uid);
 
       isAuthenticated = true;
     } catch (e) {
       debugPrint('Error loading user data: $e');
+      lastAuthError = 'Failed to load app data. Please pull to refresh.';
       isAuthenticated = false;
     }
   }
@@ -315,9 +392,21 @@ class AppState extends ChangeNotifier {
 
   Future<void> _loadSharedData() async {
     try {
-      final jobsSnapshot = await _firestore.collection('jobs').get();
+      // Run all independent reads in parallel
+      final results = await Future.wait([
+        _firestore.collection('jobs').get(),
+        _firestore.doc('settings/categories').get(),
+        _firestore.collection('profiles').get(),
+        _firestore.collection('users').where('role', isEqualTo: 'influencer').get(),
+      ]);
+
+      final jobsSnapshot = results[0] as QuerySnapshot;
+      final categoriesDoc = results[1] as DocumentSnapshot;
+      final profilesSnapshot = results[2] as QuerySnapshot;
+      final usersSnapshot = results[3] as QuerySnapshot;
+
       jobs = jobsSnapshot.docs.map((d) {
-        final data = Map<String, dynamic>.from(d.data());
+        final data = Map<String, dynamic>.from(d.data() as Map);
         // Web-created jobs often omit embedded `id`; always prefer doc id.
         final embeddedId = data['id']?.toString() ?? '';
         data['id'] = embeddedId.isNotEmpty ? embeddedId : d.id;
@@ -327,18 +416,14 @@ class AppState extends ChangeNotifier {
         return j.status == JobStatus.published;
       }).toList();
 
-      final categoriesDoc = await _firestore.doc('settings/categories').get();
-      if (categoriesDoc.exists && categoriesDoc.data()?['talentTypes'] != null) {
-        final List<dynamic> types = categoriesDoc.data()!['talentTypes'];
+      if (categoriesDoc.exists && (categoriesDoc.data() as Map?)?['talentTypes'] != null) {
+        final List<dynamic> types = (categoriesDoc.data() as Map)['talentTypes'];
         categories = types.map((e) => e.toString()).toList();
       }
 
-      final profilesSnapshot = await _firestore.collection('profiles').get();
-      allInfluencers = profilesSnapshot.docs.map((d) => Profile.fromJson(d.data())).toList();
+      allInfluencers = profilesSnapshot.docs.map((d) => Profile.fromJson(d.data() as Map<String, dynamic>)).toList();
 
-      final usersSnapshot =
-          await _firestore.collection('users').where('role', isEqualTo: 'influencer').get();
-      final influencerUsers = usersSnapshot.docs.map((d) => User.fromJson(d.data())).toList();
+      final influencerUsers = usersSnapshot.docs.map((d) => User.fromJson(d.data() as Map<String, dynamic>)).toList();
 
       artists = influencerUsers.map((influencerUser) {
         final userProfile = allInfluencers.firstWhere(
@@ -397,6 +482,53 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  Future<void> deactivateAccount() async {
+    if (user == null) return;
+    try {
+      user!.isActive = false;
+      await _firestore.collection('users').doc(user!.id).update({
+        'is_active': false,
+        'updated_at': DateTime.now().toIso8601String(),
+      });
+      await logout();
+    } catch (e) {
+      debugPrint('Error deactivating account: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> scheduleAccountDeletion() async {
+    if (user == null) return;
+    try {
+      final deleteDate = DateTime.now().add(const Duration(days: 30));
+      user!.scheduledDeletionDate = deleteDate;
+      await _firestore.collection('users').doc(user!.id).update({
+        'scheduled_deletion_date': deleteDate.toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+      });
+      await logout();
+    } catch (e) {
+      debugPrint('Error scheduling account deletion: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> reportUser(String reportedUserId, String description) async {
+    if (user == null) return;
+    try {
+      await _firestore.collection('reports').add({
+        'reporter_id': user!.id,
+        'reported_user_id': reportedUserId,
+        'description': description,
+        'created_at': DateTime.now().toIso8601String(),
+        'status': 'pending',
+      });
+    } catch (e) {
+      debugPrint('Error reporting user: $e');
+      rethrow;
+    }
+  }
+
   void updateProfile({
     String? name,
     String? email,
@@ -419,6 +551,7 @@ class AppState extends ChangeNotifier {
     String? bodyType,
     String? ethnicity,
     String? experienceLevel,
+    List<String>? languages,
   }) {
     if (user == null || profile == null) return;
 
@@ -452,6 +585,7 @@ class AppState extends ChangeNotifier {
     if (bodyType != null) profile!.bodyType = bodyType;
     if (ethnicity != null) profile!.ethnicity = ethnicity;
     if (experienceLevel != null) profile!.experienceLevel = experienceLevel;
+    if (languages != null) profile!.languages = languages;
 
     profile!.profileCompleted = _checkProfileCompletion();
 
@@ -809,27 +943,30 @@ class AppState extends ChangeNotifier {
     if (user == null) return 0;
     return conversations.fold<int>(
       0,
-      (sum, c) => sum + c.unreadFor(user!.id),
+      (total, c) => total + c.unreadFor(user!.id),
     );
   }
 
   Future<bool> completeDobVerification({
     required int birthMonth,
+    required int birthDay,
     required int birthYear,
   }) async {
     if (user == null) return false;
     final now = DateTime.now();
     var age = now.year - birthYear;
-    if (now.month < birthMonth) age--;
+    if (now.month < birthMonth || (now.month == birthMonth && now.day < birthDay)) age--;
     if (age < 18) return false;
 
     try {
       await _firestore.collection('users').doc(user!.id).update({
         'birth_month': birthMonth,
+        'birth_day': birthDay,
         'birth_year': birthYear,
         'updated_at': DateTime.now().toIso8601String(),
       });
       user!.birthMonth = birthMonth;
+      user!.birthDay = birthDay;
       user!.birthYear = birthYear;
       needsDobVerification = false;
       notifyListeners();

@@ -18,12 +18,13 @@ class SplashScreen extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Text(
-              'Star One',
+              'Bombay Casting Company',
+              textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 48,
+                fontSize: 36,
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
-                letterSpacing: 2,
+                letterSpacing: 1.5,
               ),
             ),
             const SizedBox(height: 16),

@@ -12,7 +12,8 @@
 // Also update android/app/src/main/res/values/colors.xml splash_background
 // to match AppGradients.splash start color in the active theme file.
 
- export 'app_theme_purple_gold.dart';
+//  export 'app_theme_purple_gold.dart';
 // export 'app_theme_funky.dart';
 // export 'app_theme_default.dart';
 // export 'app_theme_soft.dart';
+export 'app_theme_bcc.dart';

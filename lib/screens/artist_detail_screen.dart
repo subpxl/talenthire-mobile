@@ -43,7 +43,8 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
       widget.artist.gender.isNotEmpty ||
       (widget.artist.height != null && widget.artist.height!.isNotEmpty) ||
       (widget.artist.bodyType != null && widget.artist.bodyType!.isNotEmpty) ||
-      (widget.artist.ethnicity != null && widget.artist.ethnicity!.isNotEmpty);
+      (widget.artist.ethnicity != null && widget.artist.ethnicity!.isNotEmpty) ||
+      widget.artist.languages.isNotEmpty;
 
   List<String> get _allImages {
     final images = <String>[];
@@ -99,11 +100,110 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
     );
   }
 
+  Future<void> _showReportDialog() async {
+    final TextEditingController descController = TextEditingController();
+    bool isSubmitting = false;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Report Account'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Please describe why you are reporting this account.'),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: descController,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      hintText: 'Reason...',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSubmitting ? null : () => Navigator.of(ctx).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () async {
+                          final desc = descController.text.trim();
+                          if (desc.isEmpty) {
+                            ScaffoldMessenger.of(ctx).showSnackBar(
+                              const SnackBar(content: Text('Please enter a reason')),
+                            );
+                            return;
+                          }
+                          setState(() => isSubmitting = true);
+                          try {
+                            await context.read<AppState>().reportUser(widget.artist.id, desc);
+                            if (ctx.mounted) {
+                              Navigator.of(ctx).pop();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Report submitted successfully')),
+                              );
+                            }
+                          } catch (e) {
+                            setState(() => isSubmitting = false);
+                            if (ctx.mounted) {
+                              ScaffoldMessenger.of(ctx).showSnackBar(
+                                SnackBar(content: Text('Error: $e')),
+                              );
+                            }
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                  child: isSubmitting
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('Submit'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    descController.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Artist Profile'),
+        actions: [
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'report') {
+                _showReportDialog();
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'report',
+                child: Row(
+                  children: [
+                    Icon(Icons.report_gmailerrorred, color: Colors.red, size: 20),
+                    SizedBox(width: 8),
+                    Text('Report Account', style: TextStyle(color: Colors.red)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         child: Column(
@@ -144,7 +244,7 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
                         Icon(Icons.work_outline, size: 16, color: AppColors.textSecondary),
                         const SizedBox(width: 4),
                         Text(
-                          widget.artist.experienceLevel == 'experienced' ? 'Experienced' : 'Fresher',
+                          widget.artist.experienceLevel == 'experienced' ? 'Experienced' : widget.artist.experienceLevel == 'intermediate' ? 'Intermediate' : 'Fresher',
                           style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
                         ),
                       ],
@@ -164,7 +264,7 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     itemCount: _videos.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 12),
+                    separatorBuilder: (context, index) => const SizedBox(width: 12),
                     itemBuilder: (context, i) => YoutubeShortPreview(
                       title: _videos[i].title,
                       youtubeUrl: _videos[i].url,
@@ -227,6 +327,8 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
                       _detailChip(Icons.accessibility_new_outlined, 'Body Type', _formatBodyType(widget.artist.bodyType!)),
                     if (widget.artist.ethnicity != null && widget.artist.ethnicity!.isNotEmpty)
                       _detailChip(Icons.public_outlined, 'Region', _formatEthnicity(widget.artist.ethnicity!)),
+                    if (widget.artist.languages.isNotEmpty)
+                      _detailChip(Icons.language_outlined, 'Languages', widget.artist.languages.join(', ')),
                   ],
                 ),
               ),
@@ -287,6 +389,8 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
                   icon: const Icon(Icons.chat),
                   label: const Text('Contact Artist'),
                   style: FilledButton.styleFrom(
+                    backgroundColor: Colors.black,
+                    foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
                 ),
@@ -523,6 +627,10 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
         return 'East Indian';
       case 'west_indian':
         return 'West Indian';
+      case 'central_indian':
+        return 'Central Indian';
+      case 'northeast_indian':
+        return 'Northeast Indian';
       case 'other':
         return 'Other';
       default:

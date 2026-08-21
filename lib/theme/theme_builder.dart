@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// All color tokens for one theme variant.
 class AppPalette {
@@ -98,6 +99,12 @@ ThemeData buildLightTheme(AppPalette c) {
       backgroundColor: c.surface,
       foregroundColor: c.textPrimary,
       surfaceTintColor: Colors.transparent,
+      systemOverlayStyle: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarIconBrightness: Brightness.dark,
+      ),
       titleTextStyle: TextStyle(
         color: c.textPrimary,
         fontSize: 18,

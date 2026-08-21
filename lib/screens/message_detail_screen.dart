@@ -192,9 +192,9 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
                   ),
                   const SizedBox(width: 8),
                   CircleAvatar(
-                    backgroundColor: context.colors.primary,
+                    backgroundColor: Colors.black,
                     child: IconButton(
-                      icon: const Icon(Icons.send, color: AppColors.onPrimary, size: 20),
+                      icon: const Icon(Icons.send, color: Colors.white, size: 20),
                       onPressed: _sendMessage,
                     ),
                   ),

@@ -9,6 +9,24 @@ import '../theme/app_theme.dart';
 import '../widgets/loading_dialog.dart';
 import '../widgets/optimized_network_image.dart';
 
+const List<String> _indianLanguages = [
+  'English',
+  'Hindi',
+  'Bengali',
+  'Telugu',
+  'Marathi',
+  'Tamil',
+  'Urdu',
+  'Gujarati',
+  'Kannada',
+  'Odia',
+  'Malayalam',
+  'Punjabi',
+  'Assamese',
+  'Maithili',
+  'Other',
+];
+
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
 
@@ -34,7 +52,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late TextEditingController _previousWorksVideoController;
   late TextEditingController _ageController;
   String? _selectedHeight;
-  late TextEditingController _pincodeController;
 
   String _selectedTalent = 'Other';
   String _experienceLevel = 'fresher';
@@ -42,6 +59,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   String? _bodyType;
   String? _ethnicity;
   List<SocialLink> _socialLinks = [];
+  List<String> _selectedLanguages = [];
   bool _isSaving = false;
 
   @override
@@ -77,7 +95,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _previousWorksVideoController = TextEditingController(text: profile?.previousWorksVideoLink ?? '');
     _ageController = TextEditingController(text: profile?.age?.toString() ?? '');
     _selectedHeight = profile?.height;
-    _pincodeController = TextEditingController(text: profile?.pincode ?? '');
 
     _gender = profile?.gender ?? '';
     _bodyType = profile?.bodyType;
@@ -85,6 +102,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     if (profile?.socialLinks != null) {
       _socialLinks = List.from(profile!.socialLinks);
+    }
+    if (profile?.languages != null) {
+      _selectedLanguages = List.from(profile!.languages);
     }
   }
 
@@ -102,8 +122,26 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _achievementsVideoController.dispose();
     _previousWorksVideoController.dispose();
     _ageController.dispose();
-    _pincodeController.dispose();
     super.dispose();
+  }
+
+  Future<void> _selectDateOfBirth() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now().subtract(const Duration(days: 365 * 18)),
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null) {
+      final now = DateTime.now();
+      int age = now.year - picked.year;
+      if (now.month < picked.month || (now.month == picked.month && now.day < picked.day)) {
+        age--;
+      }
+      setState(() {
+        _ageController.text = age.toString();
+      });
+    }
   }
 
   Future<void> _pickAndUploadPhoto() async {
@@ -265,6 +303,49 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
+  void _showLanguageSelector() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Select Languages'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: _indianLanguages.map((lang) {
+                    final isSelected = _selectedLanguages.contains(lang);
+                    return CheckboxListTile(
+                      title: Text(lang),
+                      value: isSelected,
+                      onChanged: (checked) {
+                        setDialogState(() {
+                          if (checked == true) {
+                            _selectedLanguages.add(lang);
+                          } else {
+                            _selectedLanguages.remove(lang);
+                          }
+                        });
+                        setState(() {}); // Update main screen UI
+                      },
+                    );
+                  }).toList(),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Done'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   void _save() {
     if (!_formKey.currentState!.validate()) return;
     
@@ -279,8 +360,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           state: _stateController.text.trim(),
           address: _addressController.text.trim(),
           contact: _contactController.text.trim(),
-          pincode: _pincodeController.text.trim(),
           talent: _selectedTalent,
+          languages: _selectedLanguages,
           experienceLevel: _experienceLevel,
           shortIntroVideoLink: _shortIntroVideoController.text.trim(),
           achievementsVideoLink: _achievementsVideoController.text.trim(),
@@ -471,6 +552,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ),
                 items: const [
                   DropdownMenuItem(value: 'fresher', child: Text('Fresher')),
+                  DropdownMenuItem(value: 'intermediate', child: Text('Intermediate')),
                   DropdownMenuItem(value: 'experienced', child: Text('Experienced')),
                 ],
                 onChanged: (v) {
@@ -499,6 +581,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       label: 'Age',
                       icon: Icons.cake_outlined,
                       keyboardType: TextInputType.number,
+                      readOnly: true,
+                      onTap: _selectDateOfBirth,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -580,9 +664,32 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   DropdownMenuItem(value: 'south_indian', child: Text('South Indian')),
                   DropdownMenuItem(value: 'east_indian', child: Text('East Indian')),
                   DropdownMenuItem(value: 'west_indian', child: Text('West Indian')),
+                  DropdownMenuItem(value: 'central_indian', child: Text('Central Indian')),
+                  DropdownMenuItem(value: 'northeast_indian', child: Text('Northeast Indian')),
                   DropdownMenuItem(value: 'other', child: Text('Other')),
                 ],
                 onChanged: (v) => setState(() => _ethnicity = v),
+              ),
+              const SizedBox(height: 16),
+              InkWell(
+                onTap: _showLanguageSelector,
+                borderRadius: BorderRadius.circular(12),
+                child: InputDecorator(
+                  decoration: InputDecoration(
+                    labelText: 'Languages',
+                    prefixIcon: const Icon(Icons.language_outlined),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    filled: true,
+                  ),
+                  child: Text(
+                    _selectedLanguages.isEmpty
+                        ? 'Select Languages'
+                        : _selectedLanguages.join(', '),
+                    style: TextStyle(
+                      color: _selectedLanguages.isEmpty ? Colors.grey[600] : null,
+                    ),
+                  ),
+                ),
               ),
 
               const SizedBox(height: 24),
@@ -617,14 +724,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 icon: Icons.location_on_outlined,
                 maxLines: 2,
               ),
-              const SizedBox(height: 16),
-              _buildTextField(
-                controller: _pincodeController,
-                label: 'Pincode',
-                icon: Icons.pin_drop_outlined,
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: 16),
               _buildTextField(
                 controller: _contactController,
                 label: 'Alternate Phone Number',
@@ -664,18 +763,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 );
               }),
 
-              const SizedBox(height: 32),
-
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: _isSaving ? null : _save,
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: _isSaving ? const Text('Saving...') : const Text('Save Changes'),
-                ),
-              ),
             ],
           ),
         ),
@@ -690,12 +777,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     TextInputType keyboardType = TextInputType.text,
     String? Function(String?)? validator,
     int maxLines = 1,
+    bool readOnly = false,
+    VoidCallback? onTap,
   }) {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
       maxLines: maxLines,
       validator: validator,
+      readOnly: readOnly,
+      onTap: onTap,
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon),

@@ -47,7 +47,7 @@ class AuthService {
       if (details.contains('Account reauth failed') || details.contains('[16]')) {
         lastError =
             'Google Sign-In failed: your app SHA-1 is not registered in Firebase. '
-            'Add SHA-1 for package com.talenthire.app in Firebase Console → Project settings → Your apps, '
+            'Add SHA-1 for package com.bombaycastingcompany.app in Firebase Console → Project settings → Your apps, '
             'enable Google sign-in under Authentication, then re-download google-services.json.';
         debugPrint('Google Sign-In error: $lastError');
         return null;
@@ -120,6 +120,83 @@ class AuthService {
     } catch (e) {
       debugPrint('Auto OTP verification error: $e');
       return null;
+    }
+  }
+
+  // ===== Email & Password =====
+  Future<fb.UserCredential?> signInWithEmailPassword({
+    required String email,
+    required String password,
+  }) async {
+    lastError = null;
+    try {
+      return await _auth.signInWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
+      );
+    } on fb.FirebaseAuthException catch (e) {
+      lastError = _emailAuthMessage(e);
+      debugPrint('Email sign-in error: ${e.code} — ${e.message}');
+      return null;
+    } catch (e) {
+      lastError = e.toString();
+      debugPrint('Email sign-in error: $e');
+      return null;
+    }
+  }
+
+  Future<fb.UserCredential?> registerWithEmailPassword({
+    required String email,
+    required String password,
+    String name = '',
+  }) async {
+    lastError = null;
+    try {
+      final credential = await _auth.createUserWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
+      );
+
+      // Firebase Auth doesn't set displayName for email/password signup.
+      // Set it explicitly so it's available immediately (matching Google flow).
+      final displayName = name.trim().isNotEmpty
+          ? name.trim()
+          : email.split('@').first;
+      await credential.user?.updateDisplayName(displayName);
+      await credential.user?.reload();
+
+      return credential;
+    } on fb.FirebaseAuthException catch (e) {
+      lastError = _emailAuthMessage(e);
+      debugPrint('Email registration error: ${e.code} — ${e.message}');
+      return null;
+    } catch (e) {
+      lastError = e.toString();
+      debugPrint('Email registration error: $e');
+      return null;
+    }
+  }
+
+  String _emailAuthMessage(fb.FirebaseAuthException e) {
+    switch (e.code) {
+      case 'invalid-email':
+        return 'Please enter a valid email address.';
+      case 'user-disabled':
+        return 'This account has been disabled.';
+      case 'user-not-found':
+        return 'No account found with this email.';
+      case 'wrong-password':
+        return 'Incorrect password. Please try again.';
+      case 'invalid-credential':
+        return 'Invalid email or password.';
+      case 'email-already-in-use':
+        return 'An account already exists with this email.';
+      case 'weak-password':
+        return 'Password must be at least 6 characters.';
+      case 'too-many-requests':
+        return 'Too many attempts. Please try again later.';
+      default:
+        return e.message ?? 'Authentication failed. Please try again.';
     }
   }
 

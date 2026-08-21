@@ -16,7 +16,7 @@ const BASE_URL =
     : 'https://api.cashfree.com/pg';
 
 const PLATFORM_USER_ID = 'platform';
-const SUBSCRIPTION_DAYS = 30;
+const SUBSCRIPTION_DAYS = 365;
 
 /**
  * Sanitize a value to be a safe Cashfree customer_id:
@@ -34,6 +34,7 @@ export const createCashfreeOrder = functions.https.onCall(async (data, _context)
   const userId: string = data.userId;
   const amount: number = data.amount;
   const purpose: string = data.purpose;
+  const returnUrl: string | undefined = data.returnUrl;
 
   if (!userId || !amount || !purpose) {
     throw new functions.https.HttpsError(
@@ -66,7 +67,12 @@ export const createCashfreeOrder = functions.https.onCall(async (data, _context)
     // Pending transaction visible to the payer
     await db.collection('transactions').doc(orderId).set({
       id: orderId,
-      type: purpose === 'premium_upgrade' || purpose === 'agency_premium' ? 'subscription' : 'payment',
+      type:
+        purpose === 'premium_upgrade' || purpose === 'agency_premium'
+          ? 'subscription'
+          : purpose === 'wallet_topup'
+            ? 'wallet_topup'
+            : 'payment',
       userId,
       fromUserId: userId,
       toUserId: PLATFORM_USER_ID,
@@ -81,18 +87,26 @@ export const createCashfreeOrder = functions.https.onCall(async (data, _context)
       created_at: now,
     });
 
-    // 2. Call Cashfree API to create an order
+    // 2. Fetch real user data for Cashfree customer details
+    const userDoc = await db.collection('users').doc(userId).get();
+    const userData = userDoc.exists ? userDoc.data()! : {} as Record<string, any>;
+    const customerPhone = ((userData.mobile || '') as string).replace(/[^0-9]/g, '').slice(-10) || '9999999999';
+    const customerEmail = (userData.email as string) || `${customerId}@example.com`;
+    const customerName = (userData.name as string) || customerId;
+
+    // 3. Call Cashfree API to create an order
     const requestBody = {
       order_id: orderId,
       order_amount: amount,
       order_currency: 'INR',
       customer_details: {
         customer_id: customerId,
-        customer_phone: '9999999999', // Replace with real user phone if available
-        customer_email: `${customerId}@example.com`,
-        customer_name: customerId,
+        customer_phone: customerPhone,
+        customer_email: customerEmail,
+        customer_name: customerName,
       },
       order_meta: {
+        return_url: returnUrl || `https://talenthire-d86a1.web.app/payment/return?order_id={order_id}`,
         notify_url:
           'https://us-central1-talenthire-d86a1.cloudfunctions.net/cashfreeWebhook',
       },
@@ -245,6 +259,7 @@ export const cashfreeWebhook = functions.https.onRequest(async (req, res) => {
 
       if (isSuccess) {
         txnUpdate.paidAt = admin.firestore.Timestamp.fromDate(paidAtDate);
+        txnUpdate.paid_at = paidAtDate.toISOString();
 
         let subscriptionId: string | null = null;
         let expiresAt: Date | null = null;
@@ -282,8 +297,22 @@ export const cashfreeWebhook = functions.https.onRequest(async (req, res) => {
               subscription_expires_at: expiresAt.toISOString(),
             });
           }
+        } else if (purpose === 'wallet_topup') {
+          await db.collection('users').doc(userId).set(
+            {
+              wallet_balance: admin.firestore.FieldValue.increment(amount),
+              wallet_updated_at: now,
+            },
+            { merge: true }
+          );
         }
 
+        txnUpdate.type =
+          purpose === 'premium_upgrade' || purpose === 'agency_premium'
+            ? 'subscription'
+            : purpose === 'wallet_topup'
+              ? 'wallet_topup'
+              : 'payment';
         txnUpdate.subscriptionId = subscriptionId;
         if (expiresAt) {
           txnUpdate.expiresAt = admin.firestore.Timestamp.fromDate(expiresAt);
@@ -293,10 +322,6 @@ export const cashfreeWebhook = functions.https.onRequest(async (req, res) => {
         await txnRef.set(
           {
             id: orderId,
-            type:
-              purpose === 'premium_upgrade' || purpose === 'agency_premium'
-                ? 'subscription'
-                : 'payment',
             userId,
             fromUserId: userId,
             toUserId: PLATFORM_USER_ID,
@@ -324,6 +349,84 @@ export const cashfreeWebhook = functions.https.onRequest(async (req, res) => {
   } catch (error) {
     console.error('Webhook error:', error);
     res.status(500).send('Internal Server Error');
+  }
+});
+
+export const verifyCashfreePayment = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Login required");
+  const { orderId, userId } = data;
+  if (context.auth.uid !== userId) throw new functions.https.HttpsError("permission-denied", "Not allowed");
+
+  try {
+    // Call Cashfree GET /orders/{order_id} API
+    const response = await axios.get(`${BASE_URL}/orders/${orderId}`, {
+      headers: {
+        'x-client-id': CLIENT_ID,
+        'x-client-secret': CLIENT_SECRET,
+        'x-api-version': '2023-08-01',
+      },
+    });
+
+    if (response.data.order_status === "PAID") {
+      const now = new Date().toISOString();
+      const paymentDoc = await db.collection('payments').doc(orderId).get();
+      const paymentData = paymentDoc.exists ? paymentDoc.data()! : null;
+      const purpose = paymentData?.purpose as string | undefined;
+      const amount = Number(paymentData?.amount ?? 0);
+      const alreadyCompleted = paymentData?.status === 'completed';
+
+      await db.collection('transactions').doc(orderId).update({
+        status: "completed",
+        cashfreePaymentId: response.data.payment_session_id || orderId,
+        paid_at: now,
+      }).catch(() => {});
+
+      if (!alreadyCompleted) {
+        await db.collection('payments').doc(orderId).update({
+          status: "completed",
+          updated_at: now,
+        }).catch(() => {});
+
+        if (purpose === 'wallet_topup' && amount > 0) {
+          await db.collection('users').doc(userId).set(
+            {
+              wallet_balance: admin.firestore.FieldValue.increment(amount),
+              wallet_updated_at: now,
+            },
+            { merge: true }
+          );
+          await db.collection('transactions').doc(orderId).set(
+            {
+              type: 'wallet_topup',
+              status: 'completed',
+              paid_at: now,
+              paidAt: admin.firestore.Timestamp.fromDate(new Date(now)),
+            },
+            { merge: true }
+          );
+        } else if (purpose === 'premium_upgrade') {
+          const expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+          await db.collection('profiles').doc(userId).update({
+            subscription_status: 'premium',
+            is_verified: true,
+            subscription_expires_at: expiresAt,
+          });
+        } else if (purpose === 'agency_premium' || !purpose) {
+          const expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+          await db.collection('users').doc(userId).update({
+            subscription_status: 'premium',
+            subscription_expires_at: expiresAt,
+          });
+        }
+      }
+
+      return { success: true, status: "PAID", purpose: purpose ?? null };
+    }
+
+    return { success: true, status: response.data.order_status };
+  } catch (error: any) {
+    console.error('Error verifying Cashfree payment:', error?.response?.data || error?.message);
+    throw new functions.https.HttpsError("internal", "Failed to verify Cashfree payment");
   }
 });
 

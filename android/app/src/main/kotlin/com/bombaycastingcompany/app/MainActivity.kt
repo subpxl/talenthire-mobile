@@ -1,4 +1,4 @@
-package com.talenthire.app
+package com.bombaycastingcompany.app
 
 import io.flutter.embedding.android.FlutterActivity
 

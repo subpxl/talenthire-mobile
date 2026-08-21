@@ -130,7 +130,7 @@ class _ArtistsScreenState extends State<ArtistsScreen> {
                           const SizedBox(height: 8),
                           Wrap(
                             spacing: 8,
-                            children: ['Any', 'Fresher', 'Experienced'].map((e) {
+                            children: ['Any', 'Fresher', 'Intermediate', 'Experienced'].map((e) {
                               return ChoiceChip(
                                 label: Text(e),
                                 selected: _experienceFilter == e,
@@ -309,10 +309,14 @@ class _ArtistsScreenState extends State<ArtistsScreen> {
                               const SizedBox(height: 12),
                               SizedBox(
                                 width: double.infinity,
-                                child: OutlinedButton.icon(
+                                child: FilledButton.icon(
                                   onPressed: () => _contactArtist(context, artist),
                                   icon: const Icon(Icons.chat, size: 18),
                                   label: const Text('Contact Artist'),
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: Colors.black,
+                                    foregroundColor: Colors.white,
+                                  ),
                                 ),
                               ),
                             ],

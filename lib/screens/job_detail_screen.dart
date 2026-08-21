@@ -510,6 +510,8 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                     ? 'Applied · ${application?.statusDisplay ?? 'Pending'}'
                     : (job.isAudition ? 'Submit Audition Short' : 'Apply Now'),
                 isLoading: _isApplying,
+                backgroundColor: Colors.black,
+                foregroundColor: Colors.white,
                 onPressed: hasApplied ? null : () => _startApply(state),
               ),
             ),

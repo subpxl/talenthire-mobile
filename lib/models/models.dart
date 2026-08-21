@@ -90,8 +90,11 @@ class User {
   String name;
   String email;
   UserRole role;
+  int? birthDay;
   int? birthMonth;
   int? birthYear;
+  bool isActive;
+  DateTime? scheduledDeletionDate;
   final DateTime createdAt;
   DateTime updatedAt;
 
@@ -101,8 +104,11 @@ class User {
     this.name = '',
     this.email = '',
     this.role = UserRole.influencer,
+    this.birthDay,
     this.birthMonth,
     this.birthYear,
+    this.isActive = true,
+    this.scheduledDeletionDate,
     DateTime? createdAt,
     DateTime? updatedAt,
   })  : createdAt = createdAt ?? DateTime.now(),
@@ -119,6 +125,7 @@ class User {
       name: n,
       email: json['email'] ?? '',
       role: userRoleFromString(json['role'] ?? 'influencer'),
+      birthDay: (json['birth_day'] ?? json['birthDay']) as int?,
       birthMonth: (json['birth_month'] ?? json['birthMonth']) as int?,
       birthYear: (json['birth_year'] ?? json['birthYear']) as int?,
       createdAt: json['created_at'] != null
@@ -127,6 +134,10 @@ class User {
       updatedAt: json['updated_at'] != null
           ? DateTime.tryParse(json['updated_at'].toString()) ?? DateTime.now()
           : DateTime.now(),
+      isActive: json['is_active'] ?? true,
+      scheduledDeletionDate: json['scheduled_deletion_date'] != null
+          ? DateTime.tryParse(json['scheduled_deletion_date'].toString())
+          : null,
     );
   }
 
@@ -136,8 +147,11 @@ class User {
         'name': name,
         'email': email,
         'role': userRoleToString(role),
+        if (birthDay != null) 'birth_day': birthDay,
         if (birthMonth != null) 'birth_month': birthMonth,
         if (birthYear != null) 'birth_year': birthYear,
+        'is_active': isActive,
+        if (scheduledDeletionDate != null) 'scheduled_deletion_date': scheduledDeletionDate!.toIso8601String(),
         'created_at': createdAt.toIso8601String(),
         'updated_at': updatedAt.toIso8601String(),
       };
@@ -172,8 +186,9 @@ class Profile {
   String gender; // male, female, other
   String? height;
   String? bodyType; // slim, athletic, average, heavy
-  String? ethnicity; // north_indian, south_indian, east_indian, west_indian, other
-  String experienceLevel; // fresher, experienced
+  String? ethnicity; // north_indian, south_indian, east_indian, west_indian, central_indian, northeast_indian, other
+  String experienceLevel; // fresher, intermediate, experienced
+  List<String> languages;
   bool profileCompleted;
 
   // Free tier tracking
@@ -204,9 +219,11 @@ class Profile {
     this.bodyType,
     this.ethnicity,
     this.experienceLevel = 'fresher',
+    List<String>? languages,
     this.profileCompleted = false,
     this.freeJobApplicationsUsed = 0,
   })  : photos = photos ?? [],
+        languages = languages ?? [],
         socialLinks = socialLinks ?? [];
 
   bool get isPremium => subscriptionStatus == SubscriptionStatus.premium;
@@ -241,6 +258,7 @@ class Profile {
       bodyType: json['body_type'],
       ethnicity: json['ethnicity'],
       experienceLevel: json['experience_level'] ?? 'fresher',
+      languages: json['languages'] != null ? List<String>.from(json['languages']) : [],
       profileCompleted: json['profile_completed'] ?? false,
       freeJobApplicationsUsed: json['free_job_applications_used'] ?? 0,
     );
@@ -271,6 +289,7 @@ class Profile {
         'body_type': bodyType,
         'ethnicity': ethnicity,
         'experience_level': experienceLevel,
+        'languages': languages,
         'profile_completed': profileCompleted,
         'free_job_applications_used': freeJobApplicationsUsed,
       };
@@ -298,6 +317,7 @@ class Artist {
   final String? bodyType;
   final String? ethnicity;
   final String experienceLevel;
+  final List<String> languages;
 
   Artist({
     required this.id,
@@ -319,7 +339,9 @@ class Artist {
     this.bodyType,
     this.ethnicity,
     this.experienceLevel = '',
-  }) : photos = photos ?? [];
+    List<String>? languages,
+  }) : photos = photos ?? [],
+       languages = languages ?? [];
 
   factory Artist.fromJson(Map<String, dynamic> json) {
     return Artist(
@@ -344,6 +366,7 @@ class Artist {
       bodyType: json['body_type'],
       ethnicity: json['ethnicity'],
       experienceLevel: json['experience_level'] ?? '',
+      languages: json['languages'] != null ? List<String>.from(json['languages']) : [],
     );
   }
 
@@ -367,6 +390,7 @@ class Artist {
         'body_type': bodyType,
         'ethnicity': ethnicity,
         'experience_level': experienceLevel,
+        'languages': languages,
       };
 }
 

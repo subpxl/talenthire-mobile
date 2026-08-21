@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter/services.dart';
 import 'firebase_options.dart';
 import 'providers/app_state.dart';
 import 'services/auth_service.dart';
@@ -53,6 +54,11 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    systemNavigationBarColor: Colors.transparent,
+    systemNavigationBarIconBrightness: Brightness.dark,
+  ));
+
   // Keep more decoded images in memory to avoid re-fetching on scroll.
   PaintingBinding.instance.imageCache.maximumSize = 250;
   PaintingBinding.instance.imageCache.maximumSizeBytes = 100 << 20; // 100 MB
@@ -96,7 +102,7 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       navigatorKey: navigatorKey,
-      title: 'FSAP',
+      title: 'Bombay Casting Company',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       home: Consumer<AppState>(
