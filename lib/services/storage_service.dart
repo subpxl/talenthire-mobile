@@ -1,32 +1,40 @@
 import 'dart:io';
+
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:flutter/foundation.dart';
-import 'package:path/path.dart' as path;
 
 class StorageService {
+  StorageService();
+
   final FirebaseStorage _storage = FirebaseStorage.instance;
 
-  Future<String?> uploadImage(File image, String userId) async {
-    try {
-      final fileName = '${DateTime.now().millisecondsSinceEpoch}_${path.basename(image.path)}';
-      final ref = _storage.ref().child('users/$userId/photos/$fileName');
-      
-      final uploadTask = await ref.putFile(image);
-      final downloadUrl = await uploadTask.ref.getDownloadURL();
-      
-      return downloadUrl;
-    } catch (e) {
-      debugPrint('Error uploading image: $e');
-      return null;
-    }
+  Future<String> uploadProfilePhoto({
+    required String userId,
+    required File file,
+  }) async {
+    return uploadDocument(
+      userId: userId,
+      file: file,
+      folder: 'profile',
+    );
   }
 
-  Future<void> deleteImage(String imageUrl) async {
-    try {
-      final ref = _storage.refFromURL(imageUrl);
-      await ref.delete();
-    } catch (e) {
-      debugPrint('Error deleting image: $e');
-    }
+  Future<String> uploadDocument({
+    required String userId,
+    required File file,
+    required String folder,
+  }) async {
+    final ref = _storage
+        .ref()
+        .child('users')
+        .child(userId)
+        .child(folder)
+        .child('${DateTime.now().millisecondsSinceEpoch}.jpg');
+    await ref.putFile(file, SettableMetadata(contentType: 'image/jpeg'));
+    return ref.getDownloadURL();
+  }
+
+  Future<void> deleteProfilePhoto(String url) async {
+    if (url.isEmpty || !url.contains('firebasestorage')) return;
+    await _storage.refFromURL(url).delete();
   }
 }

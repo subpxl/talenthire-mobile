@@ -1,48 +1,29 @@
 import 'package:flutter/material.dart';
-import '../theme/app_theme.dart';
+import 'package:bombay_casting/theme/app_theme.dart';
 
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      child: Scaffold(
-        body: Container(
-        width: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: AppGradients.splash,
-        ),
+    return const Scaffold(
+      backgroundColor: AppColors.surface,
+      body: Center(
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
+            Icon(Icons.auto_awesome, color: AppColors.primary, size: 48),
+            SizedBox(height: AppSpacing.md),
+            Text(
               'Bombay Casting Company',
-              textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 36,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-                letterSpacing: 1.5,
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
               ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Discover Talent. Get Discovered.',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.white70,
-                letterSpacing: 1,
-              ),
-            ),
-            const SizedBox(height: 48),
-            const CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
             ),
           ],
         ),
-      ),
       ),
     );
   }

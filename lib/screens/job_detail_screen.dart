@@ -1,754 +1,344 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import '../models/models.dart';
-import '../providers/app_state.dart';
-import '../theme/app_theme.dart';
-import '../widgets/app_avatar.dart';
-import '../widgets/app_button.dart';
-import '../widgets/app_card.dart';
-import '../widgets/app_tag.dart';
-import '../widgets/payment_dialog.dart';
-import '../widgets/youtube_shorts_player.dart';
-import '../widgets/app_bottom_nav_bar.dart';
-import 'agency_detail_screen.dart';
-import 'main_screen.dart';
+import 'package:bombay_casting/data/job_assets.dart';
+import 'package:bombay_casting/models/models.dart';
+import 'package:bombay_casting/navigation/app_navigation.dart';
+import 'package:bombay_casting/providers/app_state.dart';
+import 'package:bombay_casting/theme/app_theme.dart';
+import 'package:bombay_casting/widgets/app_screen_layout.dart';
+import 'package:bombay_casting/widgets/placeholder_avatar.dart';
 
-class JobDetailScreen extends StatefulWidget {
-  final Job job;
-
-  const JobDetailScreen({super.key, required this.job});
-
-  @override
-  State<JobDetailScreen> createState() => _JobDetailScreenState();
-}
-
-class _JobDetailScreenState extends State<JobDetailScreen> {
-  bool _isApplying = false;
-
-  void _openAgency() {
-    final job = widget.job;
-    if (job.createdBy.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Agency profile unavailable for this job')),
-      );
-      return;
-    }
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => AgencyDetailScreen(
-          agencyId: job.createdBy,
-          fallbackName: job.company,
-        ),
-      ),
-    );
-  }
-
-  Future<void> _startApply(AppState state) async {
-    if (!state.canApplyToJob()) {
-      final blockedReason = state.getApplyBlockedReason();
-      if (blockedReason != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(blockedReason),
-            action: SnackBarAction(
-              label: 'Upgrade',
-              onPressed: () {
-                PaymentDialog.show(
-                  context,
-                  title: 'Upgrade to Premium',
-                  description: 'Apply to unlimited jobs and get verified.',
-                  amount: AppPricing.premiumUpgrade,
-                  icon: Icons.star,
-                  accentColor: AppColors.tertiary,
-                  onPay: () async {
-                    final success = await state.upgradeToPremium();
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            success ? 'Upgraded to Premium!' : 'Payment failed',
-                          ),
-                        ),
-                      );
-                    }
-                  },
-                );
-              },
-            ),
-          ),
-        );
-      }
-      return;
-    }
-
-    final result = await showModalBottomSheet<_ApplyResult>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => _ApplySheet(job: widget.job),
-    );
-
-    if (result == null || !mounted) return;
-    await _submitApplication(
-      state,
-      result.script,
-      videoUrl: result.videoUrl,
-    );
-  }
-
-  Future<void> _submitApplication(
-    AppState state,
-    String script, {
-    String videoUrl = '',
-  }) async {
-    setState(() => _isApplying = true);
-    final success = await state.applyToJob(
-      widget.job,
-      script: script,
-      videoUrl: videoUrl,
-    );
-    if (!mounted) return;
-    setState(() => _isApplying = false);
-
-    if (success) {
-      await showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          icon: Icon(Icons.check_circle, color: AppColors.success, size: 40),
-          title: const Text('Application sent'),
-          content: Text(
-            widget.job.isAudition
-                ? 'Your audition Short was submitted. The agency can review it and update your status.'
-                : 'Your application was submitted. You can track status under My Applications.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not submit application. Please try again.'),
-        ),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final state = context.watch<AppState>();
-    final job = widget.job;
-    final hasApplied = state.hasApplied(job.id);
-    final application = state.getApplicationForJob(job.id);
-    final isSaved = state.isJobSaved(job.id);
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Job Details'),
-        actions: [
-          IconButton(
-            icon: Icon(
-              isSaved ? Icons.bookmark : Icons.bookmark_border,
-              color: isSaved ? context.colors.primary : null,
-            ),
-            onPressed: () {
-              state.toggleSavedJob(job);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    isSaved ? 'Removed from saved jobs' : 'Job saved!',
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                GestureDetector(
-                  onTap: _openAgency,
-                  child: AppAvatar(
-                    radius: 32,
-                    initials: job.initials.isNotEmpty ? job.initials : 'AG',
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        job.title,
-                        style: context.text.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      InkWell(
-                        onTap: _openAgency,
-                        child: Row(
-                          children: [
-                            Flexible(
-                              child: Text(
-                                job.company.isNotEmpty
-                                    ? job.company
-                                    : 'View Agency',
-                                style: context.text.titleMedium?.copyWith(
-                                  color: context.colors.primary,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            Icon(
-                              Icons.arrow_forward_ios,
-                              size: 12,
-                              color: context.colors.primary,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        job.timeAgo,
-                        style: const TextStyle(
-                          color: AppColors.textMuted,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                _InfoTile(
-                  icon: Icons.attach_money,
-                  value: job.salary.isNotEmpty ? job.salary : 'Not listed',
-                  label: 'Salary',
-                ),
-                _InfoTile(
-                  icon: Icons.location_on_outlined,
-                  value: job.location.isNotEmpty ? job.location : 'Remote',
-                  label: 'Location',
-                ),
-                _InfoTile(
-                  icon: Icons.public,
-                  value: locationTypeToString(job.locationType).toUpperCase(),
-                  label: 'Type',
-                ),
-              ],
-            ),
-            if (job.isAudition) ...[
-              const SizedBox(height: 16),
-              AppCard(
-                color: context.colors.secondaryContainer.withAlpha(140),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.videocam, color: context.colors.primary),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Video audition required',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Record a YouTube Short reading the script below, then paste the Short link when you apply.',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 13,
-                        height: 1.4,
-                      ),
-                    ),
-                    if (job.auditionScript.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withAlpha(160),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                const Text(
-                                  'Script to read',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                                const Spacer(),
-                                TextButton.icon(
-                                  onPressed: () {
-                                    Clipboard.setData(
-                                      ClipboardData(text: job.auditionScript),
-                                    );
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Script copied'),
-                                      ),
-                                    );
-                                  },
-                                  icon: const Icon(Icons.copy, size: 14),
-                                  label: const Text('Copy'),
-                                  style: TextButton.styleFrom(
-                                    visualDensity: VisualDensity.compact,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Text(
-                              job.auditionScript,
-                              style: const TextStyle(height: 1.45, fontSize: 13),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-            const SizedBox(height: 24),
-            Text(
-              'Job Description',
-              style: context.text.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(job.description, style: const TextStyle(height: 1.5)),
-            if (job.requirements.isNotEmpty) ...[
-              const SizedBox(height: 24),
-              Text(
-                'Requirements',
-                style: context.text.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Text(job.requirements, style: const TextStyle(height: 1.5)),
-            ],
-            if (job.ageMin != null ||
-                job.ageMax != null ||
-                job.genderRequired.isNotEmpty) ...[
-              const SizedBox(height: 24),
-              Text(
-                'Role criteria',
-                style: context.text.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                children: [
-                  if (job.ageMin != null || job.ageMax != null)
-                    AppTag(
-                      label: job.ageMin != null && job.ageMax != null
-                          ? 'Age ${job.ageMin}-${job.ageMax}'
-                          : job.ageMin != null
-                              ? 'Age ${job.ageMin}+'
-                              : 'Up to age ${job.ageMax}',
-                    ),
-                  if (job.genderRequired.isNotEmpty)
-                    AppTag(label: job.genderRequired),
-                ],
-              ),
-            ],
-            if (job.interviewVideoLink.isNotEmpty) ...[
-              const SizedBox(height: 24),
-              Text(
-                'Interview reference',
-                style: context.text.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              InkWell(
-                onTap: () => launchExternalUrl(job.interviewVideoLink, context: context),
-                child: Row(
-                  children: [
-                    Icon(Icons.play_circle_outline, color: context.colors.primary),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Watch briefing / sample Short',
-                        style: TextStyle(color: context.colors.primary),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-            if (job.tags.isNotEmpty) ...[
-              const SizedBox(height: 24),
-              Text(
-                'Tags',
-                style: context.text.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                children: job.tags.map((tag) => AppTag(label: tag)).toList(),
-              ),
-            ],
-            if (hasApplied && application != null) ...[
-              const SizedBox(height: 24),
-              AppCard(
-                color: context.colors.primaryContainer.withAlpha(90),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.check_circle, color: context.colors.primary),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Status: ${application.statusDisplay}',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Applied on ${application.appliedDate}',
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 13,
-                      ),
-                    ),
-                    if (application.videoUrl.isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      InkWell(
-                        onTap: () => launchExternalUrl(
-                          application.videoUrl,
-                          context: context,
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.play_circle_outline,
-                                color: context.colors.primary, size: 20),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                'Your audition Short',
-                                style: TextStyle(
-                                  color: context.colors.primary,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                    if (application.script.isNotEmpty &&
-                        extractYoutubeId(application.script) == null) ...[
-                      const SizedBox(height: 10),
-                      Text(
-                        application.script,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                    if (application.recruiterNote.isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withAlpha(140),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          'Agency note: ${application.recruiterNote}',
-                          style: const TextStyle(fontSize: 13),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-            const SizedBox(height: 80),
-          ],
-        ),
-      ),
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SafeArea(
-            bottom: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              child: AppButton(
-                label: hasApplied
-                    ? 'Applied · ${application?.statusDisplay ?? 'Pending'}'
-                    : (job.isAudition ? 'Submit Audition Short' : 'Apply Now'),
-                isLoading: _isApplying,
-                backgroundColor: Colors.black,
-                foregroundColor: Colors.white,
-                onPressed: hasApplied ? null : () => _startApply(state),
-              ),
-            ),
-          ),
-          AppBottomNavBar(
-            selectedIndex: MainScreen.mainKey.currentState?.selectedIndex ?? 0,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InfoTile extends StatelessWidget {
-  final IconData icon;
-  final String value;
-  final String label;
-
-  const _InfoTile({
-    required this.icon,
-    required this.value,
-    required this.label,
+class JobDetailScreen extends StatelessWidget {
+  const JobDetailScreen({
+    super.key,
+    required this.profile,
   });
 
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 4),
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        decoration: BoxDecoration(
-          color: AppColors.border.withAlpha(80),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: AppColors.textSecondary, size: 20),
-            const SizedBox(height: 6),
-            Text(
-              value,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ApplyResult {
-  final String script;
-  final String videoUrl;
-  const _ApplyResult({required this.script, required this.videoUrl});
-}
-
-class _ApplySheet extends StatefulWidget {
-  final Job job;
-  const _ApplySheet({required this.job});
-
-  @override
-  State<_ApplySheet> createState() => _ApplySheetState();
-}
-
-class _ApplySheetState extends State<_ApplySheet> {
-  final _scriptController = TextEditingController();
-  final _videoController = TextEditingController();
-  String? _videoError;
-
-  @override
-  void dispose() {
-    _scriptController.dispose();
-    _videoController.dispose();
-    super.dispose();
-  }
-
-  void _submit() {
-    final isAudition = widget.job.isAudition;
-    final videoUrl = _videoController.text.trim();
-
-    if (isAudition) {
-      if (videoUrl.isEmpty) {
-        setState(() => _videoError = 'Paste your YouTube Short link');
-        return;
-      }
-      if (extractYoutubeId(videoUrl) == null) {
-        setState(
-          () => _videoError = 'Enter a valid YouTube / Shorts link',
-        );
-        return;
-      }
-    }
-
-    Navigator.pop(
-      context,
-      _ApplyResult(
-        script: _scriptController.text.trim(),
-        videoUrl: videoUrl,
-      ),
-    );
-  }
+  final JobDetailData profile;
 
   @override
   Widget build(BuildContext context) {
-    final job = widget.job;
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
-
-    return Padding(
-      padding: EdgeInsets.fromLTRB(20, 12, 20, 16 + bottom),
-      child: SingleChildScrollView(
+    final appState = context.watch<AppState>();
+    final hasApplied =
+        profile.jobId.isNotEmpty && appState.hasApplied(profile.jobId);
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        leading: IconButton(
+          tooltip: 'Back',
+          icon: const Icon(Icons.arrow_back_ios, size: 20),
+          onPressed: () => Navigator.maybePop(context),
+        ),
+        title: const Text(
+          'Job',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+        ),
+        centerTitle: true,
+        actions: [
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              if (value == 'report') {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Job reported')),
+                );
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'report',
+                child: Text('Report job'),
+              ),
+            ],
+          ),
+        ],
+      ),
+      body: AppScrollBody(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
           children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.border,
-                  borderRadius: BorderRadius.circular(4),
-                ),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              child: PlaceholderProfileImage(
+                aspectRatio: 0.85,
+                imageIndex: profile.imageIndex,
+                imageUrl: profile.imageUrl,
               ),
             ),
-            const SizedBox(height: 16),
-            Text(
-              job.isAudition ? 'Submit audition' : 'Apply to job',
-              style: context.text.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            Text(
-              job.title,
-              style: const TextStyle(color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 16),
-            if (job.isAudition) ...[
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: context.colors.primaryContainer.withAlpha(80),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'How to submit',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      '1. Record a YouTube Short reading the script\n'
-                      '2. Upload it publicly (or unlisted) on YouTube\n'
-                      '3. Paste the Short link below',
-                      style: TextStyle(fontSize: 13, height: 1.4),
-                    ),
-                    if (job.auditionScript.isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      const Text(
-                        'Script',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 12,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(job.auditionScript, style: const TextStyle(height: 1.4)),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _videoController,
-                onChanged: (_) => setState(() => _videoError = null),
-                decoration: InputDecoration(
-                  labelText: 'YouTube Short link *',
-                  hintText: 'https://youtube.com/shorts/...',
-                  errorText: _videoError,
-                  prefixIcon: const Icon(Icons.link),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-              if (_videoController.text.trim().isNotEmpty &&
-                  extractYoutubeId(_videoController.text.trim()) != null) ...[
-                const SizedBox(height: 8),
+            const SizedBox(height: AppSpacing.md),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: _buildHeader(context)),
                 Row(
                   children: [
-                    Icon(Icons.check_circle, size: 16, color: AppColors.success),
-                    const SizedBox(width: 6),
-                    const Text(
-                      'Valid YouTube link detected',
-                      style: TextStyle(color: AppColors.success, fontSize: 12),
+                    if (profile.jobId.isNotEmpty)
+                      IconButton(
+                        tooltip: appState.isJobSaved(profile.jobId)
+                            ? 'Remove saved job'
+                            : 'Save job',
+                        onPressed: () {
+                          final job = appState.jobById(profile.jobId);
+                          if (job != null) appState.toggleSavedJob(job);
+                        },
+                        icon: Icon(
+                          appState.isJobSaved(profile.jobId)
+                              ? Icons.bookmark
+                              : Icons.bookmark_border,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    IconButton(
+                      tooltip: 'Call',
+                      icon: const Icon(Icons.phone_outlined),
+                      color: AppColors.textSecondary,
+                      onPressed: () => AppNavigation.openPremiumScreen(context),
+                    ),
+                    IconButton(
+                      tooltip: 'Message',
+                      icon: const Icon(Icons.chat_bubble_outline),
+                      color: AppColors.chatGreen,
+                      onPressed: () => AppNavigation.openPremiumScreen(context),
                     ),
                   ],
                 ),
               ],
-              const SizedBox(height: 14),
-              const Text('Cover letter (optional)'),
-            ] else
-              const Text('Cover letter / note (optional)'),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _scriptController,
-              maxLines: 4,
-              decoration: InputDecoration(
-                hintText: 'Why are you a good fit?',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
             ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: _submit,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Text(
-                    job.isAudition ? 'Submit audition' : 'Submit application',
-                  ),
-                ),
-              ),
-            ),
+            const SizedBox(height: AppSpacing.lg),
+            _InfoSection(title: 'Role', items: profile.roleInfo),
+            const SizedBox(height: AppSpacing.md),
+            _InfoSection(title: 'Pay & type', items: profile.payInfo),
+            const SizedBox(height: AppSpacing.lg),
           ],
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(
+          AppSpacing.screenH,
+          8,
+          AppSpacing.screenH,
+          16,
+        ),
+        child: SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: ElevatedButton(
+            onPressed: hasApplied ? null : () => _apply(context),
+            child: Text(hasApplied ? 'Applied' : 'Apply now'),
+          ),
         ),
       ),
     );
   }
+
+  Future<void> _apply(BuildContext context) async {
+    if (!AppNavigation.requireSubscription(context)) return;
+    final appState = context.read<AppState>();
+    final job = appState.jobById(profile.jobId);
+    if (job == null) return;
+    await appState.applyToJob(job);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Application sent')),
+      );
+    }
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Flexible(
+              child: Text(
+                profile.name,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ),
+            if (profile.isVerified) ...[
+              const SizedBox(width: 6),
+              const Icon(Icons.verified, color: AppColors.chatGreen, size: 18),
+            ],
+          ],
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Text(profile.details, style: context.bodyMedium),
+        Text(profile.location, style: context.bodyMedium),
+        if (profile.postedLabel != null)
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.xs),
+            child: Text(profile.postedLabel!, style: context.caption),
+          ),
+      ],
+    );
+  }
+}
+
+class _InfoSection extends StatelessWidget {
+  const _InfoSection({required this.title, required this.items});
+
+  final String title;
+  final List<MapEntry<String, String>> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AppSectionTitle(title),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.sm + 4,
+          ),
+          decoration: BoxDecoration(
+            color: AppColors.primaryLight,
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            border: Border.all(color: AppColors.primary),
+          ),
+          child: Column(
+            children: items.map((item) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: Text(item.key, style: context.caption),
+                    ),
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        item.value,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class JobDetailData {
+  final String name;
+  final String details;
+  final String location;
+  final String? postedLabel;
+  final bool isVerified;
+  final Color avatarColor;
+  final int imageIndex;
+  final String imageUrl;
+  final String jobId;
+  final List<MapEntry<String, String>> roleInfo;
+  final List<MapEntry<String, String>> payInfo;
+
+  const JobDetailData({
+    required this.name,
+    required this.details,
+    required this.location,
+    required this.avatarColor,
+    this.imageIndex = 1,
+    this.imageUrl = '',
+    this.jobId = '',
+    this.postedLabel,
+    this.isVerified = false,
+    this.roleInfo = const [],
+    this.payInfo = const [],
+  });
+
+  factory JobDetailData.fromJob(Job job, {int index = 0}) {
+    return JobDetailData.fromJobListing(JobListing.fromJob(job, index));
+  }
+
+  factory JobDetailData.fromJobListing(JobListing job) {
+    return JobDetailData(
+      name: job.title,
+      details: job.details,
+      location: job.location,
+      postedLabel: job.seenStatus,
+      isVerified: job.isVerified,
+      avatarColor: job.avatarColor,
+      imageIndex: job.imageIndex,
+      imageUrl: job.imageUrl,
+      jobId: job.jobId,
+      roleInfo: [
+        MapEntry('Role', _detailValue(job.role, 'Creator')),
+        MapEntry('Platform', _detailValue(job.platforms, 'Open')),
+        MapEntry('Type', _detailValue(job.collabType, job.details)),
+        MapEntry(
+          'Followers',
+          _detailValue(job.followersLabel, 'Open to creators'),
+        ),
+      ],
+      payInfo: [
+        MapEntry('Category', _detailValue(job.category, job.details)),
+        MapEntry('Duration', _detailValue(job.duration, 'Campaign based')),
+        MapEntry('Pay', _detailValue(job.pay, job.details)),
+      ],
+    );
+  }
+
+  factory JobDetailData.fromMessageContact(MessageContactModel contact) {
+    return JobDetailData(
+      name: contact.name,
+      details: contact.details,
+      location: contact.location,
+      postedLabel: contact.seenStatus,
+      isVerified: contact.isVerified,
+      avatarColor: contact.avatarColor,
+      imageIndex: contact.imageIndex,
+      roleInfo: const [
+        MapEntry('Role', 'Creator / influencer'),
+        MapEntry('Platform', 'Instagram, YouTube'),
+        MapEntry('Type', 'Paid collaboration'),
+        MapEntry('Followers', '10K+ preferred'),
+      ],
+      payInfo: const [
+        MapEntry('Category', 'Brand collab'),
+        MapEntry('Duration', '2 weeks'),
+        MapEntry('Pay', '₹ 15,000 - ₹ 40,000'),
+      ],
+    );
+  }
+
+  static String _detailValue(String value, String fallback) {
+    final text = value.trim();
+    return text.isEmpty ? fallback : text;
+  }
+}
+
+class MessageContactModel {
+  final String name;
+  final String seenStatus;
+  final String details;
+  final String location;
+  final bool isVerified;
+  final Color avatarColor;
+  final int imageIndex;
+
+  const MessageContactModel({
+    required this.name,
+    required this.seenStatus,
+    required this.details,
+    required this.location,
+    required this.avatarColor,
+    this.isVerified = false,
+    this.imageIndex = 1,
+  });
 }

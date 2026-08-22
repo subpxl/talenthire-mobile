@@ -1,0 +1,20 @@
+{
+  "name": "fsap-firebase-seed",
+  "version": "1.0.0",
+  "private": true,
+  "description": "FSAP maintenance and Firebase seeding scripts",
+  "type": "module",
+  "scripts": {
+    "validate": "node seed_jobs.js",
+    "seed": "node seed_jobs.js --apply"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.10.0"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
+  }
+}

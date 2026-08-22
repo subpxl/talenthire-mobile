@@ -1,7 +1,4 @@
-// ===== Enums =====
-
 enum UserRole { influencer }
-
 
 enum AccountStatus { active, inactive, suspended }
 
@@ -11,93 +8,90 @@ enum LocationType { remote, online, onsite }
 
 enum JobStatus { draft, published, closed, cancelled }
 
-enum ApplicationStatus { applied, shortlisted, interview, selected, rejected, withdrawn }
-
-enum PaymentStatus { pending, completed, failed }
-
-// ===== Helpers =====
-
-String accountStatusToString(AccountStatus s) => s.name;
-AccountStatus accountStatusFromString(String s) =>
-    AccountStatus.values.firstWhere((e) => e.name == s, orElse: () => AccountStatus.active);
-
-String subscriptionStatusToString(SubscriptionStatus s) => s.name;
-SubscriptionStatus subscriptionStatusFromString(String s) =>
-    SubscriptionStatus.values.firstWhere((e) => e.name == s, orElse: () => SubscriptionStatus.free);
-
-String locationTypeToString(LocationType t) => t.name;
-LocationType locationTypeFromString(String s) =>
-    LocationType.values.firstWhere((e) => e.name == s, orElse: () => LocationType.remote);
-
-String jobStatusToString(JobStatus s) => s.name;
-JobStatus jobStatusFromString(String s) {
-  // Webapp historically used "open"; treat as published for mobile.
-  if (s == 'open') return JobStatus.published;
-  return JobStatus.values.firstWhere((e) => e.name == s, orElse: () => JobStatus.draft);
+enum ApplicationStatus {
+  applied,
+  shortlisted,
+  interview,
+  selected,
+  rejected,
+  withdrawn,
 }
 
-DateTime? _parseFlexibleDate(dynamic value) {
+T _enumFromString<T extends Enum>(List<T> values, String value, T fallback) {
+  return values.firstWhere(
+    (item) => item.name == value,
+    orElse: () => fallback,
+  );
+}
+
+JobStatus jobStatusFromString(String value) {
+  if (value == 'open') return JobStatus.published;
+  return _enumFromString(JobStatus.values, value, JobStatus.draft);
+}
+
+LocationType locationTypeFromString(String value) {
+  return _enumFromString(LocationType.values, value, LocationType.remote);
+}
+
+DateTime? parseFlexibleDate(dynamic value) {
   if (value == null) return null;
   if (value is DateTime) return value;
   try {
-    final dynamic maybe = value;
-    if (maybe is Object && maybe.runtimeType.toString() == 'Timestamp') {
-      return (maybe as dynamic).toDate() as DateTime;
+    if (value is Object && value.runtimeType.toString() == 'Timestamp') {
+      return (value as dynamic).toDate() as DateTime;
     }
-    // Serialized Timestamp maps
-    if (maybe is Map && maybe['seconds'] != null) {
-      return DateTime.fromMillisecondsSinceEpoch((maybe['seconds'] as num).toInt() * 1000);
+    if (value is Map && value['seconds'] != null) {
+      return DateTime.fromMillisecondsSinceEpoch(
+        (value['seconds'] as num).toInt() * 1000,
+      );
     }
   } catch (_) {}
   return DateTime.tryParse(value.toString());
 }
 
-String applicationStatusToString(ApplicationStatus s) => s.name;
-ApplicationStatus applicationStatusFromString(String s) =>
-    ApplicationStatus.values.firstWhere((e) => e.name == s, orElse: () => ApplicationStatus.applied);
+Map<String, dynamic> _mapFrom(dynamic value) {
+  if (value is Map) return Map<String, dynamic>.from(value);
+  return {};
+}
 
-String paymentStatusToString(PaymentStatus s) => s.name;
-PaymentStatus paymentStatusFromString(String s) =>
-    PaymentStatus.values.firstWhere((e) => e.name == s, orElse: () => PaymentStatus.pending);
+List<String> _stringList(dynamic value) {
+  if (value is List) {
+    return value.map((item) => item.toString()).toList();
+  }
+  return const [];
+}
 
-String userRoleToString(UserRole r) => r.name;
-UserRole userRoleFromString(String s) =>
-    UserRole.values.firstWhere((e) => e.name == s, orElse: () => UserRole.influencer);
+class SocialPlatformMetric {
+  SocialPlatformMetric({
+    required this.platform,
+    this.handle = '',
+    this.followers = 0,
+    this.url = '',
+  });
 
-// ===== Social Link =====
-
-class SocialLink {
-  final String name;
+  final String platform;
+  final String handle;
+  final int followers;
   final String url;
 
-  SocialLink({required this.name, required this.url});
-
-  factory SocialLink.fromJson(Map<String, dynamic> json) {
-    return SocialLink(
-      name: json['name'] ?? json['platform'] ?? '',
-      url: json['url'] ?? '',
+  factory SocialPlatformMetric.fromJson(Map<String, dynamic> json) {
+    return SocialPlatformMetric(
+      platform: (json['platform'] ?? json['name'] ?? '').toString(),
+      handle: (json['handle'] ?? '').toString(),
+      followers: (json['followers'] as num?)?.toInt() ?? 0,
+      url: (json['url'] ?? '').toString(),
     );
   }
 
-  Map<String, dynamic> toJson() => {'name': name, 'url': url};
+  Map<String, dynamic> toJson() => {
+        'platform': platform,
+        'handle': handle,
+        'followers': followers,
+        'url': url,
+      };
 }
 
-// ===== User =====
-
 class User {
-  final String id;
-  String mobile;
-  String name;
-  String email;
-  UserRole role;
-  int? birthDay;
-  int? birthMonth;
-  int? birthYear;
-  bool isActive;
-  DateTime? scheduledDeletionDate;
-  final DateTime createdAt;
-  DateTime updatedAt;
-
   User({
     required this.id,
     this.mobile = '',
@@ -108,36 +102,40 @@ class User {
     this.birthMonth,
     this.birthYear,
     this.isActive = true,
-    this.scheduledDeletionDate,
     DateTime? createdAt,
     DateTime? updatedAt,
   })  : createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
 
-  factory User.fromJson(Map<String, dynamic> json) {
-    String n = (json['name'] ?? '').toString();
-    if (n.isEmpty) n = (json['agencyName'] ?? '').toString();
-    if (n.isEmpty) n = (json['agency_name'] ?? '').toString();
+  final String id;
+  String mobile;
+  String name;
+  String email;
+  UserRole role;
+  int? birthDay;
+  int? birthMonth;
+  int? birthYear;
+  bool isActive;
+  final DateTime createdAt;
+  DateTime updatedAt;
 
+  factory User.fromJson(Map<String, dynamic> json) {
     return User(
       id: json['id']?.toString() ?? '',
-      mobile: json['mobile'] ?? '',
-      name: n,
-      email: json['email'] ?? '',
-      role: userRoleFromString(json['role'] ?? 'influencer'),
+      mobile: (json['mobile'] ?? '').toString(),
+      name: (json['name'] ?? '').toString(),
+      email: (json['email'] ?? '').toString(),
+      role: _enumFromString(
+        UserRole.values,
+        (json['role'] ?? 'influencer').toString(),
+        UserRole.influencer,
+      ),
       birthDay: (json['birth_day'] ?? json['birthDay']) as int?,
       birthMonth: (json['birth_month'] ?? json['birthMonth']) as int?,
       birthYear: (json['birth_year'] ?? json['birthYear']) as int?,
-      createdAt: json['created_at'] != null
-          ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()
-          : DateTime.now(),
-      updatedAt: json['updated_at'] != null
-          ? DateTime.tryParse(json['updated_at'].toString()) ?? DateTime.now()
-          : DateTime.now(),
       isActive: json['is_active'] ?? true,
-      scheduledDeletionDate: json['scheduled_deletion_date'] != null
-          ? DateTime.tryParse(json['scheduled_deletion_date'].toString())
-          : null,
+      createdAt: parseFlexibleDate(json['created_at']) ?? DateTime.now(),
+      updatedAt: parseFlexibleDate(json['updated_at']) ?? DateTime.now(),
     );
   }
 
@@ -146,121 +144,118 @@ class User {
         'mobile': mobile,
         'name': name,
         'email': email,
-        'role': userRoleToString(role),
+        'role': role.name,
         if (birthDay != null) 'birth_day': birthDay,
         if (birthMonth != null) 'birth_month': birthMonth,
         if (birthYear != null) 'birth_year': birthYear,
         'is_active': isActive,
-        if (scheduledDeletionDate != null) 'scheduled_deletion_date': scheduledDeletionDate!.toIso8601String(),
         'created_at': createdAt.toIso8601String(),
         'updated_at': updatedAt.toIso8601String(),
       };
 }
 
-// ===== Profile (Influencer/Artist) =====
-
 class Profile {
-  final String userId;
-  String profileImage;
-  List<String> photos; // multiple photos, first or selected = profile
-  bool isVerified;
-  String talent;
-  String bio;
-  List<SocialLink> socialLinks;
-  String contact;
-  String address;
-  String city;
-  String state;
-  String pincode;
-  String videoInterviewLink;
-
-  // YouTube Shorts links
-  String achievementsVideoLink;
-  String shortIntroVideoLink;
-  String previousWorksVideoLink;
-
-  AccountStatus accountStatus;
-  SubscriptionStatus subscriptionStatus;
-
-  int? age;
-  String gender; // male, female, other
-  String? height;
-  String? bodyType; // slim, athletic, average, heavy
-  String? ethnicity; // north_indian, south_indian, east_indian, west_indian, central_indian, northeast_indian, other
-  String experienceLevel; // fresher, intermediate, experienced
-  List<String> languages;
-  bool profileCompleted;
-
-  // Free tier tracking
-  int freeJobApplicationsUsed;
-
   Profile({
     required this.userId,
     this.profileImage = '',
     List<String>? photos,
     this.isVerified = false,
-    this.talent = 'other',
+    this.talent = 'influencer',
     this.bio = '',
-    List<SocialLink>? socialLinks,
     this.contact = '',
-    this.address = '',
     this.city = '',
     this.state = '',
-    this.pincode = '',
-    this.videoInterviewLink = '',
-    this.achievementsVideoLink = '',
-    this.shortIntroVideoLink = '',
-    this.previousWorksVideoLink = '',
-    this.accountStatus = AccountStatus.active,
-    this.subscriptionStatus = SubscriptionStatus.free,
     this.age,
     this.gender = '',
     this.height,
-    this.bodyType,
-    this.ethnicity,
-    this.experienceLevel = 'fresher',
     List<String>? languages,
+    List<String>? niches,
+    List<SocialPlatformMetric>? platformMetrics,
+    Map<String, dynamic>? formData,
     this.profileCompleted = false,
+    this.subscriptionStatus = SubscriptionStatus.free,
+    this.accountStatus = AccountStatus.active,
     this.freeJobApplicationsUsed = 0,
   })  : photos = photos ?? [],
         languages = languages ?? [],
-        socialLinks = socialLinks ?? [];
+        niches = niches ?? [],
+        platformMetrics = platformMetrics ?? [],
+        formData = formData ?? {};
+
+  final String userId;
+  String profileImage;
+  List<String> photos;
+  bool isVerified;
+  String talent;
+  String bio;
+  String contact;
+  String city;
+  String state;
+  int? age;
+  String gender;
+  String? height;
+  List<String> languages;
+  List<String> niches;
+  List<SocialPlatformMetric> platformMetrics;
+  Map<String, dynamic> formData;
+  bool profileCompleted;
+  SubscriptionStatus subscriptionStatus;
+  AccountStatus accountStatus;
+  int freeJobApplicationsUsed;
 
   bool get isPremium => subscriptionStatus == SubscriptionStatus.premium;
-  bool get canPostYoutubeLinks => isPremium && isVerified;
-  bool get canApplyFreeJob => freeJobApplicationsUsed < 1;
+
+  static const maxPhotos = 4;
+
+  List<String> get galleryPhotos {
+    final urls = <String>[];
+    if (profileImage.isNotEmpty) urls.add(profileImage);
+    for (final photo in photos) {
+      if (photo.isNotEmpty && !urls.contains(photo)) urls.add(photo);
+    }
+    return urls.take(maxPhotos).toList();
+  }
 
   factory Profile.fromJson(Map<String, dynamic> json) {
     return Profile(
-      userId: json['user_id']?.toString() ?? '',
-      profileImage: json['profile_image'] ?? '',
-      photos: json['photos'] != null ? List<String>.from(json['photos']) : [],
-      isVerified: json['is_verified'] ?? false,
-      talent: json['talent'] ?? 'other',
-      bio: json['bio'] ?? '',
-      socialLinks: json['social_links'] != null
-          ? (json['social_links'] as List).map((e) => SocialLink.fromJson(e)).toList()
-          : [],
-      contact: json['contact'] ?? '',
-      address: json['address'] ?? '',
-      city: json['city'] ?? '',
-      state: json['state'] ?? '',
-      pincode: json['pincode'] ?? '',
-      videoInterviewLink: json['video_interview_link'] ?? '',
-      achievementsVideoLink: json['achievements_video_link'] ?? '',
-      shortIntroVideoLink: json['short_intro_video_link'] ?? '',
-      previousWorksVideoLink: json['previous_works_video_link'] ?? '',
-      accountStatus: accountStatusFromString(json['account_status'] ?? 'active'),
-      subscriptionStatus: subscriptionStatusFromString(json['subscription_status'] ?? 'free'),
-      age: json['age'],
-      gender: json['gender'] ?? '',
-      height: json['height'],
-      bodyType: json['body_type'],
-      ethnicity: json['ethnicity'],
-      experienceLevel: json['experience_level'] ?? 'fresher',
-      languages: json['languages'] != null ? List<String>.from(json['languages']) : [],
-      profileCompleted: json['profile_completed'] ?? false,
-      freeJobApplicationsUsed: json['free_job_applications_used'] ?? 0,
+      userId: json['user_id']?.toString() ?? json['userId']?.toString() ?? '',
+      profileImage: (json['profile_image'] ?? '').toString(),
+      photos: _stringList(json['photos']),
+      isVerified: json['is_verified'] == true,
+      talent: (json['talent'] ?? 'influencer').toString(),
+      bio: (json['bio'] ?? '').toString(),
+      contact: (json['contact'] ?? '').toString(),
+      city: (json['city'] ?? '').toString(),
+      state: (json['state'] ?? '').toString(),
+      age: (json['age'] as num?)?.toInt(),
+      gender: (json['gender'] ?? '').toString(),
+      height: json['height']?.toString(),
+      languages: _stringList(json['languages']),
+      niches: _stringList(json['niches']),
+      platformMetrics: json['platform_metrics'] is List
+          ? (json['platform_metrics'] as List)
+              .whereType<Map>()
+              .map(
+                (item) => SocialPlatformMetric.fromJson(
+                  Map<String, dynamic>.from(item),
+                ),
+              )
+              .toList()
+          : const [],
+      formData: _mapFrom(json['form_data']),
+      profileCompleted: json['profile_completed'] == true,
+      subscriptionStatus: _enumFromString(
+        SubscriptionStatus.values,
+        (json['subscription_status'] ?? 'free').toString(),
+        SubscriptionStatus.free,
+      ),
+      accountStatus: _enumFromString(
+        AccountStatus.values,
+        (json['account_status'] ?? 'active').toString(),
+        AccountStatus.active,
+      ),
+      freeJobApplicationsUsed:
+          (json['free_job_applications_used'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -271,191 +266,145 @@ class Profile {
         'is_verified': isVerified,
         'talent': talent,
         'bio': bio,
-        'social_links': socialLinks.map((e) => e.toJson()).toList(),
         'contact': contact,
-        'address': address,
         'city': city,
         'state': state,
-        'pincode': pincode,
-        'video_interview_link': videoInterviewLink,
-        'achievements_video_link': achievementsVideoLink,
-        'short_intro_video_link': shortIntroVideoLink,
-        'previous_works_video_link': previousWorksVideoLink,
-        'account_status': accountStatusToString(accountStatus),
-        'subscription_status': subscriptionStatusToString(subscriptionStatus),
         'age': age,
         'gender': gender,
         'height': height,
-        'body_type': bodyType,
-        'ethnicity': ethnicity,
-        'experience_level': experienceLevel,
         'languages': languages,
+        'niches': niches,
+        'platform_metrics': platformMetrics.map((item) => item.toJson()).toList(),
+        'form_data': formData,
         'profile_completed': profileCompleted,
+        'subscription_status': subscriptionStatus.name,
+        'account_status': accountStatus.name,
         'free_job_applications_used': freeJobApplicationsUsed,
       };
-}
 
-// ===== Artist =====
-
-class Artist {
-  final String id;
-  final String name;
-  final String role;
-  final String location;
-  final String description;
-  final List<String> skills;
-  final String initials;
-  final String profileImage;
-  final List<String> photos;
-  final List<SocialLink> socialLinks;
-  final String achievementsVideoLink;
-  final String shortIntroVideoLink;
-  final String previousWorksVideoLink;
-  final int? age;
-  final String gender;
-  final String? height;
-  final String? bodyType;
-  final String? ethnicity;
-  final String experienceLevel;
-  final List<String> languages;
-
-  Artist({
-    required this.id,
-    required this.name,
-    required this.role,
-    required this.location,
-    required this.description,
-    required this.skills,
-    required this.initials,
-    this.profileImage = '',
+  Profile copyWith({
+    String? profileImage,
     List<String>? photos,
-    required this.socialLinks,
-    required this.achievementsVideoLink,
-    required this.shortIntroVideoLink,
-    required this.previousWorksVideoLink,
-    this.age,
-    this.gender = '',
-    this.height,
-    this.bodyType,
-    this.ethnicity,
-    this.experienceLevel = '',
+    String? bio,
+    String? contact,
+    String? city,
+    String? state,
+    int? age,
+    String? gender,
+    String? height,
+    String? talent,
     List<String>? languages,
-  }) : photos = photos ?? [],
-       languages = languages ?? [];
-
-  factory Artist.fromJson(Map<String, dynamic> json) {
-    return Artist(
-      id: json['id']?.toString() ?? '',
-      name: json['name'] ?? '',
-      role: json['role'] ?? '',
-      location: json['location'] ?? '',
-      description: json['description'] ?? '',
-      skills: json['skills'] != null ? List<String>.from(json['skills']) : [],
-      initials: json['initials'] ?? '',
-      profileImage: json['profile_image'] ?? '',
-      photos: json['photos'] != null ? List<String>.from(json['photos']) : [],
-      socialLinks: json['social_links'] != null
-          ? (json['social_links'] as List).map((e) => SocialLink.fromJson(e)).toList()
-          : [],
-      achievementsVideoLink: json['achievements_video_link'] ?? '',
-      shortIntroVideoLink: json['short_intro_video_link'] ?? '',
-      previousWorksVideoLink: json['previous_works_video_link'] ?? '',
-      age: json['age'],
-      gender: json['gender'] ?? '',
-      height: json['height'],
-      bodyType: json['body_type'],
-      ethnicity: json['ethnicity'],
-      experienceLevel: json['experience_level'] ?? '',
-      languages: json['languages'] != null ? List<String>.from(json['languages']) : [],
+    List<String>? niches,
+    List<SocialPlatformMetric>? platformMetrics,
+    Map<String, dynamic>? formData,
+  }) {
+    return Profile(
+      userId: userId,
+      profileImage: profileImage ?? this.profileImage,
+      photos: photos ?? this.photos,
+      isVerified: isVerified,
+      talent: talent ?? this.talent,
+      bio: bio ?? this.bio,
+      contact: contact ?? this.contact,
+      city: city ?? this.city,
+      state: state ?? this.state,
+      age: age ?? this.age,
+      gender: gender ?? this.gender,
+      height: height ?? this.height,
+      languages: languages ?? this.languages,
+      niches: niches ?? this.niches,
+      platformMetrics: platformMetrics ?? this.platformMetrics,
+      formData: formData ?? this.formData,
+      profileCompleted: profileCompleted,
+      subscriptionStatus: subscriptionStatus,
+      accountStatus: accountStatus,
+      freeJobApplicationsUsed: freeJobApplicationsUsed,
     );
   }
 
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'role': role,
-        'location': location,
-        'description': description,
-        'skills': skills,
-        'initials': initials,
-        'profile_image': profileImage,
-        'photos': photos,
-        'social_links': socialLinks.map((e) => e.toJson()).toList(),
-        'achievements_video_link': achievementsVideoLink,
-        'short_intro_video_link': shortIntroVideoLink,
-        'previous_works_video_link': previousWorksVideoLink,
-        'age': age,
-        'gender': gender,
-        'height': height,
-        'body_type': bodyType,
-        'ethnicity': ethnicity,
-        'experience_level': experienceLevel,
-        'languages': languages,
-      };
+  Map<String, dynamic> formSection(String key) => _mapFrom(formData[key]);
+
+  String formValue(String section, String key, [String fallback = '-']) {
+    final value = formSection(section)[key];
+    if (value == null) return fallback;
+    if (value is List) {
+      final items = value.map((item) => item.toString()).where((item) => item.isNotEmpty);
+      return items.isEmpty ? fallback : items.join(', ');
+    }
+    final text = value.toString().trim();
+    return text.isEmpty ? fallback : text;
+  }
+
+  Profile mergeFormSection(String section, Map<String, dynamic> data) {
+    return copyWith(
+      formData: {
+        ...formData,
+        section: {
+          ...formSection(section),
+          ...data,
+        },
+      },
+    );
+  }
 }
 
-// ===== Job =====
-
 class Job {
-  final String id;
-  final String title;
-  String summary;
-  final String description;
-  final String company;
-  final LocationType locationType;
-  final String location;
-  JobStatus status;
-  final DateTime postedAt;
-  final DateTime applicationDeadline;
-  final String createdBy;
-
-  // Display helpers (from old model for backwards compat)
-  final String salary;
-  final List<String> tags;
-  final int applied;
-  final int views;
-  final String level;
-  final bool urgent;
-  final String initials;
-
-  // Webapp / audition fields
-  final String requirements;
-  final bool isAudition;
-  final String auditionScript;
-  final int? ageMin;
-  final int? ageMax;
-  final String genderRequired;
-  final String interviewVideoLink;
-
   Job({
     required this.id,
     required this.title,
     this.summary = '',
-    required this.description,
-    required this.company,
+    this.description = '',
+    this.company = '',
     this.locationType = LocationType.remote,
-    required this.location,
+    this.location = '',
     this.status = JobStatus.published,
     DateTime? postedAt,
-    DateTime? applicationDeadline,
     this.createdBy = '',
     this.salary = '',
     List<String>? tags,
+    this.imageUrl = '',
+    this.imagePath = '',
+    this.category = '',
+    List<String>? platforms,
+    this.collaborationType = '',
+    this.compensation = '',
+    List<String>? deliverables,
+    this.isVerified = false,
+    this.sourceImage = '',
     this.applied = 0,
-    this.views = 0,
-    this.level = '',
-    this.urgent = false,
-    this.initials = '',
-    this.requirements = '',
-    this.isAudition = false,
-    this.auditionScript = '',
-    this.ageMin,
-    this.ageMax,
-    this.genderRequired = '',
-    this.interviewVideoLink = '',
+    this.minFollowers = 0,
+    this.payMin = 0,
+    this.payMax = 0,
   })  : postedAt = postedAt ?? DateTime.now(),
-        applicationDeadline = applicationDeadline ?? DateTime.now().add(const Duration(days: 30)),
-        tags = tags ?? [];
+        tags = tags ?? [],
+        platforms = platforms ?? [],
+        deliverables = deliverables ?? [];
+
+  final String id;
+  final String title;
+  final String summary;
+  final String description;
+  final String company;
+  final LocationType locationType;
+  final String location;
+  final JobStatus status;
+  final DateTime postedAt;
+  final String createdBy;
+  final String salary;
+  final List<String> tags;
+  final String imageUrl;
+  final String imagePath;
+  final String category;
+  final List<String> platforms;
+  final String collaborationType;
+  final String compensation;
+  final List<String> deliverables;
+  final bool isVerified;
+  final String sourceImage;
+  final int applied;
+  final int minFollowers;
+  final int payMin;
+  final int payMax;
 
   String get timeAgo {
     final diff = DateTime.now().difference(postedAt);
@@ -465,88 +414,130 @@ class Job {
     return '${(diff.inDays / 7).floor()} weeks ago';
   }
 
-  String get agencyId => createdBy;
+  String get collabTypeLabel {
+    switch (collaborationType.trim().toLowerCase()) {
+      case 'paid':
+        return 'Paid collab';
+      case 'barter':
+        return 'Barter';
+      case 'audition':
+        return 'Audition';
+      case 'unpaid':
+        return 'Unpaid';
+      case 'community':
+        return 'Community';
+      case 'affiliate':
+        return 'Affiliate';
+      default:
+        if (collaborationType.trim().isNotEmpty) return collaborationType;
+        if (compensation.isNotEmpty) return compensation;
+        return salary;
+    }
+  }
+
+  String get roleLabel =>
+      category.trim().isNotEmpty ? category.trim() : 'Creator';
+
+  String get payLabel {
+    if (compensation.trim().isNotEmpty) return compensation.trim();
+    if (salary.trim().isNotEmpty) return salary.trim();
+    if (payMin > 0 || payMax > 0) return _formatPayRange(payMin, payMax);
+    return 'Not specified';
+  }
+
+  String get platformsLabel => platforms
+      .map((item) => item.trim())
+      .where((item) => item.isNotEmpty)
+      .join(', ');
+
+  String get nicheLabel {
+    final skip = {
+      category.toLowerCase(),
+      collaborationType.toLowerCase(),
+      'paid',
+      'audition',
+      'barter',
+      'unpaid',
+      'community',
+      'affiliate',
+    };
+    final niche = tags
+        .map((item) => item.trim())
+        .where(
+          (item) => item.isNotEmpty && !skip.contains(item.toLowerCase()),
+        )
+        .toList();
+    if (niche.isNotEmpty) return niche.join(', ');
+    if (platformsLabel.isNotEmpty) return platformsLabel;
+    return roleLabel;
+  }
+
+  String get durationLabel => deliverables.isNotEmpty
+      ? deliverables.join(', ')
+      : 'Campaign based';
+
+  String get followersLabel {
+    if (minFollowers <= 0) return 'Open to creators';
+    return '${_formatFollowerCount(minFollowers)}+ preferred';
+  }
+
+  String get detailsLine {
+    final collab = collabTypeLabel;
+    final niche = category.isNotEmpty
+        ? category
+        : (platforms.isNotEmpty ? platforms.first : '');
+    if (collab.isEmpty) return niche;
+    if (niche.isEmpty) return collab;
+    return '$collab · $niche';
+  }
+
+  int get fallbackImageIndex {
+    final match = RegExp(r'\((\d+)\)').firstMatch(sourceImage);
+    if (match != null) return int.parse(match.group(1)!);
+    return (id.hashCode.abs() % 66) + 1;
+  }
 
   factory Job.fromJson(Map<String, dynamic> json) {
-    final requirements = (json['requirements'] ?? '').toString();
-    List<String> tags = [];
-    if (json['tags'] != null) {
-      tags = List<String>.from(json['tags']);
-    } else if (requirements.isNotEmpty) {
-      tags = requirements
-          .split(',')
-          .map((t) => t.trim())
-          .where((t) => t.isNotEmpty)
-          .toList();
-    }
-
-    final company = (json['company'] ?? '').toString();
-    final createdBy =
-        (json['created_by'] ?? json['agencyId'] ?? json['agency_id'] ?? '').toString();
-
-    String initials = (json['initials'] ?? '').toString();
-    if (initials.isEmpty && company.isNotEmpty) {
-      final parts = company.trim().split(RegExp(r'\s+'));
-      initials = parts.length >= 2
-          ? '${parts[0][0]}${parts[1][0]}'.toUpperCase()
-          : company.substring(0, company.length >= 2 ? 2 : 1).toUpperCase();
-    }
-
-    final postedAt = _parseFlexibleDate(json['posted_at']) ??
-        _parseFlexibleDate(json['createdAt']) ??
-        _parseFlexibleDate(json['created_at']) ??
-        DateTime.now();
-
-    final deadline = _parseFlexibleDate(json['application_deadline']) ??
-        postedAt.add(const Duration(days: 30));
-
-    final isAudition = json['isAudition'] == true ||
-        json['is_audition'] == true ||
-        (json['isAudition']?.toString() == 'true') ||
-        (json['is_audition']?.toString() == 'true');
-
-    final auditionScript =
-        (json['auditionScript'] ?? json['audition_script'] ?? '').toString();
-
-    final locationRaw = (json['location'] ?? '').toString();
-    final locationTypeRaw = (json['location_type'] ?? 'remote').toString();
-
+    final category = (json['category'] ?? '').toString();
+    final collaborationType = (json['collaboration_type'] ?? '').toString();
+    final salary = (json['salary'] ?? '').toString();
+    final compensation = (json['compensation'] ?? json['salary'] ?? '').toString();
+    final pay = _jobPayRange(
+      json,
+      collaborationType: collaborationType,
+      compensation: compensation,
+      salary: salary,
+    );
     return Job(
       id: json['id']?.toString() ?? '',
-      title: json['title'] ?? '',
-      summary: json['summary'] ?? '',
-      description: json['description'] ?? '',
-      company: company,
-      locationType: locationTypeFromString(locationTypeRaw),
-      location: locationRaw.isNotEmpty
-          ? locationRaw
-          : (locationTypeRaw == 'remote' ? 'Remote' : ''),
-      status: jobStatusFromString(json['status']?.toString() ?? 'published'),
-      postedAt: postedAt,
-      applicationDeadline: deadline,
-      createdBy: createdBy,
-      salary: json['salary'] ?? '',
-      tags: tags,
+      title: (json['title'] ?? '').toString(),
+      summary: (json['summary'] ?? '').toString(),
+      description: (json['description'] ?? '').toString(),
+      company: (json['company'] ?? '').toString(),
+      locationType: locationTypeFromString(
+        (json['location_type'] ?? 'remote').toString(),
+      ),
+      location: (json['location'] ?? '').toString(),
+      status: jobStatusFromString((json['status'] ?? 'published').toString()),
+      postedAt: parseFlexibleDate(json['posted_at']) ??
+          parseFlexibleDate(json['created_at']) ??
+          DateTime.now(),
+      createdBy: (json['created_by'] ?? json['agencyId'] ?? '').toString(),
+      salary: salary,
+      tags: _stringList(json['tags']),
+      imageUrl: (json['image_url'] ?? '').toString(),
+      imagePath: (json['image_path'] ?? '').toString(),
+      category: category,
+      platforms: _stringList(json['platforms']),
+      collaborationType: collaborationType,
+      compensation: compensation,
+      deliverables: _stringList(json['deliverables']),
+      isVerified: json['is_verified'] == true,
+      sourceImage: (json['source_image'] ?? '').toString(),
       applied: (json['applied'] as num?)?.toInt() ?? 0,
-      views: (json['views'] as num?)?.toInt() ?? 0,
-      level: json['level'] ?? '',
-      urgent: json['urgent'] == true,
-      initials: initials,
-      requirements: requirements,
-      isAudition: isAudition,
-      auditionScript: auditionScript,
-      ageMin: (json['age_min'] ?? json['ageMin']) is num
-          ? ((json['age_min'] ?? json['ageMin']) as num).toInt()
-          : null,
-      ageMax: (json['age_max'] ?? json['ageMax']) is num
-          ? ((json['age_max'] ?? json['ageMax']) as num).toInt()
-          : null,
-      genderRequired:
-          (json['gender_required'] ?? json['genderRequired'] ?? '').toString(),
-      interviewVideoLink: (json['interview_video_link'] ??
-              json['interviewVideoLink'] ??
-              '')
-          .toString(),
+      minFollowers: _jobMinFollowers(json, category),
+      payMin: pay.$1,
+      payMax: pay.$2,
     );
   }
 
@@ -556,137 +547,167 @@ class Job {
         'summary': summary,
         'description': description,
         'company': company,
-        'location_type': locationTypeToString(locationType),
+        'location_type': locationType.name,
         'location': location,
-        'status': jobStatusToString(status),
+        'status': status.name,
         'posted_at': postedAt.toIso8601String(),
-        'application_deadline': applicationDeadline.toIso8601String(),
         'created_by': createdBy,
-        'agencyId': createdBy,
         'salary': salary,
         'tags': tags,
+        'image_url': imageUrl,
+        'image_path': imagePath,
+        'category': category,
+        'platforms': platforms,
+        'collaboration_type': collaborationType,
+        'compensation': compensation,
+        'deliverables': deliverables,
+        'is_verified': isVerified,
+        'source_image': sourceImage,
         'applied': applied,
-        'views': views,
-        'level': level,
-        'urgent': urgent,
-        'initials': initials,
-        'requirements': requirements,
-        'isAudition': isAudition,
-        'is_audition': isAudition,
-        'auditionScript': auditionScript.isEmpty ? null : auditionScript,
-        'audition_script': auditionScript,
-        if (ageMin != null) 'age_min': ageMin,
-        if (ageMax != null) 'age_max': ageMax,
-        if (genderRequired.isNotEmpty) 'gender_required': genderRequired,
-        if (interviewVideoLink.isNotEmpty)
-          'interview_video_link': interviewVideoLink,
+        'min_followers': minFollowers,
+        'pay_min': payMin,
+        'pay_max': payMax,
       };
+}
 
-  Job copyWith({int? applied, int? views}) {
-    return Job(
-      id: id,
-      title: title,
-      summary: summary,
-      description: description,
-      company: company,
-      locationType: locationType,
-      location: location,
-      status: status,
-      postedAt: postedAt,
-      applicationDeadline: applicationDeadline,
-      createdBy: createdBy,
-      salary: salary,
-      tags: tags,
-      applied: applied ?? this.applied,
-      views: views ?? this.views,
-      level: level,
-      urgent: urgent,
-      initials: initials,
-      requirements: requirements,
-      isAudition: isAudition,
-      auditionScript: auditionScript,
-      ageMin: ageMin,
-      ageMax: ageMax,
-      genderRequired: genderRequired,
-      interviewVideoLink: interviewVideoLink,
+int _positiveInt(dynamic value) {
+  if (value is num) return value.toInt();
+  if (value is String) {
+    final compact = value.trim().toLowerCase().replaceAll(',', '');
+    if (compact.isEmpty) return 0;
+    final multiplier = compact.endsWith('m')
+        ? 1000000
+        : compact.endsWith('k')
+            ? 1000
+            : 1;
+    final number = double.tryParse(
+      compact.replaceAll(RegExp(r'[^\d.]'), ''),
     );
+    if (number == null) return 0;
+    return (number * multiplier).round();
+  }
+  return 0;
+}
+
+int _jobMinFollowers(Map<String, dynamic> json, String category) {
+  for (final key in ['min_followers', 'followers_required', 'followers']) {
+    final parsed = _positiveInt(json[key]);
+    if (parsed > 0) return parsed;
+  }
+  switch (category.trim().toLowerCase()) {
+    case 'influencer':
+      return 10000;
+    case 'model':
+      return 5000;
+    default:
+      return 0;
   }
 }
 
-// ===== Application =====
+(int, int) _jobPayRange(
+  Map<String, dynamic> json, {
+  required String collaborationType,
+  required String compensation,
+  required String salary,
+}) {
+  final explicitMin = _positiveInt(
+    json['pay_min'] ?? json['salary_min'] ?? json['min_pay'],
+  );
+  final explicitMax = _positiveInt(
+    json['pay_max'] ?? json['salary_max'] ?? json['max_pay'],
+  );
+  if (explicitMin > 0 || explicitMax > 0) {
+    final max = explicitMax > 0 ? explicitMax : explicitMin;
+    final min = explicitMin > 0 ? explicitMin : max;
+    return (min, max < min ? min : max);
+  }
+
+  final parsed = _rupeeAmounts('$compensation $salary');
+  if (parsed.length >= 2) return (parsed.first, parsed.last);
+  if (parsed.length == 1) return (parsed.first, parsed.first);
+
+  switch (collaborationType.trim().toLowerCase()) {
+    case 'paid':
+      return (15000, 40000);
+    default:
+      return (0, 0);
+  }
+}
+
+List<int> _rupeeAmounts(String text) {
+  return RegExp(r'₹\s*([\d,]+)')
+      .allMatches(text)
+      .map((match) => int.tryParse(match.group(1)!.replaceAll(',', '')) ?? 0)
+      .where((value) => value > 0)
+      .toList();
+}
+
+String _formatFollowerCount(int count) {
+  if (count >= 1000000) {
+    final millions = count / 1000000;
+    return millions == millions.roundToDouble()
+        ? '${millions.round()}M'
+        : '${millions.toStringAsFixed(1)}M';
+  }
+  if (count >= 1000) {
+    final thousands = count / 1000;
+    return thousands == thousands.roundToDouble()
+        ? '${thousands.round()}K'
+        : '${thousands.toStringAsFixed(1)}K';
+  }
+  return '$count';
+}
+
+String _formatPayRange(int min, int max) {
+  if (min <= 0 && max <= 0) return 'Not specified';
+  if (min == max || max <= 0) return '₹ ${_formatRupee(min)}';
+  return '₹ ${_formatRupee(min)} - ₹ ${_formatRupee(max)}';
+}
+
+String _formatRupee(int value) {
+  final digits = value.toString();
+  if (digits.length <= 3) return digits;
+  final lastThree = digits.substring(digits.length - 3);
+  final rest = digits.substring(0, digits.length - 3);
+  final withCommas = rest.replaceAllMapped(
+    RegExp(r'(\d)(?=(\d{2})+(?!\d))'),
+    (match) => '${match[1]},',
+  );
+  return '$withCommas,$lastThree';
+}
 
 class Application {
-  final String id;
-  final String userId;
-  final String jobId;
-  final String jobTitle;
-  final String company;
-  ApplicationStatus status;
-  final DateTime appliedAt;
-  DateTime updatedAt;
-  String recruiterNote;
-  String script;
-  String videoUrl;
-
   Application({
     required this.id,
     this.userId = '',
     this.jobId = '',
     required this.jobTitle,
-    required this.company,
+    this.company = '',
     this.status = ApplicationStatus.applied,
     DateTime? appliedAt,
-    DateTime? updatedAt,
-    this.recruiterNote = '',
-    this.script = '',
-    this.videoUrl = '',
-  })  : appliedAt = appliedAt ?? DateTime.now(),
-        updatedAt = updatedAt ?? DateTime.now();
+  }) : appliedAt = appliedAt ?? DateTime.now();
 
-  String get appliedDate => appliedAt.toString().substring(0, 10);
-
-  String get statusDisplay {
-    switch (status) {
-      case ApplicationStatus.applied:
-        return 'Pending';
-      case ApplicationStatus.shortlisted:
-        return 'Shortlisted';
-      case ApplicationStatus.interview:
-        return 'Interview';
-      case ApplicationStatus.selected:
-        return 'Accepted';
-      case ApplicationStatus.rejected:
-        return 'Rejected';
-      case ApplicationStatus.withdrawn:
-        return 'Withdrawn';
-    }
-  }
+  final String id;
+  final String userId;
+  final String jobId;
+  final String jobTitle;
+  final String company;
+  final ApplicationStatus status;
+  final DateTime appliedAt;
 
   factory Application.fromJson(Map<String, dynamic> json) {
-    final script = (json['script'] ?? '').toString();
-    var videoUrl = (json['video_url'] ?? json['videoUrl'] ?? '').toString();
-    // Back-compat: older apps stored the YouTube link inside script
-    if (videoUrl.isEmpty &&
-        (script.contains('youtube.com') || script.contains('youtu.be'))) {
-      videoUrl = script.trim();
-    }
-
     return Application(
       id: json['id']?.toString() ?? '',
-      userId: json['user_id']?.toString() ?? '',
-      jobId: json['job_id']?.toString() ?? '',
-      jobTitle: json['job_title'] ?? '',
-      company: json['company'] ?? '',
-      status: applicationStatusFromString(json['status'] ?? 'applied'),
-      appliedAt: json['applied_at'] != null
-          ? DateTime.tryParse(json['applied_at'].toString()) ?? DateTime.now()
-          : DateTime.now(),
-      updatedAt: json['updated_at'] != null
-          ? DateTime.tryParse(json['updated_at'].toString()) ?? DateTime.now()
-          : DateTime.now(),
-      recruiterNote: json['recruiter_note'] ?? '',
-      script: script,
-      videoUrl: videoUrl,
+      userId: (json['user_id'] ?? '').toString(),
+      jobId: (json['job_id'] ?? '').toString(),
+      jobTitle: (json['job_title'] ?? '').toString(),
+      company: (json['company'] ?? '').toString(),
+      status: _enumFromString(
+        ApplicationStatus.values,
+        (json['status'] ?? 'applied').toString(),
+        ApplicationStatus.applied,
+      ),
+      appliedAt: parseFlexibleDate(json['applied_at']) ?? DateTime.now(),
     );
   }
 
@@ -696,315 +717,7 @@ class Application {
         'job_id': jobId,
         'job_title': jobTitle,
         'company': company,
-        'status': applicationStatusToString(status),
+        'status': status.name,
         'applied_at': appliedAt.toIso8601String(),
-        'updated_at': updatedAt.toIso8601String(),
-        'recruiter_note': recruiterNote,
-        'script': script,
-        'video_url': videoUrl,
       };
-}
-
-// ===== Conversation =====
-
-class Conversation {
-  final String id;
-  String timeAgo;
-  String lastMessage;
-  Map<String, int> unreadCounts;
-  final List<String> participants;
-  DateTime updatedAt;
-
-  final Map<String, String> participantNames;
-  final Map<String, String> participantTypes;
-  final Map<String, String> participantInitials;
-
-  Conversation({
-    required this.id,
-    this.timeAgo = '',
-    this.lastMessage = '',
-    Map<String, int>? unreadCounts,
-    List<String>? participants,
-    DateTime? updatedAt,
-    Map<String, String>? participantNames,
-    Map<String, String>? participantTypes,
-    Map<String, String>? participantInitials,
-  })  : unreadCounts = unreadCounts ?? {},
-        participants = participants ?? [],
-        updatedAt = updatedAt ?? DateTime.now(),
-        participantNames = participantNames ?? {},
-        participantTypes = participantTypes ?? {},
-        participantInitials = participantInitials ?? {};
-
-  int unreadFor(String userId) => unreadCounts[userId] ?? 0;
-
-  factory Conversation.fromJson(Map<String, dynamic> json) {
-    Map<String, int> counts = {};
-    if (json['unread_counts'] != null) {
-      counts = Map<String, int>.from(
-        (json['unread_counts'] as Map).map(
-          (k, v) => MapEntry(k.toString(), (v as num).toInt()),
-        ),
-      );
-    } else if (json['unread'] != null) {
-      // Legacy single unread field
-      counts = {};
-    }
-
-    return Conversation(
-      id: json['id']?.toString() ?? '',
-      timeAgo: json['time_ago'] ?? '',
-      lastMessage: json['last_message'] ?? '',
-      unreadCounts: counts,
-      participants: json['participants'] != null ? List<String>.from(json['participants']) : [],
-      updatedAt: json['updated_at'] != null
-          ? DateTime.tryParse(json['updated_at'].toString()) ?? DateTime.now()
-          : DateTime.now(),
-      participantNames: json['participant_names'] != null ? Map<String, String>.from(json['participant_names']) : {},
-      participantTypes: json['participant_types'] != null ? Map<String, String>.from(json['participant_types']) : {},
-      participantInitials: json['participant_initials'] != null ? Map<String, String>.from(json['participant_initials']) : {},
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'time_ago': timeAgo,
-        'last_message': lastMessage,
-        'unread_counts': unreadCounts,
-        'participants': participants,
-        'updated_at': updatedAt.toIso8601String(),
-        'participant_names': participantNames,
-        'participant_types': participantTypes,
-        'participant_initials': participantInitials,
-      };
-
-  String getOtherParticipantId(String currentUserId) {
-    return participants.firstWhere((id) => id != currentUserId, orElse: () => '');
-  }
-
-  String getOtherParticipantName(String currentUserId) {
-    final otherId = getOtherParticipantId(currentUserId);
-    return participantNames[otherId] ?? 'Unknown';
-  }
-
-  String getOtherParticipantType(String currentUserId) {
-    final otherId = getOtherParticipantId(currentUserId);
-    return participantTypes[otherId] ?? 'talent';
-  }
-
-  String getOtherParticipantInitials(String currentUserId) {
-    final otherId = getOtherParticipantId(currentUserId);
-    return participantInitials[otherId] ?? '??';
-  }
-}
-
-// ===== Chat Message =====
-
-class ChatMessage {
-  final String id;
-  final String conversationId;
-  final String text;
-  final String senderId;
-  final DateTime createdAt;
-
-  ChatMessage({
-    required this.id,
-    required this.conversationId,
-    required this.text,
-    required this.senderId,
-    DateTime? createdAt,
-  }) : createdAt = createdAt ?? DateTime.now();
-
-  factory ChatMessage.fromJson(Map<String, dynamic> json) {
-    DateTime createdAt = DateTime.now();
-    if (json['created_at'] != null) {
-      final raw = json['created_at'];
-      if (raw is num) {
-        createdAt = DateTime.fromMillisecondsSinceEpoch(raw.toInt());
-      } else {
-        createdAt = DateTime.tryParse(raw.toString()) ?? DateTime.now();
-      }
-    }
-
-    return ChatMessage(
-      id: json['id']?.toString() ?? '',
-      conversationId: json['conversation_id']?.toString() ?? '',
-      text: json['text'] ?? '',
-      senderId: json['sender_id'] ?? json['sender'] ?? '',
-      createdAt: createdAt,
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'conversation_id': conversationId,
-        'text': text,
-        'sender_id': senderId,
-        'created_at': createdAt.millisecondsSinceEpoch,
-      };
-}
-
-// ===== Payment =====
-
-class Payment {
-  final String id;
-  final String userId;
-  final double amount;
-  final String purpose; // 'premium_upgrade'
-  PaymentStatus status;
-  final String? cashfreeOrderId;
-  final DateTime createdAt;
-  DateTime updatedAt;
-
-  Payment({
-    required this.id,
-    required this.userId,
-    required this.amount,
-    this.purpose = '',
-    this.status = PaymentStatus.pending,
-    this.cashfreeOrderId,
-    DateTime? createdAt,
-    DateTime? updatedAt,
-  })  : createdAt = createdAt ?? DateTime.now(),
-        updatedAt = updatedAt ?? DateTime.now();
-
-  factory Payment.fromJson(Map<String, dynamic> json) {
-    return Payment(
-      id: json['id']?.toString() ?? '',
-      userId: json['userId']?.toString() ?? json['user_id']?.toString() ?? '',
-      amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
-      purpose: json['purpose'] ?? '',
-      status: paymentStatusFromString(json['status'] ?? 'pending'),
-      cashfreeOrderId: json['cashfreeOrderId'] ?? json['cashfree_order_id'],
-      createdAt: json['created_at'] != null
-          ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()
-          : DateTime.now(),
-      updatedAt: json['updated_at'] != null
-          ? DateTime.tryParse(json['updated_at'].toString()) ?? DateTime.now()
-          : DateTime.now(),
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'user_id': userId,
-        'amount': amount,
-        'purpose': purpose,
-        'status': paymentStatusToString(status),
-        'cashfree_order_id': cashfreeOrderId,
-        'created_at': createdAt.toIso8601String(),
-        'updated_at': updatedAt.toIso8601String(),
-      };
-}
-
-// ===== Subscription =====
-
-class Subscription {
-  final String id;
-  final String userId;
-  final String plan; // 'influencer_premium'
-  final double amount;
-  PaymentStatus status;
-  final String paymentId;
-  final DateTime createdAt;
-  DateTime updatedAt;
-  final DateTime expiresAt;
-
-  Subscription({
-    required this.id,
-    required this.userId,
-    required this.plan,
-    required this.amount,
-    this.status = PaymentStatus.pending,
-    this.paymentId = '',
-    DateTime? createdAt,
-    DateTime? updatedAt,
-    DateTime? expiresAt,
-  })  : createdAt = createdAt ?? DateTime.now(),
-        updatedAt = updatedAt ?? DateTime.now(),
-        expiresAt = expiresAt ?? DateTime.now().add(const Duration(days: 30));
-
-  bool get isActive =>
-      status == PaymentStatus.completed && expiresAt.isAfter(DateTime.now());
-
-  factory Subscription.fromJson(Map<String, dynamic> json) {
-    return Subscription(
-      id: json['id']?.toString() ?? '',
-      userId: json['userId']?.toString() ?? json['user_id']?.toString() ?? '',
-      plan: json['plan'] ?? '',
-      amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
-      status: paymentStatusFromString(json['status'] ?? 'pending'),
-      paymentId: json['paymentId']?.toString() ?? json['payment_id']?.toString() ?? '',
-      createdAt: json['created_at'] != null
-          ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()
-          : DateTime.now(),
-      updatedAt: json['updated_at'] != null
-          ? DateTime.tryParse(json['updated_at'].toString()) ?? DateTime.now()
-          : DateTime.now(),
-      expiresAt: _parseFlexibleDate(json['expiresAt'] ?? json['expires_at']) ??
-          DateTime.now().add(const Duration(days: 30)),
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'user_id': userId,
-        'plan': plan,
-        'amount': amount,
-        'status': paymentStatusToString(status),
-        'payment_id': paymentId,
-        'created_at': createdAt.toIso8601String(),
-        'updated_at': updatedAt.toIso8601String(),
-        'expires_at': expiresAt.toIso8601String(),
-      };
-}
-
-// ===== Notification =====
-
-class AppNotification {
-  final String id;
-  final String userId;
-  final String title;
-  final String message;
-  bool isRead;
-  final DateTime createdAt;
-
-  AppNotification({
-    required this.id,
-    required this.userId,
-    required this.title,
-    required this.message,
-    this.isRead = false,
-    DateTime? createdAt,
-  }) : createdAt = createdAt ?? DateTime.now();
-
-  factory AppNotification.fromJson(Map<String, dynamic> json) {
-    return AppNotification(
-      id: json['id']?.toString() ?? '',
-      userId: json['user_id']?.toString() ?? '',
-      title: json['title'] ?? '',
-      message: json['message'] ?? '',
-      isRead: json['is_read'] ?? false,
-      createdAt: json['created_at'] != null
-          ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()
-          : DateTime.now(),
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'user_id': userId,
-        'title': title,
-        'message': message,
-        'is_read': isRead,
-        'created_at': createdAt.toIso8601String(),
-      };
-}
-
-// ===== Pricing Constants =====
-
-class AppPricing {
-  static const double premiumUpgrade = 200.0;
-  static const double agencySubscription = 500.0;
-  static const int freeJobApplicationLimit = 1;
 }

@@ -1,208 +1,265 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../providers/app_state.dart';
-import '../models/models.dart';
-import '../services/notification_service.dart';
-import '../theme/app_theme.dart';
-import '../widgets/app_avatar.dart';
-import '../widgets/empty_state.dart';
+import 'package:bombay_casting/data/conversations.dart';
+import 'package:bombay_casting/theme/app_theme.dart';
+import 'package:bombay_casting/widgets/placeholder_avatar.dart';
 
 class MessageDetailScreen extends StatefulWidget {
-  final Conversation conversation;
+  const MessageDetailScreen({
+    super.key,
+    required this.conversation,
+  });
 
-  const MessageDetailScreen({super.key, required this.conversation});
+  final ConversationThread conversation;
 
   @override
   State<MessageDetailScreen> createState() => _MessageDetailScreenState();
 }
 
 class _MessageDetailScreenState extends State<MessageDetailScreen> {
-  final _messageController = TextEditingController();
+  late final List<ChatMessage> _messages;
+  final _controller = TextEditingController();
   final _scrollController = ScrollController();
+
+  ConversationThread get conversation => widget.conversation;
 
   @override
   void initState() {
     super.initState();
-    NotificationService().setActiveConversation(widget.conversation.id);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<AppState>().markConversationAsRead(widget.conversation.id);
-    });
-  }
-
-  void _sendMessage() {
-    if (_messageController.text.trim().isEmpty) return;
-
-    context.read<AppState>().sendMessage(
-          widget.conversation.id,
-          _messageController.text.trim(),
-        );
-    _messageController.clear();
-
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
+    _messages = List<ChatMessage>.from(conversation.messages);
   }
 
   @override
   void dispose() {
-    NotificationService().setActiveConversation(null);
-    _messageController.dispose();
+    _controller.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
-  String _formatTime(DateTime dt) {
-    final hour = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
-    final ampm = dt.hour >= 12 ? 'PM' : 'AM';
-    return '$hour:${dt.minute.toString().padLeft(2, '0')} $ampm';
+  void _sendMessage() {
+    final text = _controller.text.trim();
+    if (text.isEmpty) return;
+    setState(() {
+      _messages.add(
+        ChatMessage(
+          text: text,
+          isMine: true,
+          time: 'Now',
+        ),
+      );
+    });
+    _controller.clear();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: AppDurations.innerTab,
+        curve: Curves.easeOutCubic,
+      );
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<AppState>();
-    final userId = state.user?.id;
-    final otherName = widget.conversation.getOtherParticipantName(userId ?? '');
-    final otherInitials = widget.conversation.getOtherParticipantInitials(userId ?? '');
-
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
+        leading: IconButton(
+          tooltip: 'Back',
+          icon: const Icon(Icons.arrow_back_ios, size: 20),
+          onPressed: () => Navigator.maybePop(context),
+        ),
+        titleSpacing: 0,
         title: Row(
           children: [
-            AppAvatar(radius: 16, initials: otherInitials),
-            const SizedBox(width: 12),
+            JobAvatar(
+              imageIndex: conversation.imageIndex,
+              radius: 18,
+              imageUrl: conversation.imageUrl,
+            ),
+            const SizedBox(width: 10),
             Expanded(
-              child: Text(otherName, style: const TextStyle(fontSize: 16)),
+              child: Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      conversation.name,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  if (conversation.isVerified) ...[
+                    const SizedBox(width: 6),
+                    const Icon(
+                      Icons.verified,
+                      color: AppColors.chatGreen,
+                      size: 16,
+                    ),
+                  ],
+                ],
+              ),
             ),
           ],
         ),
+        actions: [
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              if (value == 'report') {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Conversation reported')),
+                );
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'report',
+                child: Text('Report'),
+              ),
+            ],
+          ),
+        ],
       ),
       body: Column(
         children: [
           Expanded(
-            child: StreamBuilder<List<ChatMessage>>(
-              stream: state.watchMessages(widget.conversation.id),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Text('Error loading messages: ${snapshot.error}'),
-                  );
-                }
-
-                final messages = snapshot.data ?? [];
-
-                if (messages.isEmpty) {
-                  return EmptyState(
-                    icon: Icons.chat_bubble_outline,
-                    title: 'Start the conversation!',
-                    subtitle: 'Say hi to $otherName',
-                    iconSize: 64,
-                  );
-                }
-
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (_scrollController.hasClients) {
-                    _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
-                  }
-                });
-
-                return ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.all(16.0),
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    final message = messages[index];
-                    final isMe = message.senderId == userId;
-
-                    return Align(
-                      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: 8.0),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                        constraints: BoxConstraints(
-                          maxWidth: MediaQuery.of(context).size.width * 0.75,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isMe
-                              ? context.colors.primary
-                              : AppColors.divider,
-                          borderRadius: BorderRadius.circular(16).copyWith(
-                            bottomRight: isMe ? const Radius.circular(0) : const Radius.circular(16),
-                            bottomLeft: isMe ? const Radius.circular(16) : const Radius.circular(0),
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              message.text,
-                              style: TextStyle(
-                                color: isMe ? AppColors.onPrimary : AppColors.textPrimary,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              _formatTime(message.createdAt),
-                              style: TextStyle(
-                                color: isMe
-                                    ? AppColors.onPrimary.withAlpha(180)
-                                    : AppColors.textSecondary,
-                                fontSize: 10,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                );
+            child: ListView.builder(
+              controller: _scrollController,
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.screenH,
+                AppSpacing.md,
+                AppSpacing.screenH,
+                AppSpacing.md,
+              ),
+              itemCount: _messages.length,
+              itemBuilder: (context, index) {
+                return _MessageBubble(message: _messages[index]);
               },
             ),
           ),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _messageController,
-                      onSubmitted: (_) => _sendMessage(),
-                      textInputAction: TextInputAction.send,
-                      decoration: InputDecoration(
-                        hintText: 'Type a message...',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: BorderSide.none,
-                        ),
-                        filled: true,
-                        fillColor: AppColors.divider,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  CircleAvatar(
-                    backgroundColor: Colors.black,
-                    child: IconButton(
-                      icon: const Icon(Icons.send, color: Colors.white, size: 20),
-                      onPressed: _sendMessage,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          _ComposerBar(
+            controller: _controller,
+            onSend: _sendMessage,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _MessageBubble extends StatelessWidget {
+  const _MessageBubble({required this.message});
+
+  final ChatMessage message;
+
+  @override
+  Widget build(BuildContext context) {
+    final isMine = message.isMine;
+    return Align(
+      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.sizeOf(context).width * 0.78,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.sm + 2),
+          child: Column(
+            crossAxisAlignment:
+                isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: isMine ? AppColors.primary : AppColors.surface,
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(AppRadius.md),
+                    topRight: const Radius.circular(AppRadius.md),
+                    bottomLeft: Radius.circular(isMine ? AppRadius.md : 4),
+                    bottomRight: Radius.circular(isMine ? 4 : AppRadius.md),
+                  ),
+                  border: isMine
+                      ? null
+                      : Border.all(color: AppColors.border),
+                ),
+                child: Text(
+                  message.text,
+                  style: TextStyle(
+                    fontSize: 14,
+                    height: 1.35,
+                    color: isMine ? Colors.white : AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(message.time, style: context.caption.copyWith(fontSize: 11)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ComposerBar extends StatelessWidget {
+  const _ComposerBar({
+    required this.controller,
+    required this.onSend,
+  });
+
+  final TextEditingController controller;
+  final VoidCallback onSend;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(top: BorderSide(color: AppColors.border)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screenH,
+            10,
+            AppSpacing.sm,
+            10,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  textCapitalization: TextCapitalization.sentences,
+                  minLines: 1,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    hintText: 'Type a message',
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                  ),
+                  onSubmitted: (_) => onSend(),
+                ),
+              ),
+              const SizedBox(width: 4),
+              IconButton(
+                tooltip: 'Send',
+                onPressed: onSend,
+                color: AppColors.primary,
+                icon: const Icon(Icons.send),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -15,6 +15,14 @@
         { "fieldPath": "conversation_id", "order": "ASCENDING" },
         { "fieldPath": "created_at", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "jobs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "posted_at", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

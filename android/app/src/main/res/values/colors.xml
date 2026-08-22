@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Match lib/theme/app_theme.dart active theme splash gradient start.
-         soft: #2B3352 | purple_gold: #5B21B6 | funky: #D946EF | default: #6366F1 -->
-    <color name="splash_background">#2B3352</color>
+    <!-- Keep the native launch surface aligned with the light in-app splash. -->
+    <color name="splash_background">#FFFFFF</color>
 </resources>

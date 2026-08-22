@@ -129,30 +129,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "5.7.2"
-  cloud_functions:
-    dependency: "direct main"
-    description:
-      name: cloud_functions
-      sha256: "82fa5811d184c4135d2177174507cc03744f032a085cd3be95246c0f1b006e53"
-      url: "https://pub.dev"
-    source: hosted
-    version: "6.3.6"
-  cloud_functions_platform_interface:
-    dependency: transitive
-    description:
-      name: cloud_functions_platform_interface
-      sha256: "86842d91cd4e83b71aa2dff874fd3554e237aa6e222d8e6e54bb7692fb1bd779"
-      url: "https://pub.dev"
-    source: hosted
-    version: "6.0.6"
-  cloud_functions_web:
-    dependency: transitive
-    description:
-      name: cloud_functions_web
-      sha256: aeca9c8f24838630f28bd75622668725a85044211be83de9f0a2fe07c4c8b643
-      url: "https://pub.dev"
-    source: hosted
-    version: "5.1.12"
   code_assets:
     dependency: transitive
     description:
@@ -398,14 +374,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.4.2"
-  flutter_cashfree_pg_sdk:
-    dependency: "direct main"
-    description:
-      name: flutter_cashfree_pg_sdk
-      sha256: "94d618057ffa7721b2bdc97dd0d0ad7f22df2a30ac66b3991a7fd65e6f15e64d"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.4.0+52"
   flutter_launcher_icons:
     dependency: "direct dev"
     description:
@@ -529,7 +497,7 @@ packages:
     source: hosted
     version: "2.0.2"
   http:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: http
       sha256: "87721a4a50b19c7f1d49001e51409bddc46303966ce89a65af4f4e6004896412"
@@ -616,14 +584,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.2.2"
-  intl:
-    dependency: "direct main"
-    description:
-      name: intl
-      sha256: "1ca20c894b1717686a2319b8548763d812bc0aabdac580420a44c5178c57a867"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.20.3"
   jni:
     dependency: transitive
     description:
@@ -648,14 +608,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.0"
-  js:
-    dependency: transitive
-    description:
-      name: js
-      sha256: f2c445dce49627136094980615a031419f7f3eb393237e4ecd97ac15dea343f3
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.6.7"
   json_annotation:
     dependency: transitive
     description:
@@ -777,7 +729,7 @@ packages:
     source: hosted
     version: "1.9.1"
   path_provider:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: path_provider
       sha256: a7f4874f987173da295a61c181b8ee71dab59b332a486b391babf26a1b884825

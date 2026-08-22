@@ -182,10 +182,6 @@ google-services.json
 GoogleService-Info.plist
 **/GoogleService-Info.plist
 
-# Payment / private credentials
-cashfreekeys.txt
-
-
 # ============================================================
 # Project-specific private files
 # ============================================================
@@ -193,10 +189,9 @@ cashfreekeys.txt
 assets/db.json
 todo and steps.txt
 
-# Local scripts/config that should not be committed
-# Uncomment only if scripts/ contains machine-specific scripts.
-# scripts/local/
-# scripts/*.local.*
+# Local script credentials and secret-bearing utilities
+scripts/local/
+scripts/*.local.*
 
 
 # ============================================================
@@ -208,5 +203,3 @@ todo and steps.txt
 *.pyo
 
 .svn/
-
-scripts/

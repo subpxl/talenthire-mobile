@@ -52,7 +52,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyDDsaZPQvKp_vMSBoSGjashJWqefdOOlmk',
-    appId: '1:483545794550:android:a1e3da5733eb84c10569d7',
+    appId: '1:483545794550:android:093c6ae603a5406c0569d7',
     messagingSenderId: '483545794550',
     projectId: 'talenthire-d86a1',
     storageBucket: 'talenthire-d86a1.firebasestorage.app',

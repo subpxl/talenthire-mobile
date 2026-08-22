@@ -1,9 +1,23 @@
 {
   "rules": {
+    "conversations": {
+      "$conversationId": {
+        ".read": "auth != null && data.child('participants').child(auth.uid).val() === true",
+        ".write": "auth != null && !data.exists() && newData.child('participants').child(auth.uid).val() === true && newData.child('participants').hasChildren() && newData.child('participants').numChildren() === 2",
+        "participants": {
+          "$uid": {
+            ".validate": "newData.isBoolean() && newData.val() === true"
+          }
+        }
+      }
+    },
     "messages": {
       "$conversationId": {
-        ".read": "auth != null",
-        ".write": "auth != null"
+        ".read": "auth != null && root.child('conversations').child($conversationId).child('participants').child(auth.uid).val() === true",
+        "$messageId": {
+          ".write": "auth != null && !data.exists() && newData.child('sender_id').val() === auth.uid && root.child('conversations').child($conversationId).child('participants').child(auth.uid).val() === true",
+          ".validate": "newData.hasChildren(['sender_id', 'text']) && newData.child('text').isString() && newData.child('text').val().length > 0 && newData.child('text').val().length <= 2000"
+        }
       }
     }
   }
