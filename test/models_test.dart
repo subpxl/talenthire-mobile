@@ -1,7 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:bombay_casting/data/job_assets.dart';
-import 'package:bombay_casting/models/models.dart';
-import 'package:bombay_casting/screens/job_detail_screen.dart';
+import 'package:bombay_casting/core/models/models.dart';
+import 'package:bombay_casting/features/creators/models/creator_profile.dart';
+import 'package:bombay_casting/features/jobs/models/job_listing.dart';
+import 'package:bombay_casting/features/jobs/screens/job_detail_screen.dart';
 
 void main() {
   group('Job', () {
@@ -101,9 +102,9 @@ void main() {
         'category': category,
         'collaboration_type': collaborationType,
         'compensation': compensation,
-        if (minFollowers != null) 'min_followers': minFollowers,
-        if (payMin != null) 'pay_min': payMin,
-        if (payMax != null) 'pay_max': payMax,
+        'min_followers': ?minFollowers,
+        'pay_min': ?payMin,
+        'pay_max': ?payMax,
       });
     }
 
@@ -127,6 +128,47 @@ void main() {
         ),
         isFalse,
       );
+    });
+
+    test('search matches title, agency, and location', () {
+      final job = Job.fromJson({
+        'id': 'job-search',
+        'title': 'Beauty reel campaign',
+        'company': 'Glow Labs',
+        'location': 'Mumbai, Maharashtra',
+        'location_type': 'onsite',
+        'category': 'Beauty',
+      });
+      expect(
+        const HomeJobFilter(searchQuery: 'glow mumbai').matchesJob(job),
+        isTrue,
+      );
+      expect(
+        const HomeJobFilter(searchQuery: 'delhi').matchesJob(job),
+        isFalse,
+      );
+    });
+
+    test('work mode chips filter remote, online, and onsite jobs', () {
+      final remote = job();
+      final online = Job.fromJson({
+        'id': 'job-online',
+        'title': 'Live host',
+        'location_type': 'online',
+        'location': 'Virtual',
+      });
+      final onsite = Job.fromJson({
+        'id': 'job-onsite',
+        'title': 'Studio shoot',
+        'location_type': 'onsite',
+        'location': 'Mumbai, Maharashtra',
+      });
+
+      expect(const HomeJobFilter(workMode: 'Remote').matchesJob(remote), isTrue);
+      expect(const HomeJobFilter(workMode: 'Remote').matchesJob(onsite), isFalse);
+      expect(const HomeJobFilter(workMode: 'Online').matchesJob(online), isTrue);
+      expect(const HomeJobFilter(workMode: 'Onsite').matchesJob(onsite), isTrue);
+      expect(const HomeJobFilter(workMode: 'All').matchesJob(online), isTrue);
     });
 
     test('default slider values do not hide jobs', () {
@@ -155,6 +197,35 @@ void main() {
       expect(profile.niches, ['Tech', 'Gaming']);
       expect(profile.platformMetrics.single.followers, 125000);
       expect(profile.platformMetrics.single.handle, '@creator');
+    });
+  });
+
+  group('CreatorProfile filters', () {
+    CreatorProfile creator({
+      String name = 'Asha Khan',
+      String title = 'Actor',
+      String location = 'Mumbai, Maharashtra',
+    }) {
+      return CreatorProfile(
+        id: 'c-1',
+        name: name,
+        title: title,
+        location: location,
+        photos: const [CreatorPhoto()],
+        workInfo: [MapEntry('Role', title)],
+      );
+    }
+
+    test('search matches name, location, and talent', () {
+      final profile = creator();
+      expect(profile.matchesSearch('asha mumbai actor'), isTrue);
+      expect(profile.matchesSearch('delhi'), isFalse);
+    });
+
+    test('talent chip matches role', () {
+      expect(creator().matchesTalent('All'), isTrue);
+      expect(creator().matchesTalent('Actor'), isTrue);
+      expect(creator(title: 'Dancer').matchesTalent('Actor'), isFalse);
     });
   });
 }
