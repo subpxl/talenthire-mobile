@@ -25,9 +25,10 @@ class AuthService {
   Future<fb.UserCredential?> signInWithGoogle() async {
     lastError = null;
     try {
-      await initializeGoogleSignIn();
-      // Clear any stale Credential Manager session from a prior attempt.
-      await GoogleSignIn.instance.signOut();
+      // NOTE: GoogleSignIn.instance is already initialized at app startup (app_state._init).
+      // Do NOT call initialize() again here — double-init resets Credential Manager state.
+      // Do NOT call signOut() here — it wipes Credential Manager's cached credential,
+      // which causes error [16] "Account reauth failed" even when SHA-1 is correct.
 
       final GoogleSignInAccount googleUser =
           await GoogleSignIn.instance.authenticate();
@@ -44,12 +45,14 @@ class AuthService {
       return await _auth.signInWithCredential(credential);
     } on GoogleSignInException catch (e) {
       final details = e.toString();
+      // Error code [16] = DEVELOPER_ERROR. Can mean SHA-1 not registered, OR
+      // Credential Manager has no usable credential (e.g. no Google account on device,
+      // or the Credential Manager flow was interrupted). Not always a SHA-1 issue.
       if (details.contains('Account reauth failed') || details.contains('[16]')) {
         lastError =
-            'Google Sign-In failed: your app SHA-1 is not registered in Firebase. '
-            'Add SHA-1 for package com.bombaycastingcompany.app in Firebase Console → Project settings → Your apps, '
-            'enable Google sign-in under Authentication, then re-download google-services.json.';
-        debugPrint('Google Sign-In error: $lastError');
+            'Google Sign-In failed. Please make sure you have a Google account added on '
+            'this device and try again. If the issue persists, restart the app.';
+        debugPrint('Google Sign-In DEVELOPER_ERROR [16]: $details');
         return null;
       }
       if (e.code == GoogleSignInExceptionCode.canceled) {
