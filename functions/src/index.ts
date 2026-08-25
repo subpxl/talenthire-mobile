@@ -1,20 +1,31 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import {
+  buildCancellationOrderPayload,
   buildPremiumSubscriptionPayload,
+  CANCELLATION_CHARGE_AMOUNT,
   cancelCashfreeSubscription,
   cashfreeRequest,
   CashfreeSubscriptionResponse,
+  createCashfreeOrder,
+  extractUserIdFromPgWebhook,
   extractUserIdFromWebhook,
+  fetchCashfreeOrder,
   getCashfreeConfig,
   getWebhookVerificationSecret,
+  isCancellationChargeSuccessWebhook,
+  isCancellationOrderIdForUser,
+  isPaidOrderStatus,
+  isPaymentWebhookType,
   isPendingSubscriptionStatus,
   isPremiumActivationWebhook,
   isPremiumDeactivationWebhook,
+  isReusableOrderStatus,
   isTerminalSubscriptionStatus,
   normalizeIndianPhone,
   readWebhookRawBody,
   verifyWebhookSignature,
+  type CashfreePgWebhookPayload,
   type CashfreeWebhookPayload,
 } from './cashfree';
 
@@ -23,6 +34,8 @@ const db = admin.firestore();
 const RTDB_INSTANCE = 'talenthire-d86a1-default-rtdb';
 
 const PREMIUM_TRIAL_DAYS = 3;
+const PAY_TO_CANCEL_MESSAGE =
+  'Pay ₹299 in PhonePe to cancel your subscription.';
 
 function addDaysIso(days: number): string {
   const date = new Date();
@@ -85,6 +98,254 @@ async function fetchCashfreeSubscription(
     method: 'GET',
     path: `/subscriptions/${encodeURIComponent(subscriptionId)}`,
   });
+}
+
+function pgWebhookNotifyUrl(): string {
+  const projectId =
+    process.env.GCLOUD_PROJECT ||
+    process.env.GCP_PROJECT ||
+    'talenthire-d86a1';
+  return `https://us-central1-${projectId}.cloudfunctions.net/cashfreePgWebhook`;
+}
+
+function cancellationOrderId(userId: string): string {
+  return `cxl_${userId}_${Date.now()}`;
+}
+
+interface LocalSubscriptionRecord {
+  subscription_id?: string;
+  user_id?: string;
+  subscription_status?: string;
+  cancellation_order_id?: string;
+  cancellation_order_status?: string;
+  cancellation_payment_session_id?: string;
+}
+
+async function loadOwnedSubscription(
+  userId: string,
+): Promise<{local: LocalSubscriptionRecord; subscriptionId: string}> {
+  const localDoc = await db.collection('subscriptions').doc(userId).get();
+  if (!localDoc.exists) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      'No active subscription to cancel.',
+    );
+  }
+
+  const local = (localDoc.data() ?? {}) as LocalSubscriptionRecord;
+  const subscriptionId = local.subscription_id;
+  const subscriptionOwnerId = local.user_id;
+
+  if (subscriptionOwnerId && subscriptionOwnerId !== userId) {
+    throw new functions.https.HttpsError(
+      'permission-denied',
+      'Cannot cancel this subscription.',
+    );
+  }
+
+  if (!subscriptionId || !subscriptionId.startsWith(`premium_${userId}_`)) {
+    throw new functions.https.HttpsError(
+      'permission-denied',
+      'Cannot cancel this subscription.',
+    );
+  }
+
+  return {local, subscriptionId};
+}
+
+async function applySubscriptionCancellation({
+  userId,
+  subscriptionId,
+  remoteStatus,
+}: {
+  userId: string;
+  subscriptionId: string;
+  remoteStatus: string;
+}): Promise<string> {
+  let status = remoteStatus;
+  const config = getCashfreeConfig();
+
+  if (!isTerminalSubscriptionStatus(status)) {
+    try {
+      const cancelled = await cancelCashfreeSubscription(config, subscriptionId);
+      status = cancelled.subscription_status ?? 'CANCELLED';
+    } catch (error) {
+      try {
+        const remote = await fetchCashfreeSubscription(config, subscriptionId);
+        status = remote.subscription_status ?? status;
+      } catch {
+        // Keep the pre-cancel status and fail below if still active.
+      }
+
+      if (!isTerminalSubscriptionStatus(status)) {
+        functions.logger.error('applySubscriptionCancellation: Cashfree cancel failed', {
+          userId,
+          subscriptionId,
+          error,
+        });
+        throw new functions.https.HttpsError(
+          'unavailable',
+          error instanceof Error
+            ? error.message
+            : 'Could not cancel subscription. Try again.',
+        );
+      }
+    }
+  }
+
+  const finalStatus = isTerminalSubscriptionStatus(status)
+    ? status
+    : 'CANCELLED';
+
+  await db.collection('subscriptions').doc(userId).set(
+    {
+      subscription_status: finalStatus,
+      cancelled_at: admin.firestore.FieldValue.serverTimestamp(),
+      updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    {merge: true},
+  );
+
+  const profileDoc = await db.collection('profiles').doc(userId).get();
+  if (profileDoc.data()?.subscription_status === 'premium') {
+    await setUserSubscriptionStatus(userId, 'expired');
+  }
+
+  return finalStatus;
+}
+
+async function markCancellationOrderPaid(
+  userId: string,
+  orderId: string,
+): Promise<void> {
+  await db.collection('subscriptions').doc(userId).set(
+    {
+      cancellation_order_id: orderId,
+      cancellation_order_status: 'PAID',
+      cancellation_amount: CANCELLATION_CHARGE_AMOUNT,
+      cancellation_paid_at: admin.firestore.FieldValue.serverTimestamp(),
+      updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    {merge: true},
+  );
+}
+
+async function finalizeCancellationAfterPaidOrder({
+  userId,
+  orderId,
+}: {
+  userId: string;
+  orderId: string;
+}): Promise<{status: string; isPremium: false}> {
+  if (!isCancellationOrderIdForUser(orderId, userId)) {
+    throw new functions.https.HttpsError(
+      'permission-denied',
+      'Cannot use this payment to cancel.',
+    );
+  }
+
+  const {local, subscriptionId} = await loadOwnedSubscription(userId);
+
+  const config = getCashfreeConfig();
+  const order = await fetchCashfreeOrder(config, orderId);
+  if (!isPaidOrderStatus(order.order_status)) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      PAY_TO_CANCEL_MESSAGE,
+    );
+  }
+  if (Number(order.order_amount) !== CANCELLATION_CHARGE_AMOUNT) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      'Invalid cancellation payment.',
+    );
+  }
+
+  await markCancellationOrderPaid(userId, orderId);
+
+  let remoteStatus = local.subscription_status ?? '';
+  try {
+    const remote = await fetchCashfreeSubscription(config, subscriptionId);
+    remoteStatus = remote.subscription_status ?? remoteStatus;
+  } catch (error) {
+    functions.logger.warn('finalizeCancellationAfterPaidOrder: could not fetch status', {
+      userId,
+      subscriptionId,
+      error,
+    });
+  }
+
+  const finalStatus = await applySubscriptionCancellation({
+    userId,
+    subscriptionId,
+    remoteStatus,
+  });
+
+  return {status: finalStatus, isPremium: false};
+}
+
+async function resolveCancellationChargeUserId(
+  payload: CashfreePgWebhookPayload,
+): Promise<string | null> {
+  const orderId = payload.data?.order?.order_id ?? '';
+  const taggedUserId = extractUserIdFromPgWebhook(payload);
+
+  if (taggedUserId) {
+    const stored = await db.collection('subscriptions').doc(taggedUserId).get();
+    const storedOrderId = stored.data()?.cancellation_order_id as
+      | string
+      | undefined;
+    if (
+      storedOrderId === orderId ||
+      isCancellationOrderIdForUser(orderId, taggedUserId)
+    ) {
+      return taggedUserId;
+    }
+  }
+
+  if (orderId) {
+    const match = await db
+      .collection('subscriptions')
+      .where('cancellation_order_id', '==', orderId)
+      .limit(1)
+      .get();
+    if (!match.empty) {
+      return match.docs[0].id;
+    }
+  }
+
+  return null;
+}
+
+async function handleCancellationChargePayment(
+  payload: CashfreePgWebhookPayload,
+): Promise<void> {
+  if (!isCancellationChargeSuccessWebhook(payload)) {
+    return;
+  }
+
+  const orderId = payload.data?.order?.order_id;
+  if (!orderId) {
+    return;
+  }
+
+  const userId = await resolveCancellationChargeUserId(payload);
+  if (!userId) {
+    functions.logger.warn('cancellation charge webhook: user not found', {
+      orderId,
+    });
+    return;
+  }
+
+  try {
+    await finalizeCancellationAfterPaidOrder({userId, orderId});
+  } catch (error) {
+    functions.logger.error('cancellation charge webhook: finalize failed', {
+      userId,
+      orderId,
+      error,
+    });
+  }
 }
 
 function buildSubscriptionSessionResponse({
@@ -355,7 +616,174 @@ export const verifyPremiumSubscription = functions.https.onCall(
 );
 
 /**
- * Cancels the signed-in user's Cashfree UPI Autopay mandate and ends Premium.
+ * Creates a ₹299 Cashfree order and returns a PhonePe UPI session.
+ * Subscription is not cancelled until the charge is paid.
+ */
+export const createCancellationCharge = functions.https.onCall(
+  async (_data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError(
+        'unauthenticated',
+        'Sign in to cancel your subscription.',
+      );
+    }
+
+    const userId = context.auth.uid;
+    const {local, subscriptionId} = await loadOwnedSubscription(userId);
+    const config = getCashfreeConfig();
+
+    let remoteStatus = local.subscription_status ?? '';
+    try {
+      const remote = await fetchCashfreeSubscription(config, subscriptionId);
+      remoteStatus = remote.subscription_status ?? remoteStatus;
+    } catch (error) {
+      functions.logger.warn('createCancellationCharge: could not fetch status', {
+        userId,
+        subscriptionId,
+        error,
+      });
+    }
+
+    if (isTerminalSubscriptionStatus(remoteStatus)) {
+      const finalStatus = await applySubscriptionCancellation({
+        userId,
+        subscriptionId,
+        remoteStatus,
+      });
+      return {
+        alreadyCancelled: true,
+        status: finalStatus,
+        isPremium: false,
+        orderId: local.cancellation_order_id ?? '',
+        paymentSessionId: '',
+        environment: config.environment,
+        amount: CANCELLATION_CHARGE_AMOUNT,
+      };
+    }
+
+    const existingOrderId = local.cancellation_order_id;
+    if (existingOrderId && isCancellationOrderIdForUser(existingOrderId, userId)) {
+      try {
+        const existingOrder = await fetchCashfreeOrder(config, existingOrderId);
+        if (isPaidOrderStatus(existingOrder.order_status)) {
+          const result = await finalizeCancellationAfterPaidOrder({
+            userId,
+            orderId: existingOrderId,
+          });
+          return {
+            alreadyCancelled: true,
+            status: result.status,
+            isPremium: false,
+            orderId: existingOrderId,
+            paymentSessionId: '',
+            environment: config.environment,
+            amount: CANCELLATION_CHARGE_AMOUNT,
+          };
+        }
+
+        if (
+          isReusableOrderStatus(existingOrder.order_status) &&
+          existingOrder.payment_session_id
+        ) {
+          await db.collection('subscriptions').doc(userId).set(
+            {
+              cancellation_order_id: existingOrder.order_id,
+              cancellation_order_status: existingOrder.order_status,
+              cancellation_payment_session_id: existingOrder.payment_session_id,
+              cancellation_amount: CANCELLATION_CHARGE_AMOUNT,
+              updated_at: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            {merge: true},
+          );
+
+          return {
+            alreadyCancelled: false,
+            orderId: existingOrder.order_id,
+            paymentSessionId: existingOrder.payment_session_id,
+            environment: config.environment,
+            amount: CANCELLATION_CHARGE_AMOUNT,
+          };
+        }
+      } catch (error) {
+        functions.logger.warn('createCancellationCharge: could not reuse order', {
+          userId,
+          orderId: existingOrderId,
+          error,
+        });
+      }
+    }
+
+    const customer = await loadCustomerDetails(userId);
+    const orderId = cancellationOrderId(userId);
+    const created = await createCashfreeOrder(
+      config,
+      buildCancellationOrderPayload({
+        orderId,
+        customerId: userId,
+        customerName: customer.name,
+        customerEmail: customer.email,
+        customerPhone: customer.phone,
+        notifyUrl: pgWebhookNotifyUrl(),
+      }),
+    );
+
+    if (!created.payment_session_id) {
+      throw new functions.https.HttpsError(
+        'unavailable',
+        'Could not start PhonePe payment. Try again.',
+      );
+    }
+
+    await db.collection('subscriptions').doc(userId).set(
+      {
+        cancellation_order_id: created.order_id,
+        cancellation_order_status: created.order_status,
+        cancellation_payment_session_id: created.payment_session_id,
+        cancellation_amount: CANCELLATION_CHARGE_AMOUNT,
+        updated_at: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      {merge: true},
+    );
+
+    return {
+      alreadyCancelled: false,
+      orderId: created.order_id,
+      paymentSessionId: created.payment_session_id,
+      environment: config.environment,
+      amount: CANCELLATION_CHARGE_AMOUNT,
+    };
+  },
+);
+
+/**
+ * Verifies the ₹299 PhonePe payment, then cancels Autopay and ends Premium.
+ */
+export const completeCancellationAfterCharge = functions.https.onCall(
+  async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError(
+        'unauthenticated',
+        'Sign in to cancel your subscription.',
+      );
+    }
+
+    const orderId = (data as {orderId?: string})?.orderId;
+    if (!orderId) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        PAY_TO_CANCEL_MESSAGE,
+      );
+    }
+
+    return finalizeCancellationAfterPaidOrder({
+      userId: context.auth.uid,
+      orderId,
+    });
+  },
+);
+
+/**
+ * Completes cancellation only after a ₹299 PhonePe charge is paid.
  * Idempotent: already-cancelled subscriptions still expire local premium.
  */
 export const cancelPremiumSubscription = functions.https.onCall(
@@ -368,34 +796,9 @@ export const cancelPremiumSubscription = functions.https.onCall(
     }
 
     const userId = context.auth.uid;
-    const localDoc = await db.collection('subscriptions').doc(userId).get();
-    if (!localDoc.exists) {
-      throw new functions.https.HttpsError(
-        'failed-precondition',
-        'No active subscription to cancel.',
-      );
-    }
-
-    const local = localDoc.data()!;
-    const subscriptionId = local.subscription_id as string | undefined;
-    const subscriptionOwnerId = local.user_id as string | undefined;
-
-    if (subscriptionOwnerId && subscriptionOwnerId !== userId) {
-      throw new functions.https.HttpsError(
-        'permission-denied',
-        'Cannot cancel this subscription.',
-      );
-    }
-
-    if (!subscriptionId || !subscriptionId.startsWith(`premium_${userId}_`)) {
-      throw new functions.https.HttpsError(
-        'permission-denied',
-        'Cannot cancel this subscription.',
-      );
-    }
-
+    const {local, subscriptionId} = await loadOwnedSubscription(userId);
     const config = getCashfreeConfig();
-    let remoteStatus = (local.subscription_status as string | undefined) ?? '';
+    let remoteStatus = local.subscription_status ?? '';
 
     try {
       const remote = await fetchCashfreeSubscription(config, subscriptionId);
@@ -408,61 +811,40 @@ export const cancelPremiumSubscription = functions.https.onCall(
       });
     }
 
-    if (!isTerminalSubscriptionStatus(remoteStatus)) {
-      try {
-        const cancelled = await cancelCashfreeSubscription(config, subscriptionId);
-        remoteStatus = cancelled.subscription_status ?? 'CANCELLED';
-      } catch (error) {
-        try {
-          const remote = await fetchCashfreeSubscription(config, subscriptionId);
-          remoteStatus = remote.subscription_status ?? remoteStatus;
-        } catch {
-          // Keep the pre-cancel status and fail below if still active.
-        }
-
-        if (!isTerminalSubscriptionStatus(remoteStatus)) {
-          functions.logger.error('cancelPremiumSubscription: Cashfree cancel failed', {
-            userId,
-            subscriptionId,
-            error,
-          });
-          throw new functions.https.HttpsError(
-            'unavailable',
-            error instanceof Error
-              ? error.message
-              : 'Could not cancel subscription. Try again.',
-          );
-        }
-      }
+    if (isTerminalSubscriptionStatus(remoteStatus)) {
+      const finalStatus = await applySubscriptionCancellation({
+        userId,
+        subscriptionId,
+        remoteStatus,
+      });
+      return {status: finalStatus, isPremium: false};
     }
 
-    const finalStatus = isTerminalSubscriptionStatus(remoteStatus)
-      ? remoteStatus
-      : 'CANCELLED';
+    const orderId = local.cancellation_order_id;
+    if (orderId) {
+      return finalizeCancellationAfterPaidOrder({userId, orderId});
+    }
 
-    await db.collection('subscriptions').doc(userId).set(
-      {
-        subscription_status: finalStatus,
-        cancelled_at: admin.firestore.FieldValue.serverTimestamp(),
-        updated_at: admin.firestore.FieldValue.serverTimestamp(),
-      },
-      {merge: true},
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      PAY_TO_CANCEL_MESSAGE,
     );
-
-    const profileDoc = await db.collection('profiles').doc(userId).get();
-    if (profileDoc.data()?.subscription_status === 'premium') {
-      await setUserSubscriptionStatus(userId, 'expired');
-    }
-
-    return {
-      status: finalStatus,
-      isPremium: false,
-    };
   },
 );
 
 export const cashfreeSubscriptionWebhook = functions.https.onRequest(
-  async (req, res) => {
+  handleCashfreeHttpWebhook,
+);
+
+/** Same handler as subscriptions — point Cashfree PG webhooks here. */
+export const cashfreePgWebhook = functions.https.onRequest(
+  handleCashfreeHttpWebhook,
+);
+
+async function handleCashfreeHttpWebhook(
+  req: functions.https.Request,
+  res: functions.Response,
+): Promise<void> {
     // Cashfree dashboard connectivity checks may use GET/HEAD.
     if (req.method === 'GET' || req.method === 'HEAD') {
       res.status(200).send('OK');
@@ -511,6 +893,14 @@ export const cashfreeSubscriptionWebhook = functions.https.onRequest(
     }
 
     functions.logger.info('Cashfree webhook received', {type: payload.type});
+
+    if (isPaymentWebhookType(payload.type)) {
+      await handleCancellationChargePayment(
+        payload as unknown as CashfreePgWebhookPayload,
+      );
+      res.status(200).send('OK');
+      return;
+    }
 
     const subscriptionId =
       payload.data?.subscription_details?.subscription_id ?? null;
@@ -577,8 +967,7 @@ export const cashfreeSubscriptionWebhook = functions.https.onRequest(
     }
 
     res.status(200).send('OK');
-  },
-);
+}
 
 /**
  * Sends a push notification to the recipient when a chat message is created.

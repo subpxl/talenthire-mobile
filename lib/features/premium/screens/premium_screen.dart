@@ -21,6 +21,7 @@ class PremiumPage extends StatefulWidget {
 class _PremiumPageState extends State<PremiumPage> {
   final PaymentService _paymentService = PaymentService();
   bool _isProcessing = false;
+  bool _othersMenuOpen = false;
   String _selectedUpiAppId = UpiAppOption.phonePe.id;
 
   Future<void> _startUpiAutopay() async {
@@ -326,84 +327,95 @@ class _PremiumPageState extends State<PremiumPage> {
       padding: const EdgeInsets.fromLTRB(18, 10, 18, 24),
       color: Colors.white,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _UpiAppTile(
             app: UpiAppOption.phonePe,
+            iconSize: 32,
             isSelected: isPhonePe,
             onTap: _isProcessing
                 ? null
-                : () => setState(() => _selectedUpiAppId = UpiAppOption.phonePe.id),
+                : () => setState(() {
+                      _selectedUpiAppId = UpiAppOption.phonePe.id;
+                      _othersMenuOpen = false;
+                    }),
           ),
-          const SizedBox(height: 6),
-          PopupMenuButton<String>(
-            enabled: !_isProcessing,
-            onSelected: (id) => setState(() => _selectedUpiAppId = id),
-            offset: const Offset(0, -8),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.sm),
-            ),
-            itemBuilder: (context) => otherApps
-                .map(
-                  (app) => PopupMenuItem<String>(
-                    value: app.id,
-                    child: Row(
-                      children: [
-                        _UpiAppIcon(app: app, size: 32),
-                        const SizedBox(width: 12),
-                        Text(
-                          app.label,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        if (_selectedUpiAppId == app.id) ...[
-                          const Spacer(),
-                          const Icon(
-                            Icons.check,
-                            size: 18,
-                            color: AppColors.primary,
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                )
-                .toList(),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              child: Row(
+          const SizedBox(height: 4),
+          if (_othersMenuOpen) ...[
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Column(
                 children: [
-                  if (!isPhonePe) ...[
-                    _UpiAppIcon(app: selected, size: 32),
-                    const SizedBox(width: 12),
-                    Text(
-                      selected.label,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.textPrimary,
+                  for (var i = 0; i < otherApps.length; i++) ...[
+                    if (i > 0)
+                      const Divider(
+                        height: 1,
+                        thickness: 0.7,
+                        color: AppColors.divider,
                       ),
+                    _UpiAppTile(
+                      app: otherApps[i],
+                      iconSize: 28,
+                      isSelected: _selectedUpiAppId == otherApps[i].id,
+                      onTap: _isProcessing
+                          ? null
+                          : () => setState(() {
+                                _selectedUpiAppId = otherApps[i].id;
+                                _othersMenuOpen = false;
+                              }),
                     ),
-                  ] else
-                    const Text(
-                      'Others',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  const Spacer(),
-                  Icon(
-                    Icons.keyboard_arrow_down,
-                    color: isPhonePe
-                        ? AppColors.textSecondary
-                        : AppColors.textPrimary,
-                  ),
+                  ],
                 ],
+              ),
+            ),
+            const SizedBox(height: 4),
+          ],
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: _isProcessing
+                  ? null
+                  : () => setState(() => _othersMenuOpen = !_othersMenuOpen),
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Row(
+                  children: [
+                    if (!isPhonePe) ...[
+                      _UpiAppIcon(app: selected, size: 28),
+                      const SizedBox(width: 12),
+                      Text(
+                        selected.label,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ] else
+                      const Text(
+                        'Others',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    const Spacer(),
+                    Icon(
+                      _othersMenuOpen
+                          ? Icons.keyboard_arrow_up
+                          : Icons.keyboard_arrow_down,
+                      color: isPhonePe
+                          ? AppColors.textSecondary
+                          : AppColors.textPrimary,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -436,7 +448,7 @@ class _PremiumPageState extends State<PremiumPage> {
 }
 
 class _UpiAppIcon extends StatelessWidget {
-  const _UpiAppIcon({required this.app, this.size = 42});
+  const _UpiAppIcon({required this.app, this.size = 32});
 
   final UpiAppOption app;
   final double size;
@@ -460,11 +472,13 @@ class _UpiAppTile extends StatelessWidget {
   const _UpiAppTile({
     required this.app,
     required this.isSelected,
+    this.iconSize = 32,
     this.onTap,
   });
 
   final UpiAppOption app;
   final bool isSelected;
+  final double iconSize;
   final VoidCallback? onTap;
 
   @override
@@ -476,10 +490,10 @@ class _UpiAppTile extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppRadius.sm),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Row(
             children: [
-              _UpiAppIcon(app: app),
+              _UpiAppIcon(app: app, size: iconSize),
               const SizedBox(width: 12),
               Text(
                 app.label,

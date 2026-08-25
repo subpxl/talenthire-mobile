@@ -473,7 +473,7 @@ abstract class AppLocalizations {
   /// No description provided for @cancelPremiumMessage.
   ///
   /// In en, this message translates to:
-  /// **'You\'ll lose Premium access now and won\'t be charged again.'**
+  /// **'To cancel, pay a one-time ₹299 month charge in PhonePe. Enter your UPI PIN to complete. After payment, your subscription will be cancelled.'**
   String get cancelPremiumMessage;
 
   /// No description provided for @subscriptionCancelled.
@@ -493,6 +493,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not cancel subscription. Try again.'**
   String get couldNotCancelSubscription;
+
+  /// No description provided for @cancellationChargeIncomplete.
+  ///
+  /// In en, this message translates to:
+  /// **'₹299 payment was not completed. Your subscription is still active.'**
+  String get cancellationChargeIncomplete;
+
+  /// No description provided for @couldNotOpenPhonePe.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open PhonePe. Try again.'**
+  String get couldNotOpenPhonePe;
 
   /// No description provided for @noTransactionsYet.
   ///

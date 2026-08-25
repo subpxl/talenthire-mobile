@@ -200,7 +200,7 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get cancelPremiumMessage =>
-      'प्रीमियम एक्सेस अभी खत्म हो जाएगी और आगे कोई शुल्क नहीं लगेगा।';
+      'रद्द करने के लिए PhonePe में एक बार ₹299 महीने का शुल्क दें। पूरा करने के लिए अपना UPI पिन डालें। भुगतान के बाद सदस्यता रद्द हो जाएगी।';
 
   @override
   String get subscriptionCancelled => 'सदस्यता रद्द कर दी गई।';
@@ -212,6 +212,13 @@ class AppLocalizationsHi extends AppLocalizations {
   @override
   String get couldNotCancelSubscription =>
       'सदस्यता रद्द नहीं हो सकी। फिर कोशिश करें।';
+
+  @override
+  String get cancellationChargeIncomplete =>
+      '₹299 का भुगतान पूरा नहीं हुआ। आपकी सदस्यता अभी भी सक्रिय है।';
+
+  @override
+  String get couldNotOpenPhonePe => 'PhonePe नहीं खुल सका। फिर कोशिश करें।';
 
   @override
   String get noTransactionsYet => 'अभी कोई लेन-देन नहीं है।';

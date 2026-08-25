@@ -240,11 +240,15 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     final firstChargeAt = parseFlexibleDate(data['first_charge_at']);
     final authAmount = data['authorization_amount'] ?? 1;
     final recurringAmount = data['recurring_amount'] ?? 299;
+    final cancellationStatus =
+        (data['cancellation_order_status'] ?? '').toString().toUpperCase();
+    final cancellationPaidAt = parseFlexibleDate(data['cancellation_paid_at']);
+    final cancellationAmount = data['cancellation_amount'] ?? 299;
     final now = DateTime.now();
     final monthlyUpcoming =
         firstChargeAt != null && firstChargeAt.isAfter(now);
 
-    return [
+    final items = <_TransactionItem>[
       _TransactionItem(
         title: 'Premium Trial',
         amount: '₹$authAmount',
@@ -262,6 +266,21 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
         isCancelled: _terminalStatuses.contains(status.toUpperCase()),
       ),
     ];
+
+    if (cancellationStatus == 'PAID') {
+      items.add(
+        _TransactionItem(
+          title: 'Cancellation charge',
+          amount: '₹$cancellationAmount',
+          date: cancellationPaidAt == null
+              ? ''
+              : DateFormat('d MMM yyyy').format(cancellationPaidAt),
+          status: 'Paid',
+        ),
+      );
+    }
+
+    return items;
   }
 
   String _displayStatus(String status, {required bool upcoming}) {
@@ -290,7 +309,44 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     setState(() => _isCancelling = true);
     final l10n = AppLocalizations.of(context)!;
     try {
-      await _paymentService.cancelPremiumSubscription();
+      final session = await _paymentService.createCancellationCharge();
+      if (!mounted) return;
+
+      if (session.alreadyCancelled) {
+        await context.read<AppState>().refreshProfile();
+        if (!mounted) return;
+        _showMessage(l10n.subscriptionCancelled);
+        return;
+      }
+
+      var paymentResult = PremiumPaymentResult.failure;
+      try {
+        paymentResult = await _paymentService.launchUpiOneTimePayment(
+          session: session,
+          upiApp: UpiAppOption.phonePe,
+          onFailure: (message) {
+            if (!mounted) return;
+            _showMessage(
+              message.isEmpty ? l10n.couldNotOpenPhonePe : message,
+            );
+          },
+        );
+      } catch (_) {
+        if (!mounted) return;
+        _showMessage(l10n.couldNotOpenPhonePe);
+        return;
+      }
+
+      if (!mounted) return;
+
+      if (paymentResult == PremiumPaymentResult.failure) {
+        _showMessage(l10n.cancellationChargeIncomplete);
+        return;
+      }
+
+      await _paymentService.completeCancellationAfterCharge(
+        orderId: session.orderId,
+      );
       if (!mounted) return;
       await context.read<AppState>().refreshProfile();
       if (!mounted) return;
@@ -298,7 +354,12 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     } on FirebaseFunctionsException catch (error) {
       if (!mounted) return;
       if (error.code == 'failed-precondition') {
-        _showMessage(l10n.noActiveSubscription);
+        final message = error.message ?? '';
+        if (message.contains('PhonePe') || message.contains('₹299')) {
+          _showMessage(l10n.cancellationChargeIncomplete);
+        } else {
+          _showMessage(l10n.noActiveSubscription);
+        }
       } else {
         _showMessage(error.message ?? l10n.couldNotCancelSubscription);
       }

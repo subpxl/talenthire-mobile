@@ -5,6 +5,8 @@
     "subscriptionCancelled",
     "noActiveSubscription",
     "couldNotCancelSubscription",
+    "cancellationChargeIncomplete",
+    "couldNotOpenPhonePe",
     "noTransactionsYet"
   ],
 
@@ -14,6 +16,8 @@
     "subscriptionCancelled",
     "noActiveSubscription",
     "couldNotCancelSubscription",
+    "cancellationChargeIncomplete",
+    "couldNotOpenPhonePe",
     "noTransactionsYet"
   ],
 
@@ -23,6 +27,8 @@
     "subscriptionCancelled",
     "noActiveSubscription",
     "couldNotCancelSubscription",
+    "cancellationChargeIncomplete",
+    "couldNotOpenPhonePe",
     "noTransactionsYet"
   ],
 
@@ -32,6 +38,8 @@
     "subscriptionCancelled",
     "noActiveSubscription",
     "couldNotCancelSubscription",
+    "cancellationChargeIncomplete",
+    "couldNotOpenPhonePe",
     "noTransactionsYet"
   ],
 
@@ -41,6 +49,8 @@
     "subscriptionCancelled",
     "noActiveSubscription",
     "couldNotCancelSubscription",
+    "cancellationChargeIncomplete",
+    "couldNotOpenPhonePe",
     "noTransactionsYet"
   ]
 }

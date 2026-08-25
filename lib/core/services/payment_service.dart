@@ -3,9 +3,12 @@ import 'dart:io';
 
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter_cashfree_pg_sdk/api/cferrorresponse/cferrorresponse.dart';
+import 'package:flutter_cashfree_pg_sdk/api/cfpayment/cfupi.dart';
+import 'package:flutter_cashfree_pg_sdk/api/cfpayment/cfupipayment.dart';
 import 'package:flutter_cashfree_pg_sdk/api/cfpayment/subs/cfsubsupi.dart';
 import 'package:flutter_cashfree_pg_sdk/api/cfpayment/subs/cfsubsupipayment.dart';
 import 'package:flutter_cashfree_pg_sdk/api/cfpaymentgateway/cfpaymentgatewayservice.dart';
+import 'package:flutter_cashfree_pg_sdk/api/cfsession/cfsession.dart';
 import 'package:flutter_cashfree_pg_sdk/api/cfsession/cfsubssession.dart';
 import 'package:flutter_cashfree_pg_sdk/utils/cfenums.dart';
 import 'package:flutter_cashfree_pg_sdk/utils/cfexceptions.dart';
@@ -99,6 +102,32 @@ class PremiumVerificationResult {
   }
 }
 
+class CancellationChargeSession {
+  const CancellationChargeSession({
+    required this.orderId,
+    required this.paymentSessionId,
+    required this.environment,
+    required this.amount,
+    required this.alreadyCancelled,
+  });
+
+  final String orderId;
+  final String paymentSessionId;
+  final String environment;
+  final int amount;
+  final bool alreadyCancelled;
+
+  factory CancellationChargeSession.fromMap(Map<String, dynamic> data) {
+    return CancellationChargeSession(
+      orderId: data['orderId'] as String? ?? '',
+      paymentSessionId: data['paymentSessionId'] as String? ?? '',
+      environment: data['environment'] as String? ?? 'sandbox',
+      amount: (data['amount'] as num?)?.toInt() ?? 299,
+      alreadyCancelled: data['alreadyCancelled'] == true,
+    );
+  }
+}
+
 enum PremiumPaymentResult {
   success,
   failure,
@@ -133,11 +162,85 @@ class PaymentService {
     return PremiumVerificationResult.fromMap(result.data);
   }
 
+  /// Starts a ₹299 PhonePe UPI charge. Does not cancel until the charge is paid.
+  Future<CancellationChargeSession> createCancellationCharge() async {
+    final callable = _functions.httpsCallable('createCancellationCharge');
+    final result = await callable.call<Map<String, dynamic>>({});
+    return CancellationChargeSession.fromMap(result.data);
+  }
+
+  /// Confirms the ₹299 PhonePe payment with Cashfree, then cancels Autopay.
+  Future<PremiumVerificationResult> completeCancellationAfterCharge({
+    required String orderId,
+  }) async {
+    final callable = _functions.httpsCallable('completeCancellationAfterCharge');
+    final result = await callable.call<Map<String, dynamic>>({
+      'orderId': orderId,
+    });
+    return PremiumVerificationResult.fromMap(result.data);
+  }
+
   /// Cancels the signed-in user's Cashfree Autopay mandate and ends Premium.
+  /// Requires a paid ₹299 cancellation charge unless the subscription is
+  /// already in a terminal state.
   Future<PremiumVerificationResult> cancelPremiumSubscription() async {
     final callable = _functions.httpsCallable('cancelPremiumSubscription');
     final result = await callable.call<Map<String, dynamic>>({});
     return PremiumVerificationResult.fromMap(result.data);
+  }
+
+  Future<PremiumPaymentResult> launchUpiOneTimePayment({
+    required CancellationChargeSession session,
+    required UpiAppOption upiApp,
+    void Function(String message)? onFailure,
+  }) async {
+    final completer = Completer<PremiumPaymentResult>();
+
+    _gateway.setCallback(
+      (orderId) {
+        if (!completer.isCompleted) {
+          completer.complete(PremiumPaymentResult.success);
+        }
+      },
+      (CFErrorResponse errorResponse, String orderId) {
+        final message = errorResponse.getMessage() ?? 'Payment failed';
+        onFailure?.call(message);
+        if (!completer.isCompleted) {
+          completer.complete(PremiumPaymentResult.failure);
+        }
+      },
+    );
+
+    try {
+      final cfSession = CFSessionBuilder()
+          .setEnvironment(_mapEnvironment(session.environment))
+          .setOrderId(session.orderId)
+          .setPaymentSessionId(session.paymentSessionId)
+          .build();
+
+      final upi = CFUPIBuilder()
+          .setChannel(CFUPIChannel.INTENT)
+          .setUPIID(upiApp.launchId)
+          .build();
+
+      final upiPayment = CFUPIPaymentBuilder()
+          .setSession(cfSession)
+          .setUPI(upi)
+          .build();
+
+      _gateway.doPayment(upiPayment);
+    } on CFException catch (error) {
+      onFailure?.call(error.message);
+      return PremiumPaymentResult.failure;
+    } catch (error) {
+      onFailure?.call(error.toString());
+      return PremiumPaymentResult.failure;
+    }
+
+    return completer.future.timeout(
+      const Duration(minutes: 5),
+      onTimeout: () => PremiumPaymentResult.cancelled,
+    );
   }
 
   Future<PremiumPaymentResult> launchUpiMandate({

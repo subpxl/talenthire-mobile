@@ -198,7 +198,7 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get cancelPremiumMessage =>
-      'You\'ll lose Premium access now and won\'t be charged again.';
+      'To cancel, pay a one-time ₹299 month charge in PhonePe. Enter your UPI PIN to complete. After payment, your subscription will be cancelled.';
 
   @override
   String get subscriptionCancelled => 'Subscription cancelled.';
@@ -209,6 +209,13 @@ class AppLocalizationsTa extends AppLocalizations {
   @override
   String get couldNotCancelSubscription =>
       'Could not cancel subscription. Try again.';
+
+  @override
+  String get cancellationChargeIncomplete =>
+      '₹299 payment was not completed. Your subscription is still active.';
+
+  @override
+  String get couldNotOpenPhonePe => 'Could not open PhonePe. Try again.';
 
   @override
   String get noTransactionsYet => 'No transactions yet.';

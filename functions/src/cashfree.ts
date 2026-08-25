@@ -11,6 +11,8 @@ export interface CashfreeConfig {
 
 const API_VERSION = '2025-01-01';
 
+export const CANCELLATION_CHARGE_AMOUNT = 299;
+
 function isPlaceholderEnvValue(value: string): boolean {
   const trimmed = value.trim();
   if (!trimmed) return true;
@@ -352,4 +354,149 @@ export function isPremiumDeactivationWebhook(
     return true;
   }
   return false;
+}
+
+export interface CreateCancellationOrderInput {
+  orderId: string;
+  customerId: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  notifyUrl?: string;
+}
+
+export interface CashfreeOrderResponse {
+  cf_order_id?: number | string;
+  order_id: string;
+  order_amount: number;
+  order_currency?: string;
+  order_status: string;
+  payment_session_id?: string;
+}
+
+export function buildCancellationOrderPayload(
+  input: CreateCancellationOrderInput,
+) {
+  return {
+    order_id: input.orderId,
+    order_amount: CANCELLATION_CHARGE_AMOUNT,
+    order_currency: 'INR',
+    customer_details: {
+      customer_id: input.customerId,
+      customer_name: input.customerName,
+      customer_email: input.customerEmail,
+      customer_phone: input.customerPhone,
+    },
+    order_meta: {
+      return_url:
+        'https://bombaycastingcompany.app/subscription-return?order_id={order_id}',
+      ...(input.notifyUrl ? {notify_url: input.notifyUrl} : {}),
+    },
+    order_note: 'Premium cancellation — one month ₹299',
+    order_tags: {
+      user_id: input.customerId,
+      purpose: 'cancellation_charge',
+    },
+  };
+}
+
+export async function createCashfreeOrder(
+  config: CashfreeConfig,
+  payload: ReturnType<typeof buildCancellationOrderPayload>,
+): Promise<CashfreeOrderResponse> {
+  return cashfreeRequest<CashfreeOrderResponse>({
+    config,
+    method: 'POST',
+    path: '/orders',
+    body: payload,
+  });
+}
+
+export async function fetchCashfreeOrder(
+  config: CashfreeConfig,
+  orderId: string,
+): Promise<CashfreeOrderResponse> {
+  return cashfreeRequest<CashfreeOrderResponse>({
+    config,
+    method: 'GET',
+    path: `/orders/${encodeURIComponent(orderId)}`,
+  });
+}
+
+export function isPaidOrderStatus(status: string | undefined | null): boolean {
+  return (status ?? '').toUpperCase() === 'PAID';
+}
+
+export function isReusableOrderStatus(
+  status: string | undefined | null,
+): boolean {
+  const normalized = (status ?? '').toUpperCase();
+  return normalized === 'ACTIVE' || normalized === 'PENDING';
+}
+
+export function isCancellationOrderIdForUser(
+  orderId: string,
+  userId: string,
+): boolean {
+  return orderId.startsWith(`cxl_${userId}_`);
+}
+
+export interface CashfreePgWebhookPayload {
+  type?: string;
+  data?: {
+    order?: {
+      order_id?: string;
+      order_amount?: number;
+      order_status?: string;
+      order_tags?: Record<string, string> | null;
+    };
+    payment?: {
+      payment_status?: string;
+      payment_amount?: number;
+    };
+    customer_details?: {
+      customer_id?: string;
+    };
+  };
+}
+
+export function isPaymentWebhookType(type: string | undefined | null): boolean {
+  return (type ?? '').startsWith('PAYMENT_');
+}
+
+export function isCancellationChargeSuccessWebhook(
+  payload: CashfreePgWebhookPayload,
+): boolean {
+  if (payload.type !== 'PAYMENT_SUCCESS_WEBHOOK') {
+    return false;
+  }
+
+  const paymentStatus = payload.data?.payment?.payment_status ?? '';
+  if (paymentStatus && paymentStatus.toUpperCase() !== 'SUCCESS') {
+    return false;
+  }
+
+  const tags = payload.data?.order?.order_tags;
+  if (tags && tags.purpose === 'cancellation_charge') {
+    return true;
+  }
+
+  const orderId = payload.data?.order?.order_id ?? '';
+  return orderId.startsWith('cxl_');
+}
+
+export function extractUserIdFromPgWebhook(
+  payload: CashfreePgWebhookPayload,
+): string | null {
+  const tags = payload.data?.order?.order_tags;
+  if (tags && typeof tags.user_id === 'string' && tags.user_id.length > 0) {
+    return tags.user_id;
+  }
+
+  const customerId = payload.data?.customer_details?.customer_id;
+  if (typeof customerId === 'string' && customerId.length > 0) {
+    return customerId;
+  }
+
+  return null;
 }
