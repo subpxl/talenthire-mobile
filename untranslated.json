@@ -1,1 +1,46 @@
-{}
+{
+  "bn": [
+    "cancelPremiumTitle",
+    "cancelPremiumMessage",
+    "subscriptionCancelled",
+    "noActiveSubscription",
+    "couldNotCancelSubscription",
+    "noTransactionsYet"
+  ],
+
+  "gu": [
+    "cancelPremiumTitle",
+    "cancelPremiumMessage",
+    "subscriptionCancelled",
+    "noActiveSubscription",
+    "couldNotCancelSubscription",
+    "noTransactionsYet"
+  ],
+
+  "kn": [
+    "cancelPremiumTitle",
+    "cancelPremiumMessage",
+    "subscriptionCancelled",
+    "noActiveSubscription",
+    "couldNotCancelSubscription",
+    "noTransactionsYet"
+  ],
+
+  "ml": [
+    "cancelPremiumTitle",
+    "cancelPremiumMessage",
+    "subscriptionCancelled",
+    "noActiveSubscription",
+    "couldNotCancelSubscription",
+    "noTransactionsYet"
+  ],
+
+  "ta": [
+    "cancelPremiumTitle",
+    "cancelPremiumMessage",
+    "subscriptionCancelled",
+    "noActiveSubscription",
+    "couldNotCancelSubscription",
+    "noTransactionsYet"
+  ]
+}

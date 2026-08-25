@@ -22,6 +22,7 @@ class JobDetailScreen extends StatelessWidget {
     final appState = context.watch<AppState>();
     final hasApplied =
         profile.jobId.isNotEmpty && appState.hasApplied(profile.jobId);
+    final isPremium = appState.isPremiumUser;
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -87,18 +88,22 @@ class JobDetailScreen extends StatelessWidget {
                           color: AppColors.primary,
                         ),
                       ),
-                    IconButton(
-                      tooltip: 'Call',
-                      icon: const Icon(Icons.phone_outlined),
-                      color: AppColors.textSecondary,
-                      onPressed: () => AppNavigation.openPremiumScreen(context),
-                    ),
-                    IconButton(
-                      tooltip: 'Message',
-                      icon: const Icon(Icons.chat_bubble_outline),
-                      color: AppColors.chatGreen,
-                      onPressed: () => AppNavigation.openPremiumScreen(context),
-                    ),
+                    if (!isPremium) ...[
+                      IconButton(
+                        tooltip: 'Call',
+                        icon: const Icon(Icons.phone_outlined),
+                        color: AppColors.textSecondary,
+                        onPressed: () =>
+                            AppNavigation.openPremiumScreen(context),
+                      ),
+                      IconButton(
+                        tooltip: 'Message',
+                        icon: const Icon(Icons.chat_bubble_outline),
+                        color: AppColors.chatGreen,
+                        onPressed: () =>
+                            AppNavigation.openPremiumScreen(context),
+                      ),
+                    ],
                   ],
                 ),
               ],

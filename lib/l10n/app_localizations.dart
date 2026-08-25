@@ -464,6 +464,42 @@ abstract class AppLocalizations {
   /// **'Cancel subscription'**
   String get cancelSubscription;
 
+  /// No description provided for @cancelPremiumTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel Premium?'**
+  String get cancelPremiumTitle;
+
+  /// No description provided for @cancelPremiumMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'You\'ll lose Premium access now and won\'t be charged again.'**
+  String get cancelPremiumMessage;
+
+  /// No description provided for @subscriptionCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Subscription cancelled.'**
+  String get subscriptionCancelled;
+
+  /// No description provided for @noActiveSubscription.
+  ///
+  /// In en, this message translates to:
+  /// **'No active subscription to cancel.'**
+  String get noActiveSubscription;
+
+  /// No description provided for @couldNotCancelSubscription.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not cancel subscription. Try again.'**
+  String get couldNotCancelSubscription;
+
+  /// No description provided for @noTransactionsYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No transactions yet.'**
+  String get noTransactionsYet;
+
   /// No description provided for @logout.
   ///
   /// In en, this message translates to:

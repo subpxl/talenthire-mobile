@@ -147,13 +147,15 @@ class _HomeScreenState extends State<HomeScreen> {
       isLoadingMore: appState.isLoadingMoreJobs,
       hasMore: appState.hasMoreJobs,
       header: [
-        PromoBanner(
-          title: AppLocalizations.of(context)!.premiumApplications,
-          subtitle: AppLocalizations.of(context)!.subscribeToApply,
-          actionLabel: AppLocalizations.of(context)!.seePlans,
-          onAction: () => AppNavigation.openPremiumScreen(context),
-        ),
-        const SizedBox(height: AppSpacing.lg),
+        if (!appState.isPremiumUser) ...[
+          PromoBanner(
+            title: AppLocalizations.of(context)!.premiumApplications,
+            subtitle: AppLocalizations.of(context)!.subscribeToApply,
+            actionLabel: AppLocalizations.of(context)!.seePlans,
+            onAction: () => AppNavigation.openPremiumScreen(context),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+        ],
         const AppSectionTitle('Jobs for you'),
       ],
       empty: empty,
@@ -177,14 +179,16 @@ class _JobCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Selector<AppState, ({bool saved, Job? firebaseJob})>(
+    return Selector<AppState, ({bool saved, Job? firebaseJob, bool isPremium})>(
       selector: (_, state) => (
         saved: job.jobId.isNotEmpty && state.isJobSaved(job.jobId),
         firebaseJob: state.jobById(job.jobId),
+        isPremium: state.isPremiumUser,
       ),
       builder: (context, data, _) {
         final saved = data.saved;
         final firebaseJob = data.firebaseJob;
+        final isPremium = data.isPremium;
         return GestureDetector(
           onTap: () => AppNavigation.openJobDetail(
             context,
@@ -245,24 +249,25 @@ class _JobCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  Row(
-                    children: [
-                      IconButton(
-                        tooltip: 'Call',
-                        icon: const Icon(Icons.phone_outlined),
-                        color: AppColors.textSecondary,
-                        onPressed: () =>
-                            AppNavigation.openPremiumScreen(context),
-                      ),
-                      IconButton(
-                        tooltip: 'Message',
-                        icon: const Icon(Icons.chat_bubble_outline),
-                        color: AppColors.chatGreen,
-                        onPressed: () =>
-                            AppNavigation.openPremiumScreen(context),
-                      ),
-                    ],
-                  ),
+                  if (!isPremium)
+                    Row(
+                      children: [
+                        IconButton(
+                          tooltip: 'Call',
+                          icon: const Icon(Icons.phone_outlined),
+                          color: AppColors.textSecondary,
+                          onPressed: () =>
+                              AppNavigation.openPremiumScreen(context),
+                        ),
+                        IconButton(
+                          tooltip: 'Message',
+                          icon: const Icon(Icons.chat_bubble_outline),
+                          color: AppColors.chatGreen,
+                          onPressed: () =>
+                              AppNavigation.openPremiumScreen(context),
+                        ),
+                      ],
+                    ),
                 ],
               ),
             ],

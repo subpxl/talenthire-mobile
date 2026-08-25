@@ -1,18 +1,92 @@
-import 'package:bombay_casting/l10n/app_localizations.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:bombay_casting/app/app_state.dart';
+import 'package:bombay_casting/core/navigation/app_navigation.dart';
+import 'package:bombay_casting/core/services/payment_service.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
+import 'package:bombay_casting/core/widgets/google_pay_logo.dart';
+import 'package:bombay_casting/core/widgets/paytm_logo.dart';
+import 'package:bombay_casting/core/widgets/phonepe_logo.dart';
 import 'package:bombay_casting/core/widgets/placeholder_avatar.dart';
+import 'package:bombay_casting/features/premium/screens/payment_in_progress_screen.dart';
 
-class PremiumPage extends StatelessWidget {
+class PremiumPage extends StatefulWidget {
   const PremiumPage({super.key});
 
-  static const _paymentsUnavailableMessage =
-      'Payments are not available yet. We will enable checkout when billing is ready.';
+  @override
+  State<PremiumPage> createState() => _PremiumPageState();
+}
 
-  void _showPaymentsUnavailable(BuildContext context) {
+class _PremiumPageState extends State<PremiumPage> {
+  final PaymentService _paymentService = PaymentService();
+  bool _isProcessing = false;
+  String _selectedUpiAppId = UpiAppOption.phonePe.id;
+
+  Future<void> _startUpiAutopay() async {
+    if (_isProcessing) return;
+
+    final appState = context.read<AppState>();
+    if (appState.user == null) {
+      _showMessage('Sign in to subscribe.');
+      return;
+    }
+    if (appState.isPremiumUser) {
+      _showMessage('You already have Premium.');
+      return;
+    }
+
+    setState(() => _isProcessing = true);
+
+    try {
+      final session = await _paymentService.createPremiumSubscription();
+      if (!mounted) return;
+
+      final result = await _paymentService.launchUpiMandate(
+        session: session,
+        upiApp: UpiAppOption.byId(_selectedUpiAppId),
+        onFailure: (message) {
+          if (!mounted) return;
+          _showMessage(message.isEmpty ? 'Payment failed. Try again.' : message);
+        },
+      );
+
+      if (!mounted) return;
+
+      if (result == PremiumPaymentResult.failure ||
+          result == PremiumPaymentResult.cancelled) {
+        return;
+      }
+
+      AppNavigation.push(
+        context,
+        PaymentInProgressScreen(subscriptionId: session.subscriptionId),
+      );
+    } on FirebaseFunctionsException catch (error) {
+      if (!mounted) return;
+      if (error.code == 'already-exists') {
+        // Server says the user is already premium — refresh profile so the
+        // local state catches up, then show a friendly message.
+        await context.read<AppState>().refreshProfile();
+        if (!mounted) return;
+        _showMessage('You are already a Premium member!');
+      } else {
+        _showMessage(error.message ?? 'Could not start payment.');
+      }
+    } catch (error) {
+      if (!mounted) return;
+      _showMessage('Could not start payment. Try again.');
+    } finally {
+      if (mounted) {
+        setState(() => _isProcessing = false);
+      }
+    }
+  }
+
+  void _showMessage(String message) {
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text(_paymentsUnavailableMessage)),
+      SnackBar(content: Text(message)),
     );
   }
 
@@ -51,7 +125,8 @@ class PremiumPage extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 25),
-                    Text(AppLocalizations.of(context)!.k1,
+                    const Text(
+                      '₹1',
                       style: TextStyle(
                         fontSize: 76,
                         height: 0.95,
@@ -60,7 +135,8 @@ class PremiumPage extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    Text(AppLocalizations.of(context)!.for1DayThen299month,
+                    const Text(
+                      'For 3 days, then ₹299/month',
                       style: TextStyle(
                         fontSize: 15,
                         color: AppColors.textSecondary,
@@ -90,7 +166,7 @@ class PremiumPage extends StatelessWidget {
         children: [
           IconButton(
             tooltip: 'Close',
-            onPressed: () => Navigator.maybePop(context),
+            onPressed: _isProcessing ? null : () => Navigator.maybePop(context),
             style: IconButton.styleFrom(
               backgroundColor: AppColors.surface,
               foregroundColor: AppColors.textPrimary,
@@ -242,54 +318,191 @@ class PremiumPage extends StatelessWidget {
   }
 
   Widget _buildBottomPayment(BuildContext context) {
+    final selected = UpiAppOption.byId(_selectedUpiAppId);
+    final isPhonePe = _selectedUpiAppId == UpiAppOption.phonePe.id;
+    const otherApps = [UpiAppOption.googlePay, UpiAppOption.paytm];
+
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 10, 18, 24),
       color: Colors.white,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF5F259F),
-                  borderRadius: BorderRadius.circular(7),
-                ),
-                child: const Icon(
-                  Icons.phone_android,
-                  color: Colors.white,
-                  size: 23,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(AppLocalizations.of(context)!.phonepe,
-                style: TextStyle(
-                  fontSize: 15,
-                  color: Color(0xFF333333),
-                ),
-              ),
-              const Spacer(),
-              TextButton(
-                onPressed: () => _showPaymentsUnavailable(context),
-                child: Text(AppLocalizations.of(context)!.change,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF666666),
-                  ),
-                ),
-              ),
-            ],
+          _UpiAppTile(
+            app: UpiAppOption.phonePe,
+            isSelected: isPhonePe,
+            onTap: _isProcessing
+                ? null
+                : () => setState(() => _selectedUpiAppId = UpiAppOption.phonePe.id),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
+          PopupMenuButton<String>(
+            enabled: !_isProcessing,
+            onSelected: (id) => setState(() => _selectedUpiAppId = id),
+            offset: const Offset(0, -8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+            ),
+            itemBuilder: (context) => otherApps
+                .map(
+                  (app) => PopupMenuItem<String>(
+                    value: app.id,
+                    child: Row(
+                      children: [
+                        _UpiAppIcon(app: app, size: 32),
+                        const SizedBox(width: 12),
+                        Text(
+                          app.label,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        if (_selectedUpiAppId == app.id) ...[
+                          const Spacer(),
+                          const Icon(
+                            Icons.check,
+                            size: 18,
+                            color: AppColors.primary,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                )
+                .toList(),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Row(
+                children: [
+                  if (!isPhonePe) ...[
+                    _UpiAppIcon(app: selected, size: 32),
+                    const SizedBox(width: 12),
+                    Text(
+                      selected.label,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ] else
+                    const Text(
+                      'Others',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  const Spacer(),
+                  Icon(
+                    Icons.keyboard_arrow_down,
+                    color: isPhonePe
+                        ? AppColors.textSecondary
+                        : AppColors.textPrimary,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Opens ${selected.label} for UPI Autopay approval',
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: () => _showPaymentsUnavailable(context),
-              child: Text(AppLocalizations.of(context)!.payNow1),
+              onPressed: _isProcessing ? null : _startUpiAutopay,
+              child: _isProcessing
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Pay now ₹1'),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _UpiAppIcon extends StatelessWidget {
+  const _UpiAppIcon({required this.app, this.size = 42});
+
+  final UpiAppOption app;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    switch (app.id) {
+      case 'phonepe':
+        return PhonePeLogo(size: size);
+      case 'gpay':
+        return GooglePayLogo(size: size);
+      case 'paytm':
+        return PaytmLogo(size: size);
+      default:
+        return PhonePeLogo(size: size);
+    }
+  }
+}
+
+class _UpiAppTile extends StatelessWidget {
+  const _UpiAppTile({
+    required this.app,
+    required this.isSelected,
+    this.onTap,
+  });
+
+  final UpiAppOption app;
+  final bool isSelected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: isSelected ? AppColors.primary.withValues(alpha: 0.06) : Colors.transparent,
+      borderRadius: BorderRadius.circular(AppRadius.sm),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(
+            children: [
+              _UpiAppIcon(app: app),
+              const SizedBox(width: 12),
+              Text(
+                app.label,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const Spacer(),
+              if (isSelected)
+                Container(
+                  width: 22,
+                  height: 22,
+                  decoration: const BoxDecoration(
+                    color: AppColors.primary,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.check, size: 14, color: Colors.white),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }

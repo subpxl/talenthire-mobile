@@ -18,20 +18,22 @@ class ShortlistTabContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
     final savedJobs = appState.savedJobs;
+    final isPremium = appState.isPremiumUser;
     if (savedJobs.isEmpty) {
       return AppScrollBody(
         onRefresh: () => context.read<AppState>().refreshSavedJobs(),
         child: Column(
           children: [
-            PromoBanner(
-              title: 'Your saved jobs',
-              subtitle: 'Apply to jobs and land your next collab',
-              actionLabel: 'Apply Now',
-              onAction: () {
-                if (!AppNavigation.requireSubscription(context)) return;
-              },
-            ),
-            const SizedBox(height: AppSpacing.lg - 4),
+            if (!isPremium)
+              PromoBanner(
+                title: 'Your saved jobs',
+                subtitle: 'Apply to jobs and land your next collab',
+                actionLabel: 'Apply Now',
+                onAction: () {
+                  if (!AppNavigation.requireSubscription(context)) return;
+                },
+              ),
+            if (!isPremium) const SizedBox(height: AppSpacing.lg - 4),
             Text(AppLocalizations.of(context)!.tapBookmarkOnAJobToSaveIt,
               style: context.bodyMedium,
             ),
@@ -42,15 +44,16 @@ class ShortlistTabContent extends StatelessWidget {
     return AppRefreshScrollBody(
       onRefresh: () => context.read<AppState>().refreshSavedJobs(),
       header: [
-        PromoBanner(
-          title: 'Your saved jobs',
-          subtitle: 'Apply to jobs and land your next collab',
-          actionLabel: 'Apply Now',
-          onAction: () {
-            if (!AppNavigation.requireSubscription(context)) return;
-          },
-        ),
-        const SizedBox(height: AppSpacing.lg),
+        if (!isPremium)
+          PromoBanner(
+            title: 'Your saved jobs',
+            subtitle: 'Apply to jobs and land your next collab',
+            actionLabel: 'Apply Now',
+            onAction: () {
+              if (!AppNavigation.requireSubscription(context)) return;
+            },
+          ),
+        if (!isPremium) const SizedBox(height: AppSpacing.lg),
       ],
       itemCount: savedJobs.length,
       itemBuilder: (context, index) {

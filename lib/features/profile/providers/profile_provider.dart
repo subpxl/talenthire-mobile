@@ -30,11 +30,13 @@ class ProfileProvider extends ChangeNotifier {
   }
 
   Future<void> loadProfile(String uid) async {
+    profile = null;
+    _notify();
     try {
       final profileDoc = await _firestore.collection('profiles').doc(uid).get();
       if (profileDoc.exists) {
         final data = Map<String, dynamic>.from(profileDoc.data()!);
-        data['user_id'] = data['user_id'] ?? uid;
+        data['user_id'] = uid;
         profile = Profile.fromJson(data);
       } else {
         profile = Profile(userId: uid);

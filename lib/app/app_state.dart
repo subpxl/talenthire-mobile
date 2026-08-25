@@ -59,6 +59,15 @@ class AppState extends ChangeNotifier {
   String? get lastAuthError => _auth.lastAuthError;
   User? get user => _auth.user;
   Profile? get profile => _profile.profile;
+
+  /// Premium is only valid when the loaded profile belongs to the signed-in user.
+  bool get isPremiumUser {
+    final uid = user?.id;
+    if (uid == null) return false;
+    final currentProfile = profile;
+    if (currentProfile == null || currentProfile.userId != uid) return false;
+    return currentProfile.isPremium;
+  }
   List<Application> get applications => _jobs.applications;
   List<Job> get savedJobs => _jobs.savedJobs;
   List<CreatorProfile> get savedCreators => _jobs.savedCreators;
@@ -111,7 +120,7 @@ class AppState extends ChangeNotifier {
     return _jobs.applyToJob(
       job,
       userId: uid,
-      isPremium: profile?.isPremium ?? false,
+      isPremium: isPremiumUser,
     );
   }
 
@@ -151,6 +160,12 @@ class AppState extends ChangeNotifier {
   Future<void> removeProfilePhoto(String url) =>
       _profile.removeProfilePhoto(url, userId: user?.id);
 
+  Future<void> refreshProfile() async {
+    final uid = user?.id;
+    if (uid == null) return;
+    await _profile.loadProfile(uid);
+  }
+
   Future<void> loadCreators({bool forceRefresh = false}) =>
       _jobs.loadCreators(currentUserId: user?.id, forceRefresh: forceRefresh);
 
@@ -162,6 +177,8 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _onSessionReady(SessionBootstrap bootstrap) async {
+    _profile.reset();
+    _jobs.reset();
     if (bootstrap.isNewUser) {
       await _profile.createDefault(
         uid: bootstrap.uid,

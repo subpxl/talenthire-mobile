@@ -197,6 +197,27 @@ class AppLocalizationsMr extends AppLocalizations {
   String get cancelSubscription => 'सदस्यत्व रद्द करा';
 
   @override
+  String get cancelPremiumTitle => 'प्रीमियम रद्द करायचे?';
+
+  @override
+  String get cancelPremiumMessage =>
+      'प्रीमियम प्रवेश आता बंद होईल आणि पुढे शुल्क आकारले जाणार नाही.';
+
+  @override
+  String get subscriptionCancelled => 'सदस्यत्व रद्द केले.';
+
+  @override
+  String get noActiveSubscription =>
+      'रद्द करण्यासाठी कोणतेही सक्रिय सदस्यत्व नाही.';
+
+  @override
+  String get couldNotCancelSubscription =>
+      'सदस्यत्व रद्द करता आले नाही. पुन्हा प्रयत्न करा.';
+
+  @override
+  String get noTransactionsYet => 'अद्याप कोणतेही व्यवहार नाहीत.';
+
+  @override
   String get logout => 'लॉग आउट करा';
 
   @override

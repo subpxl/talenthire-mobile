@@ -17,6 +17,7 @@ class MessagesListScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
     final recentJobs = listingsForJobs(appState.jobs);
+    final isPremium = appState.isPremiumUser;
     return AppScreenLayout(
       title: AppLocalizations.of(context)!.navJobs,
       body: AppRefreshScrollBody(
@@ -26,17 +27,18 @@ class MessagesListScreen extends StatelessWidget {
         isLoadingMore: appState.isLoadingMoreJobs,
         hasMore: appState.hasMoreJobs,
         header: [
-          Padding(
-            padding: const EdgeInsets.all(AppSpacing.screenH),
-            child: PromoBanner(
-              title: AppLocalizations.of(context)!.premiumApplications,
-              subtitle: AppLocalizations.of(context)!.subscribeToApply,
-              actionLabel: AppLocalizations.of(context)!.applyNow,
-              onAction: () {
-                if (!AppNavigation.requireSubscription(context)) return;
-              },
+          if (!isPremium)
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.screenH),
+              child: PromoBanner(
+                title: AppLocalizations.of(context)!.premiumApplications,
+                subtitle: AppLocalizations.of(context)!.subscribeToApply,
+                actionLabel: AppLocalizations.of(context)!.applyNow,
+                onAction: () {
+                  if (!AppNavigation.requireSubscription(context)) return;
+                },
+              ),
             ),
-          ),
           Padding(padding: const EdgeInsets.only(left: 16, right: 16, top: 24, bottom: 8), child: Text(AppLocalizations.of(context)!.noJobsYetPullDownToRefresh,
                   style: context.bodyMedium,
                 ),

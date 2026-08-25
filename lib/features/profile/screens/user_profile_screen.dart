@@ -143,7 +143,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   Widget _buildPremiumCard(BuildContext context) {
-    final isPremium = context.watch<AppState>().profile?.isPremium ?? false;
+    final isPremium = context.watch<AppState>().isPremiumUser;
     return Material(
       color: AppColors.primaryTint,
       borderRadius: BorderRadius.circular(AppRadius.sm),

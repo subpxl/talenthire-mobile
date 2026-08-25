@@ -1,1 +1,45 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"talenthire-d86a1","appId":"1:483545794550:android:093c6ae603a5406c0569d7","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"talenthire-d86a1","configurations":{"android":"1:483545794550:android:093c6ae603a5406c0569d7","ios":"1:483545794550:ios:1c730e825ac6a94e0569d7"}}}}},"firestore":{"rules":"firestore.rules","indexes":"firestore.indexes.json"},"database":{"rules":"database.rules.json"},"functions":{"source":"functions","ignore":["node_modules/**",".git/**","firebase-debug.log","firebase-debug.*.log","*.local"]},"storage":{"rules":"storage.rules"}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "talenthire-d86a1",
+          "appId": "1:483545794550:android:093c6ae603a5406c0569d7",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "talenthire-d86a1",
+          "configurations": {
+            "android": "1:483545794550:android:093c6ae603a5406c0569d7",
+            "ios": "1:483545794550:ios:1c730e825ac6a94e0569d7"
+          }
+        }
+      }
+    }
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "database": {
+    "rules": "database.rules.json"
+  },
+  "functions": {
+    "source": "functions",
+    "predeploy": [
+      "npm --prefix \"$RESOURCE_DIR\" run build"
+    ],
+    "ignore": [
+      "node_modules/**",
+      ".git/**",
+      "firebase-debug.log",
+      "firebase-debug.*.log",
+      "*.local"
+    ]
+  },
+  "storage": {
+    "rules": "storage.rules"
+  }
+}

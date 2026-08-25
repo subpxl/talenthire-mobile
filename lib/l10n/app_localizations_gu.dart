@@ -193,6 +193,26 @@ class AppLocalizationsGu extends AppLocalizations {
   String get cancelSubscription => 'Cancel subscription';
 
   @override
+  String get cancelPremiumTitle => 'Cancel Premium?';
+
+  @override
+  String get cancelPremiumMessage =>
+      'You\'ll lose Premium access now and won\'t be charged again.';
+
+  @override
+  String get subscriptionCancelled => 'Subscription cancelled.';
+
+  @override
+  String get noActiveSubscription => 'No active subscription to cancel.';
+
+  @override
+  String get couldNotCancelSubscription =>
+      'Could not cancel subscription. Try again.';
+
+  @override
+  String get noTransactionsYet => 'No transactions yet.';
+
+  @override
   String get logout => 'Logout';
 
   @override

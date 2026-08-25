@@ -13,15 +13,14 @@ class AppNavigation {
   AppNavigation._();
 
   static bool isSubscribed(BuildContext context) {
-    return context.read<AppState>().profile?.isPremium ?? false;
+    return context.read<AppState>().isPremiumUser;
   }
 
   static void openPremiumScreen(BuildContext context) {
     Navigator.of(context).push(AppModalRoute(page: const PremiumPage()));
   }
 
-  /// Returns true when the user already has premium. Otherwise opens benefits
-  /// (checkout is not live yet).
+  /// Returns true when the user already has premium. Otherwise opens checkout.
   static bool requireSubscription(BuildContext context) {
     if (isSubscribed(context)) return true;
     openPremiumScreen(context);
