@@ -136,7 +136,8 @@ enum PremiumPaymentResult {
 
 class PaymentService {
   PaymentService({FirebaseFunctions? functions})
-      : _functions = functions ?? FirebaseFunctions.instance;
+      : _functions = functions ??
+            FirebaseFunctions.instanceFor(region: 'asia-south1');
 
   final FirebaseFunctions _functions;
   final CFPaymentGatewayService _gateway = CFPaymentGatewayService();

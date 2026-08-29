@@ -1,4 +1,4 @@
-import 'package:bombay_casting/l10n/app_localizations.dart';
+import 'package:bombay_casting/core/utils/app_strings.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:bombay_casting/app/app_state.dart';
@@ -84,7 +84,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -105,7 +104,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(width: 10),
                     Flexible(
                       child: Text(
-                        l10n.bombayCastingCompany,
+                        context.appName,
                         style: const TextStyle(
                           fontSize: 26,
                           fontWeight: FontWeight.w800,
@@ -118,13 +117,13 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: AppSpacing.sm),
                 Text(
                   _isRegisterMode
-                      ? 'Create your creator account'
-                      : 'Sign in to find collaborations',
+                      ? context.createCreatorAccount
+                      : context.signInToFindCollabs,
                   style: context.bodyMedium.copyWith(fontSize: 16),
                 ),
                 const SizedBox(height: 36),
                 _GoogleSignInButton(
-                  label: l10n.continueWithGoogle,
+                  label: context.continueWithGoogle,
                   loading: _googleLoading,
                   onPressed: _isLoading ? null : _signInWithGoogle,
                 ),
@@ -135,7 +134,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       child: Text(
-                        l10n.or.toUpperCase(),
+                        context.or.toUpperCase(),
                         style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -152,14 +151,14 @@ class _LoginScreenState extends State<LoginScreen> {
                     TextFormField(
                       controller: _nameController,
                       textCapitalization: TextCapitalization.words,
-                      decoration: const InputDecoration(
-                        labelText: 'Creator name',
-                        prefixIcon: Icon(Icons.person_outline),
+                      decoration: InputDecoration(
+                        labelText: context.creatorNameLabel,
+                        prefixIcon: const Icon(Icons.person_outline),
                       ),
                       validator: (value) {
                         if (!_isRegisterMode) return null;
                         if (value == null || value.trim().isEmpty) {
-                          return 'Enter your name';
+                          return context.enterYourName;
                         }
                         return null;
                       },
@@ -169,13 +168,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(
-                      labelText: 'Email',
-                      prefixIcon: Icon(Icons.mail_outline),
+                    decoration: InputDecoration(
+                      labelText: context.emailLabel,
+                      prefixIcon: const Icon(Icons.mail_outline),
                     ),
                     validator: (value) {
                       if (value == null || !value.contains('@')) {
-                        return 'Enter a valid email';
+                        return context.enterValidEmail;
                       }
                       return null;
                     },
@@ -185,12 +184,12 @@ class _LoginScreenState extends State<LoginScreen> {
                     controller: _passwordController,
                     obscureText: _obscurePassword,
                     decoration: InputDecoration(
-                      labelText: 'Password',
+                      labelText: context.passwordLabel,
                       prefixIcon: const Icon(Icons.lock_outline),
                       suffixIcon: IconButton(
                         tooltip: _obscurePassword
-                            ? 'Show password'
-                            : 'Hide password',
+                            ? context.showPassword
+                            : context.hidePassword,
                         onPressed: () =>
                             setState(() => _obscurePassword = !_obscurePassword),
                         icon: Icon(
@@ -202,7 +201,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     validator: (value) {
                       if (value == null || value.length < 6) {
-                        return 'Password must be at least 6 characters';
+                        return context.passwordMinLength;
                       }
                       return null;
                     },
@@ -234,13 +233,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                 const SizedBox(width: 10),
                                 Text(
                                   _isRegisterMode
-                                      ? 'Creating account…'
-                                      : 'Signing in…',
+                                      ? context.creatingAccount
+                                      : context.signingIn,
                                 ),
                               ],
                             )
                           : Text(
-                              _isRegisterMode ? 'Create account' : 'Sign in',
+                              _isRegisterMode ? context.createAccountBtn : context.signInBtn,
                             ),
                     ),
                   ),
@@ -260,7 +259,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               BorderRadius.circular(AppRadius.pill),
                         ),
                       ),
-                      child: Text(l10n.continueWithEmail),
+                      child: Text(context.continueWithEmail),
                     ),
                   ),
                 ],
@@ -281,16 +280,16 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Text.rich(
                       TextSpan(
                         text: _isRegisterMode
-                            ? '${l10n.alreadyHaveAnAccount} '
-                            : '${l10n.newHere} ',
+                            ? '${context.alreadyHaveAccount} '
+                            : '${context.newHere} ',
                         style: context.bodyMedium.copyWith(
                           color: AppColors.textSecondary,
                         ),
                         children: [
                           TextSpan(
                             text: _isRegisterMode
-                                ? l10n.logIn
-                                : l10n.createAnAccount,
+                                ? context.logInAction
+                                : context.createAccountAction,
                             style: const TextStyle(
                               color: AppColors.primary,
                               fontWeight: FontWeight.w700,

@@ -1,4 +1,4 @@
-import 'package:bombay_casting/l10n/app_localizations.dart';
+import 'package:bombay_casting/core/utils/app_strings.dart';
 import 'package:flutter/material.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
 
@@ -14,9 +14,9 @@ class SplashScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.movie_filter, color: AppColors.primary, size: 48),
-            SizedBox(height: AppSpacing.md),
-            Text(AppLocalizations.of(context)!.bombayCastingCompany,
-              style: TextStyle(
+            const SizedBox(height: AppSpacing.md),
+            Text(context.appName,
+              style: const TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
                 color: AppColors.textPrimary,

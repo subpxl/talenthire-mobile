@@ -33,9 +33,15 @@ admin.initializeApp();
 const db = admin.firestore();
 const RTDB_INSTANCE = 'talenthire-d86a1-default-rtdb';
 
+/** All payment-related functions run in Mumbai for lowest latency to Cashfree India. */
+const FUNCTION_REGION = 'asia-south1';
+
 const PREMIUM_TRIAL_DAYS = 3;
 const PAY_TO_CANCEL_MESSAGE =
   'Pay ₹299 in PhonePe to cancel your subscription.';
+
+/** How long (ms) a cached Firestore subscription session is considered fresh. */
+const SESSION_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 function addDaysIso(days: number): string {
   const date = new Date();
@@ -61,9 +67,12 @@ async function loadCustomerDetails(userId: string): Promise<{
   email: string;
   phone: string;
 }> {
-  const userDoc = await db.collection('users').doc(userId).get();
+  // Fetch both docs in parallel to save ~200-400ms (Option C).
+  const [userDoc, profileDoc] = await Promise.all([
+    db.collection('users').doc(userId).get(),
+    db.collection('profiles').doc(userId).get(),
+  ]);
   const user = userDoc.data() ?? {};
-  const profileDoc = await db.collection('profiles').doc(userId).get();
   const profile = profileDoc.data() ?? {};
 
   const name = (user.name as string | undefined)?.trim() || 'Premium User';
@@ -105,7 +114,7 @@ function pgWebhookNotifyUrl(): string {
     process.env.GCLOUD_PROJECT ||
     process.env.GCP_PROJECT ||
     'talenthire-d86a1';
-  return `https://us-central1-${projectId}.cloudfunctions.net/cashfreePgWebhook`;
+  return `https://${FUNCTION_REGION}-${projectId}.cloudfunctions.net/cashfreePgWebhook`;
 }
 
 function cancellationOrderId(userId: string): string {
@@ -395,6 +404,27 @@ async function resolveExistingSubscriptionSession(
   let remoteStatus = (existing.subscription_status as string | undefined) ?? '';
   let remoteSessionId = existingSessionId ?? '';
 
+  // Option E: Skip the Cashfree GET if the Firestore doc was refreshed within the last
+  // SESSION_CACHE_TTL_MS. This avoids a ~400ms round-trip on retry/pre-creation calls.
+  const updatedAt = existing.updated_at as admin.firestore.Timestamp | undefined;
+  const ageMs = updatedAt ? Date.now() - updatedAt.toMillis() : Infinity;
+  const isFresh = ageMs < SESSION_CACHE_TTL_MS;
+
+  if (isFresh && isPendingSubscriptionStatus(remoteStatus) && remoteSessionId) {
+    functions.logger.info('createPremiumSubscription: using cached session (fresh)', {
+      userId,
+      subscriptionId: existingSubscriptionId,
+      ageMs: Math.round(ageMs),
+    });
+    // Return the cached session immediately — no Cashfree API call.
+    return buildSubscriptionSessionResponse({
+      config,
+      subscriptionId: existingSubscriptionId,
+      subscriptionSessionId: remoteSessionId,
+      firstChargeAt: existingFirstChargeAt || addDaysIso(PREMIUM_TRIAL_DAYS),
+    });
+  }
+
   try {
     const remote = await fetchCashfreeSubscription(config, existingSubscriptionId);
     remoteStatus = remote.subscription_status ?? remoteStatus;
@@ -454,7 +484,7 @@ async function resolveExistingSubscriptionSession(
  * - ₹1 authorization now
  * - ₹299/month starting 3 days later
  */
-export const createPremiumSubscription = functions.https.onCall(
+export const createPremiumSubscription = functions.region(FUNCTION_REGION).https.onCall(
   async (_data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError(
@@ -495,12 +525,24 @@ export const createPremiumSubscription = functions.https.onCall(
       firstChargeTimeIso,
     });
 
-    const created = await cashfreeRequest<CashfreeSubscriptionResponse>({
-      config,
-      method: 'POST',
-      path: '/subscriptions',
-      body: payload,
-    });
+    let created: CashfreeSubscriptionResponse;
+    try {
+      created = await cashfreeRequest<CashfreeSubscriptionResponse>({
+        config,
+        method: 'POST',
+        path: '/subscriptions',
+        body: payload,
+      });
+    } catch (err) {
+      functions.logger.error('createPremiumSubscription: Cashfree API error', {
+        userId,
+        error: err,
+      });
+      throw new functions.https.HttpsError(
+        'unavailable',
+        err instanceof Error ? err.message : 'Could not create subscription. Try again.',
+      );
+    }
 
     await db.collection('subscriptions').doc(userId).set(
       {
@@ -533,7 +575,7 @@ export const createPremiumSubscription = functions.https.onCall(
  * Webhooks remain the source of truth; this helps the UI update faster.
  * Accepts an optional subscriptionId to validate ownership before querying Cashfree.
  */
-export const verifyPremiumSubscription = functions.https.onCall(
+export const verifyPremiumSubscription = functions.region(FUNCTION_REGION).https.onCall(
   async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError(
@@ -619,7 +661,7 @@ export const verifyPremiumSubscription = functions.https.onCall(
  * Creates a ₹299 Cashfree order and returns a PhonePe UPI session.
  * Subscription is not cancelled until the charge is paid.
  */
-export const createCancellationCharge = functions.https.onCall(
+export const createCancellationCharge = functions.region(FUNCTION_REGION).https.onCall(
   async (_data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError(
@@ -758,7 +800,7 @@ export const createCancellationCharge = functions.https.onCall(
 /**
  * Verifies the ₹299 PhonePe payment, then cancels Autopay and ends Premium.
  */
-export const completeCancellationAfterCharge = functions.https.onCall(
+export const completeCancellationAfterCharge = functions.region(FUNCTION_REGION).https.onCall(
   async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError(
@@ -786,7 +828,7 @@ export const completeCancellationAfterCharge = functions.https.onCall(
  * Completes cancellation only after a ₹299 PhonePe charge is paid.
  * Idempotent: already-cancelled subscriptions still expire local premium.
  */
-export const cancelPremiumSubscription = functions.https.onCall(
+export const cancelPremiumSubscription = functions.region(FUNCTION_REGION).https.onCall(
   async (_data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError(
@@ -832,12 +874,12 @@ export const cancelPremiumSubscription = functions.https.onCall(
   },
 );
 
-export const cashfreeSubscriptionWebhook = functions.https.onRequest(
+export const cashfreeSubscriptionWebhook = functions.region(FUNCTION_REGION).https.onRequest(
   handleCashfreeHttpWebhook,
 );
 
 /** Same handler as subscriptions — point Cashfree PG webhooks here. */
-export const cashfreePgWebhook = functions.https.onRequest(
+export const cashfreePgWebhook = functions.region(FUNCTION_REGION).https.onRequest(
   handleCashfreeHttpWebhook,
 );
 
