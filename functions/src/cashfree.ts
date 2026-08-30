@@ -164,7 +164,7 @@ export function buildPremiumSubscriptionPayload(
       plan_intervals: 1,
       plan_currency: 'INR',
       plan_interval_type: 'MONTH',
-      plan_note: 'Bombay Casting Premium — ₹299/month after 3-day trial',
+      plan_note: 'Bombay Casting Premium — ₹299/month after trial',
     },
     authorization_details: {
       authorization_amount: 1,
@@ -307,6 +307,33 @@ export function isPremiumSubscriptionActive(
   payload: CashfreeWebhookPayload,
 ): boolean {
   return subscriptionStatusFromWebhook(payload) === 'ACTIVE';
+}
+
+export function authorizationStatusFromWebhook(
+  payload: CashfreeWebhookPayload,
+): string {
+  const auth =
+    payload.data?.authorization_details ??
+    payload.data?.authorisation_details;
+  return auth?.authorization_status ?? '';
+}
+
+export function isAuthorizationSuccessWebhook(
+  payload: CashfreeWebhookPayload,
+): boolean {
+  const type = payload.type ?? '';
+  if (
+    type !== 'SUBSCRIPTION_AUTH_STATUS' &&
+    type !== 'SUBSCRIPTION_STATUS_CHANGED' &&
+    type !== 'SUBSCRIPTION_NEW'
+  ) {
+    return false;
+  }
+  const authStatus = authorizationStatusFromWebhook(payload).toUpperCase();
+  if (authStatus === 'SUCCESS' || authStatus === 'ACTIVE') {
+    return true;
+  }
+  return isPremiumSubscriptionActive(payload);
 }
 
 export function isPremiumActivationWebhook(

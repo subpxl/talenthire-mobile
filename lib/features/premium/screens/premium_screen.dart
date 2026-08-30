@@ -1,3 +1,4 @@
+import 'package:bombay_casting/l10n/app_localizations.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -24,44 +25,6 @@ class _PremiumPageState extends State<PremiumPage> {
   bool _othersMenuOpen = false;
   String _selectedUpiAppId = UpiAppOption.phonePe.id;
 
-  /// Cached session from background pre-creation (Option D).
-  PremiumSubscriptionSession? _preCreatedSession;
-  bool _preCreating = false;
-
-  @override
-  void initState() {
-    super.initState();
-    // Start pre-creating the subscription session in the background as soon as
-    // the screen opens. By the time the user taps Pay, the session is ready.
-    _preCreateSession();
-  }
-
-  /// Silently pre-creates the Cashfree subscription session.
-  /// Errors are swallowed — _startUpiAutopay() will create on demand if needed.
-  Future<void> _preCreateSession() async {
-    final appState = context.read<AppState>();
-    if (appState.user == null || appState.isPremiumUser) return;
-    if (_preCreating) return;
-    _preCreating = true;
-    try {
-      final session = await _paymentService.createPremiumSubscription();
-      if (mounted) {
-        setState(() => _preCreatedSession = session);
-      }
-    } on FirebaseFunctionsException catch (error) {
-      if (!mounted) return;
-      if (error.code == 'already-exists') {
-        // User became premium on another device — refresh local state.
-        await context.read<AppState>().refreshProfile();
-      }
-      // Other errors: silently ignore, _startUpiAutopay() will retry.
-    } catch (_) {
-      // Network/unexpected errors: silently ignore.
-    } finally {
-      _preCreating = false;
-    }
-  }
-
   Future<void> _startUpiAutopay() async {
     if (_isProcessing) return;
 
@@ -78,11 +41,8 @@ class _PremiumPageState extends State<PremiumPage> {
     setState(() => _isProcessing = true);
 
     try {
-      // Use the pre-created session if available (Option D) — skips the
-      // Cloud Function call entirely and opens PhonePe almost instantly.
-      final session = _preCreatedSession ?? await _paymentService.createPremiumSubscription();
-      // Clear cached session so a retry doesn't reuse a potentially stale one.
-      _preCreatedSession = null;
+      // Create subscription at Pay tap so first_charge_at is ~3 days after ₹1 auth.
+      final session = await _paymentService.createPremiumSubscription();
       if (!mounted) return;
 
       final result = await _paymentService.launchUpiMandate(
@@ -178,9 +138,9 @@ class _PremiumPageState extends State<PremiumPage> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    const Text(
-                      'For 3 days, then ₹299/month',
-                      style: TextStyle(
+                    Text(
+                      AppLocalizations.of(context)!.for1DayThen299month,
+                      style: const TextStyle(
                         fontSize: 15,
                         color: AppColors.textSecondary,
                       ),

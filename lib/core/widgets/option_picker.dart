@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:bombay_casting/core/models/models.dart';
+import 'package:bombay_casting/features/jobs/models/job_listing.dart';
 import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
 
@@ -10,6 +11,7 @@ Future<String?> showOptionPicker({
   required List<String> options,
   String? selected,
 }) {
+  final screenHeight = MediaQuery.sizeOf(context).height;
   return showModalBottomSheet<String>(
     context: context,
     backgroundColor: AppColors.surface,
@@ -18,37 +20,91 @@ Future<String?> showOptionPicker({
     ),
     builder: (context) {
       return SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
+        child: Container(
+          constraints: BoxConstraints(maxHeight: screenHeight * 0.65),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 8, bottom: 4),
+                width: 32,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-            ),
-            Flexible(
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: options.length,
-                itemBuilder: (context, index) {
-                  final option = options[index];
-                  final isSelected = option == selected;
-                  return ListTile(
-                    title: Text(option),
-                    trailing: isSelected
-                        ? const Icon(Icons.check, color: AppColors.primary)
-                        : null,
-                    onTap: () => Navigator.pop(context, option),
-                  );
-                },
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      onPressed: () => Navigator.pop(context),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+              const Divider(height: 1, thickness: 0.5),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  itemCount: options.length,
+                  itemBuilder: (context, index) {
+                    final option = options[index];
+                    final isSelected = option == selected;
+                    return InkWell(
+                      onTap: () => Navigator.pop(context, option),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        margin: const EdgeInsets.symmetric(vertical: 1),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? AppColors.primary.withValues(alpha: 0.07)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                option,
+                                style: TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                                  color: isSelected ? AppColors.primary : AppColors.textPrimary,
+                                ),
+                              ),
+                            ),
+                            if (isSelected)
+                              const Icon(
+                                Icons.check,
+                                color: AppColors.primary,
+                                size: 18,
+                              ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       );
     },
@@ -154,7 +210,6 @@ class ProfileOptions {
   static const platforms = [
     'Instagram',
     'YouTube',
-    'TikTok',
     'Facebook',
     'Twitter / X',
     'LinkedIn',
@@ -249,12 +304,42 @@ class ProfileOptions {
     'Hybrid',
   ];
 
-  static const talentCategories = [
+  static List<String> get talentCategories {
+    if (_dynamicTalentCategories != null && _dynamicTalentCategories!.isNotEmpty) {
+      return _dynamicTalentCategories!;
+    }
+    return defaultTalentCategories;
+  }
+
+  static List<String>? _dynamicTalentCategories;
+
+  static void setDynamicTalentCategories(List<String> categories) {
+    if (categories.isNotEmpty) {
+      _dynamicTalentCategories = List.unmodifiable(categories);
+    }
+  }
+
+  static const defaultTalentCategories = [
     'Actor',
-    'Dancer',
-    'Influencer',
     'Model',
+    'Influencer',
+    'Makeup Artist',
+    'Singer',
+    'Dancer',
   ];
+
+  static String shortCity(String location) => shortJobCity(location);
+
+  static List<String> get cityNames {
+    final seen = <String>{};
+    final names = <String>[];
+    for (final city in cities) {
+      final name = shortCity(city);
+      if (name.toLowerCase() == 'remote') continue;
+      if (seen.add(name.toLowerCase())) names.add(name);
+    }
+    return names;
+  }
 
   static const jobDurations = [
     'One-off',

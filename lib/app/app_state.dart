@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:bombay_casting/core/models/models.dart';
 import 'package:bombay_casting/core/services/auth_service.dart';
 import 'package:bombay_casting/core/services/storage_service.dart';
+import 'package:bombay_casting/core/widgets/option_picker.dart';
 import 'package:bombay_casting/features/auth/providers/auth_provider.dart';
 import 'package:bombay_casting/features/creators/models/creator_profile.dart';
 import 'package:bombay_casting/features/jobs/models/job_listing.dart';
@@ -23,6 +25,32 @@ class AppState extends ChangeNotifier {
       onChange: notifyListeners,
     );
     _loadLocale();
+    _listenCategories();
+  }
+
+  StreamSubscription? _categoriesSub;
+
+  void _listenCategories() {
+    _categoriesSub = FirebaseFirestore.instance
+        .collection('settings')
+        .doc('categories')
+        .snapshots()
+        .listen((doc) {
+      if (doc.exists) {
+        final data = doc.data();
+        final raw = data?['talentTypes'];
+        if (raw is List && raw.isNotEmpty) {
+          final list = raw
+              .map((e) => e.toString().trim())
+              .where((e) => e.isNotEmpty)
+              .toList();
+          if (list.isNotEmpty) {
+            ProfileOptions.setDynamicTalentCategories(list);
+            notifyListeners();
+          }
+        }
+      }
+    }, onError: (_) {});
   }
 
   Locale? _appLocale;
@@ -80,11 +108,41 @@ class AppState extends ChangeNotifier {
   bool get hasMoreJobs => _jobs.hasMoreJobs;
   HomeJobFilter get jobFilter => _jobs.jobFilter;
   List<JobListing> get filteredJobListings => _jobs.filteredJobListings;
+  CreatorFilter get creatorFilter => _jobs.creatorFilter;
+
+  int homeInnerTabIndex = 0;
+  int creatorsInnerTabIndex = 0;
+
+  void setHomeInnerTab(int index) {
+    if (homeInnerTabIndex == index) return;
+    homeInnerTabIndex = index;
+    notifyListeners();
+  }
+
+  void setCreatorsInnerTab(int index) {
+    if (creatorsInnerTabIndex == index) return;
+    creatorsInnerTabIndex = index;
+    notifyListeners();
+  }
+
+  void onMainShellTabSelected(int index) {
+    var changed = false;
+    if (index == 0 && homeInnerTabIndex != 0) {
+      homeInnerTabIndex = 0;
+      changed = true;
+    }
+    if (index == 1 && creatorsInnerTabIndex != 0) {
+      creatorsInnerTabIndex = 0;
+      changed = true;
+    }
+    if (changed) notifyListeners();
+  }
 
   bool isJobSaved(String jobId) => _jobs.isJobSaved(jobId);
   bool isCreatorSaved(String creatorId) => _jobs.isCreatorSaved(creatorId);
   Job? jobById(String jobId) => _jobs.jobById(jobId);
   void setJobFilter(HomeJobFilter filter) => _jobs.setJobFilter(filter);
+  void setCreatorFilter(CreatorFilter filter) => _jobs.setCreatorFilter(filter);
   Future<void> refreshJobs() => _jobs.refreshJobs();
   Future<void> loadMoreJobs() => _jobs.loadMoreJobs();
   bool hasApplied(String jobId) => _jobs.hasApplied(jobId);
@@ -173,6 +231,8 @@ class AppState extends ChangeNotifier {
     await _auth.logout();
     _profile.reset();
     _jobs.reset();
+    homeInnerTabIndex = 0;
+    creatorsInnerTabIndex = 0;
     notifyListeners();
   }
 
@@ -192,5 +252,11 @@ class AppState extends ChangeNotifier {
       bootstrap.uid,
       isNewUser: bootstrap.isNewUser,
     );
+  }
+
+  @override
+  void dispose() {
+    _categoriesSub?.cancel();
+    super.dispose();
   }
 }

@@ -15,6 +15,7 @@ import {
   getWebhookVerificationSecret,
   isCancellationChargeSuccessWebhook,
   isCancellationOrderIdForUser,
+  isAuthorizationSuccessWebhook,
   isPaidOrderStatus,
   isPaymentWebhookType,
   isPendingSubscriptionStatus,
@@ -36,17 +37,48 @@ const RTDB_INSTANCE = 'talenthire-d86a1-default-rtdb';
 /** All payment-related functions run in Mumbai for lowest latency to Cashfree India. */
 const FUNCTION_REGION = 'asia-south1';
 
-const PREMIUM_TRIAL_DAYS = 3;
+const PREMIUM_TRIAL_DAYS = 1;
 const PAY_TO_CANCEL_MESSAGE =
   'Pay ₹299 in PhonePe to cancel your subscription.';
 
 /** How long (ms) a cached Firestore subscription session is considered fresh. */
 const SESSION_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-function addDaysIso(days: number): string {
-  const date = new Date();
-  date.setDate(date.getDate() + days);
-  return date.toISOString();
+/** Cashfree expects IST timestamps, e.g. 2025-06-01T10:20:12+05:30 */
+function formatCashfreeIstIso(date: Date): string {
+  const istOffsetMs = 5.5 * 60 * 60 * 1000;
+  const ist = new Date(date.getTime() + istOffsetMs);
+  const y = ist.getUTCFullYear();
+  const mo = String(ist.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(ist.getUTCDate()).padStart(2, '0');
+  const h = String(ist.getUTCHours()).padStart(2, '0');
+  const mi = String(ist.getUTCMinutes()).padStart(2, '0');
+  const s = String(ist.getUTCSeconds()).padStart(2, '0');
+  return `${y}-${mo}-${d}T${h}:${mi}:${s}+05:30`;
+}
+
+function addDaysIso(days: number, from: Date = new Date()): string {
+  const result = new Date(from.getTime());
+  result.setDate(result.getDate() + days);
+  return formatCashfreeIstIso(result);
+}
+
+function parseIsoDate(value: string | undefined | null): Date | null {
+  if (!value) return null;
+  const ms = Date.parse(value);
+  return Number.isNaN(ms) ? null : new Date(ms);
+}
+
+/**
+ * Pending checkout sessions go stale when first_charge_at is too soon or already
+ * past — Cashfree would charge ₹299 almost immediately after ₹1 auth instead of
+ * waiting PREMIUM_TRIAL_DAYS from authorization.
+ */
+function isFirstChargeScheduleStale(firstChargeAt: string | undefined): boolean {
+  const scheduled = parseIsoDate(firstChargeAt);
+  if (!scheduled) return true;
+  const minLeadMs = (PREMIUM_TRIAL_DAYS - 1) * 24 * 60 * 60 * 1000;
+  return scheduled.getTime() < Date.now() + minLeadMs;
 }
 
 async function setUserSubscriptionStatus(
@@ -401,6 +433,24 @@ async function resolveExistingSubscriptionSession(
     return null;
   }
 
+  if (isFirstChargeScheduleStale(existingFirstChargeAt)) {
+    functions.logger.info('createPremiumSubscription: stale first_charge_at', {
+      userId,
+      subscriptionId: existingSubscriptionId,
+      firstChargeAt: existingFirstChargeAt,
+    });
+    try {
+      await cancelCashfreeSubscription(config, existingSubscriptionId);
+    } catch (error) {
+      functions.logger.warn('createPremiumSubscription: could not cancel stale subscription', {
+        userId,
+        subscriptionId: existingSubscriptionId,
+        error,
+      });
+    }
+    return null;
+  }
+
   let remoteStatus = (existing.subscription_status as string | undefined) ?? '';
   let remoteSessionId = existingSessionId ?? '';
 
@@ -481,8 +531,11 @@ async function resolveExistingSubscriptionSession(
 
 /**
  * Creates a Cashfree UPI Autopay subscription:
- * - ₹1 authorization now
- * - ₹299/month starting 3 days later
+ * - ₹1 authorization now (when user completes UPI mandate)
+ * - ₹299/month starting PREMIUM_TRIAL_DAYS after subscription is created at Pay tap
+ *
+ * Subscription is created only when the user taps Pay (not on screen open) so
+ * first_charge_at stays ~3 days after the ₹1 authorization.
  */
 export const createPremiumSubscription = functions.region(FUNCTION_REGION).https.onCall(
   async (_data, context) => {
@@ -593,6 +646,7 @@ export const verifyPremiumSubscription = functions.region(FUNCTION_REGION).https
     const local = localDoc.data()!;
     const subscriptionId = local.subscription_id as string;
     const subscriptionOwnerId = local.user_id as string | undefined;
+    const alreadyAuthorized = Boolean(local.authorized_at);
 
     // Ownership check 1: stored user_id must match the calling uid.
     if (subscriptionOwnerId && subscriptionOwnerId !== userId) {
@@ -632,6 +686,12 @@ export const verifyPremiumSubscription = functions.region(FUNCTION_REGION).https
         subscription_status: subscriptionStatus,
         authorization_status: authStatus,
         updated_at: admin.firestore.FieldValue.serverTimestamp(),
+        ...(isActive && !alreadyAuthorized
+          ? {
+              authorized_at: admin.firestore.FieldValue.serverTimestamp(),
+              first_charge_at: addDaysIso(PREMIUM_TRIAL_DAYS),
+            }
+          : {}),
       },
       {merge: true},
     );
@@ -997,6 +1057,13 @@ async function handleCashfreeHttpWebhook(
             payload.data?.subscription_details?.subscription_status ?? null,
           authorization_status: authDetails?.authorization_status ?? null,
           updated_at: admin.firestore.FieldValue.serverTimestamp(),
+          ...(isAuthorizationSuccessWebhook(payload)
+            ? {
+                authorized_at: admin.firestore.FieldValue.serverTimestamp(),
+                // Display schedule: ₹299 due PREMIUM_TRIAL_DAYS after ₹1 auth.
+                first_charge_at: addDaysIso(PREMIUM_TRIAL_DAYS),
+              }
+            : {}),
         },
         {merge: true},
       );

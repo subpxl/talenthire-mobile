@@ -156,14 +156,14 @@ class _PaymentInProgressScreenState extends State<PaymentInProgressScreen> {
 
     if (!mounted) return;
     setState(() {
-      _statusMessage = 'Premium activated! Enjoy unlimited access.';
+      _statusMessage = 'Success';
     });
 
     await Future<void>.delayed(const Duration(milliseconds: 900));
     if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Welcome to Premium!')),
+      const SnackBar(content: Text('Success')),
     );
     Navigator.of(context).popUntil((route) => route.isFirst);
   }

@@ -100,7 +100,7 @@ class _CreatorProfileScreenState extends State<CreatorProfileScreen> {
             _InfoSection(title: 'About', items: creator.aboutInfo),
             const SizedBox(height: AppSpacing.md),
             _InfoSection(title: 'Work', items: creator.workInfo),
-            if (creator.platformMetrics.where((m) => m.url.isNotEmpty).isNotEmpty) ...[
+            if (creator.platformMetrics.where((m) => m.url.isNotEmpty || m.handle.isNotEmpty).isNotEmpty) ...[
               const SizedBox(height: AppSpacing.md),
               _SocialLinksSection(metrics: creator.platformMetrics),
             ],
@@ -117,19 +117,24 @@ class _CreatorProfileScreenState extends State<CreatorProfileScreen> {
           borderRadius: BorderRadius.circular(AppRadius.md),
           child: AspectRatio(
             aspectRatio: 0.85,
-            child: PageView.builder(
-              controller: _pageController,
-              itemCount: photos.length,
-              onPageChanged: (index) => setState(() => _photoIndex = index),
-              itemBuilder: (context, index) {
-                final photo = photos[index];
-                return PlaceholderProfileImage(
-                  fill: true,
-                  borderRadius: 0,
-                  imageIndex: photo.imageIndex,
-                  imageUrl: photo.url,
-                );
-              },
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                PageView.builder(
+                  controller: _pageController,
+                  itemCount: photos.length,
+                  onPageChanged: (index) => setState(() => _photoIndex = index),
+                  itemBuilder: (context, index) {
+                    final photo = photos[index];
+                    return PlaceholderProfileImage(
+                      fill: true,
+                      borderRadius: 0,
+                      imageIndex: photo.imageIndex,
+                      imageUrl: photo.url,
+                    );
+                  },
+                ),
+              ],
             ),
           ),
         ),
@@ -191,10 +196,6 @@ class _CreatorProfileScreenState extends State<CreatorProfileScreen> {
                 ),
               ),
             ),
-            if (creator.isVerified) ...[
-              const SizedBox(width: 6),
-              const Icon(Icons.verified, color: AppColors.chatGreen, size: 18),
-            ],
             if (creator.id.isNotEmpty)
               Selector<AppState, bool>(
                 selector: (_, state) => state.isCreatorSaved(creator.id),
@@ -213,8 +214,16 @@ class _CreatorProfileScreenState extends State<CreatorProfileScreen> {
           ],
         ),
         const SizedBox(height: AppSpacing.xs),
+        const SizedBox(height: 2),
         Text(creator.title, style: context.bodyMedium),
-        Text(creator.location, style: context.bodyMedium),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Icon(Icons.location_on, size: 14, color: Colors.grey.shade600),
+            const SizedBox(width: 4),
+            Text(creator.location, style: context.bodyMedium),
+          ],
+        ),
       ],
     );
   }
@@ -317,7 +326,7 @@ class _SocialLinksSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final activeMetrics = metrics.where((m) => m.url.isNotEmpty).toList();
+    final activeMetrics = metrics.where((m) => m.url.isNotEmpty || m.handle.isNotEmpty).toList();
     if (activeMetrics.isEmpty) return const SizedBox.shrink();
 
     return Column(

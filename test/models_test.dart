@@ -149,26 +149,52 @@ void main() {
       );
     });
 
-    test('work mode chips filter remote, online, and onsite jobs', () {
-      final remote = job();
-      final online = Job.fromJson({
-        'id': 'job-online',
-        'title': 'Live host',
-        'location_type': 'online',
-        'location': 'Virtual',
-      });
-      final onsite = Job.fromJson({
-        'id': 'job-onsite',
+    test('city chips filter jobs by posted city', () {
+      final mumbai = Job.fromJson({
+        'id': 'job-mumbai',
         'title': 'Studio shoot',
-        'location_type': 'onsite',
         'location': 'Mumbai, Maharashtra',
+        'location_type': 'onsite',
+        'category': 'Model',
+      });
+      final delhi = Job.fromJson({
+        'id': 'job-delhi',
+        'title': 'Casting call',
+        'location': 'Delhi NCR',
+        'location_type': 'onsite',
+        'category': 'Actor',
+      });
+      final remote = Job.fromJson({
+        'id': 'job-remote',
+        'title': 'Voice over',
+        'location': 'Open nationwide',
+        'location_type': 'remote',
+        'category': 'Musician',
       });
 
-      expect(const HomeJobFilter(workMode: 'Remote').matchesJob(remote), isTrue);
-      expect(const HomeJobFilter(workMode: 'Remote').matchesJob(onsite), isFalse);
-      expect(const HomeJobFilter(workMode: 'Online').matchesJob(online), isTrue);
-      expect(const HomeJobFilter(workMode: 'Onsite').matchesJob(onsite), isTrue);
-      expect(const HomeJobFilter(workMode: 'All').matchesJob(online), isTrue);
+      expect(const HomeJobFilter(location: 'Mumbai').matchesJob(mumbai), isTrue);
+      expect(const HomeJobFilter(location: 'Mumbai').matchesJob(delhi), isFalse);
+      expect(const HomeJobFilter(location: 'Mumbai').matchesJob(remote), isFalse);
+      expect(const HomeJobFilter(location: 'Delhi').matchesJob(delhi), isTrue);
+      expect(
+        postedJobCities([mumbai, delhi, remote]),
+        ['Mumbai', 'Delhi'],
+      );
+    });
+
+    test('category chips filter jobs by talent type', () {
+      expect(
+        const HomeJobFilter(categories: {'Influencer'}).matchesJob(
+          job(category: 'Influencer'),
+        ),
+        isTrue,
+      );
+      expect(
+        const HomeJobFilter(categories: {'Influencer'}).matchesJob(
+          job(category: 'Actor'),
+        ),
+        isFalse,
+      );
     });
 
     test('default slider values do not hide jobs', () {

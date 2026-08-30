@@ -8,12 +8,12 @@ import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/features/jobs/screens/preference_filter_screen.dart';
 import 'package:bombay_casting/features/jobs/screens/shortlisted_screen.dart';
 import 'package:bombay_casting/features/jobs/screens/job_detail_screen.dart';
+import 'package:bombay_casting/features/profile/screens/edit_profile_view_screen.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/core/widgets/app_screen_layout.dart';
 import 'package:bombay_casting/core/widgets/app_search_filters.dart';
 import 'package:bombay_casting/core/widgets/app_tab_bar.dart';
 import 'package:bombay_casting/core/widgets/placeholder_avatar.dart';
-import 'package:bombay_casting/core/widgets/promo_banner.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -23,7 +23,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _selectedHomeTab = 0;
   final _searchController = TextEditingController();
 
   @override
@@ -35,18 +34,22 @@ class _HomeScreenState extends State<HomeScreen> {
   List<AppTabItem> _getTabs(BuildContext context) {
     return [
       AppTabItem(label: AppLocalizations.of(context)!.all, indicatorWidth: 24),
-      AppTabItem(label: AppLocalizations.of(context)!.saved, indicatorWidth: 40),
+      AppTabItem(
+        label: AppLocalizations.of(context)!.saved,
+        indicatorWidth: 40,
+      ),
     ];
   }
 
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
+    final selectedHomeTab = appState.homeInnerTabIndex;
     return AppScreenLayout(
       tabs: _getTabs(context),
-      selectedTabIndex: _selectedHomeTab,
-      onTabChanged: (i) => setState(() => _selectedHomeTab = i),
-      innerTabKey: _selectedHomeTab,
+      selectedTabIndex: selectedHomeTab,
+      onTabChanged: (i) => context.read<AppState>().setHomeInnerTab(i),
+      innerTabKey: selectedHomeTab,
       actions: [
         IconButton(
           tooltip: 'Filters',
@@ -58,76 +61,29 @@ class _HomeScreenState extends State<HomeScreen> {
           color: appState.jobFilter.hasAdvancedFilters
               ? AppColors.primary
               : AppColors.textSecondary,
-          onPressed: () => AppNavigation.push(context, const PreferenceScreen()),
+          onPressed: () =>
+              AppNavigation.push(context, const PreferenceScreen()),
         ),
       ],
-      body: _selectedHomeTab == 0
-          ? Column(
-              children: [
-                AppSearchAndChips(
-                  searchController: _searchController,
-                  searchHint: AppLocalizations.of(context)!
-                      .searchJobsAgencyLocation,
-                  chipOptions: [
-                    AppLocalizations.of(context)!.all,
-                    AppLocalizations.of(context)!.remote,
-                    AppLocalizations.of(context)!.online,
-                    AppLocalizations.of(context)!.onsite,
-                  ],
-                  selectedChip: _workModeLabel(context, appState.jobFilter.workMode),
-                  onSearchChanged: (query) {
-                    context.read<AppState>().setJobFilter(
-                          appState.jobFilter.copyWith(searchQuery: query),
-                        );
-                  },
-                  onChipSelected: (label) {
-                    context.read<AppState>().setJobFilter(
-                          appState.jobFilter.copyWith(
-                            workMode: _workModeValue(context, label),
-                          ),
-                        );
-                  },
-                ),
-                Expanded(child: _buildAllTab(appState)),
-              ],
-            )
+      body: selectedHomeTab == 0
+          ? _buildAllTab(appState)
           : const ShortlistTabContent(),
     );
-  }
-
-  String _workModeLabel(BuildContext context, String workMode) {
-    final l10n = AppLocalizations.of(context)!;
-    switch (workMode) {
-      case 'Remote':
-        return l10n.remote;
-      case 'Online':
-        return l10n.online;
-      case 'Onsite':
-        return l10n.onsite;
-      default:
-        return l10n.all;
-    }
-  }
-
-  String _workModeValue(BuildContext context, String label) {
-    final l10n = AppLocalizations.of(context)!;
-    if (label == l10n.remote) return 'Remote';
-    if (label == l10n.online) return 'Online';
-    if (label == l10n.onsite) return 'Onsite';
-    return 'All';
   }
 
   Widget _buildAllTab(AppState appState) {
     final homeJobs = appState.filteredJobListings;
     final Widget empty;
-    final noMatches = appState.jobFilter.isActive ||
+    final noMatches =
+        appState.jobFilter.isActive ||
         (appState.jobs.isNotEmpty && homeJobs.isEmpty);
     if (noMatches) {
       empty = Padding(
         padding: const EdgeInsets.only(left: 16, right: 16, top: 24, bottom: 8),
         child: Text(
-          AppLocalizations.of(context)!
-              .noJobsMatchYourFiltersPullToRefreshOrChangeFilters,
+          AppLocalizations.of(
+            context,
+          )!.noJobsMatchYourFiltersPullToRefreshOrChangeFilters,
           style: context.bodyMedium,
         ),
       );
@@ -141,19 +97,27 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
+    final profile = appState.profile;
+    final completionPercent = profile?.completionPercentage ?? 20;
+
     return AppRefreshScrollBody(
       onRefresh: () => context.read<AppState>().refreshJobs(),
       onLoadMore: () => context.read<AppState>().loadMoreJobs(),
       isLoadingMore: appState.isLoadingMoreJobs,
       hasMore: appState.hasMoreJobs,
       header: [
-        if (!appState.isPremiumUser) ...[
-          PromoBanner(
-            title: AppLocalizations.of(context)!.premiumApplications,
-            subtitle: AppLocalizations.of(context)!.subscribeToApply,
-            actionLabel: AppLocalizations.of(context)!.seePlans,
-            onAction: () => AppNavigation.openPremiumScreen(context),
-          ),
+        AppSearchField(
+          controller: _searchController,
+          hintText: AppLocalizations.of(context)!.searchJobsAgencyLocation,
+          onChanged: (query) {
+            context.read<AppState>().setJobFilter(
+              appState.jobFilter.copyWith(searchQuery: query),
+            );
+          },
+        ),
+        const SizedBox(height: AppSpacing.md),
+        if (completionPercent < 100) ...[
+          _ProfileCompletionBanner(percentage: completionPercent),
           const SizedBox(height: AppSpacing.lg),
         ],
         const AppSectionTitle('Jobs for you'),
@@ -168,6 +132,117 @@ class _HomeScreenState extends State<HomeScreen> {
           child: _JobCard(job: homeJobs[index]),
         );
       },
+    );
+  }
+}
+
+class _ProfileCompletionBanner extends StatelessWidget {
+  const _ProfileCompletionBanner({required this.percentage});
+
+  final int percentage;
+
+  @override
+  Widget build(BuildContext context) {
+    if (percentage >= 100) return const SizedBox.shrink();
+    return GestureDetector(
+      onTap: () => AppNavigation.push(context, const EditProfileScreen()),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [AppColors.bannerStart, AppColors.bannerEnd],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Complete your profile',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    percentage < 100 ? 'Add details to get 3x more deals.' : '',
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      color: AppColors.textSecondary,
+                      height: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Update profile',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                        SizedBox(width: 4),
+                        Icon(
+                          Icons.arrow_forward_ios,
+                          size: 10,
+                          color: Colors.white,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 14),
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                SizedBox(
+                  width: 58,
+                  height: 58,
+                  child: CircularProgressIndicator(
+                    value: percentage / 100.0,
+                    strokeWidth: 5.5,
+                    backgroundColor: Colors.black.withValues(alpha: 0.12),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      AppColors.primary,
+                    ),
+                    strokeCap: StrokeCap.round,
+                  ),
+                ),
+                Text(
+                  '$percentage%',
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -188,7 +263,6 @@ class _JobCard extends StatelessWidget {
       builder: (context, data, _) {
         final saved = data.saved;
         final firebaseJob = data.firebaseJob;
-        final isPremium = data.isPremium;
         return GestureDetector(
           onTap: () => AppNavigation.openJobDetail(
             context,
@@ -216,11 +290,11 @@ class _JobCard extends StatelessWidget {
                       tooltip: saved ? 'Remove saved job' : 'Save job',
                       onPressed: firebaseJob == null
                           ? null
-                          : () => context
-                              .read<AppState>()
-                              .toggleSavedJob(firebaseJob),
+                          : () => context.read<AppState>().toggleSavedJob(
+                              firebaseJob,
+                            ),
                       icon: Icon(
-                        saved ? Icons.bookmark : Icons.bookmark_border,
+                        saved ? Icons.favorite : Icons.favorite_border,
                         color: saved ? AppColors.primary : Colors.white,
                       ),
                     ),
@@ -249,25 +323,6 @@ class _JobCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  if (!isPremium)
-                    Row(
-                      children: [
-                        IconButton(
-                          tooltip: 'Call',
-                          icon: const Icon(Icons.phone_outlined),
-                          color: AppColors.textSecondary,
-                          onPressed: () =>
-                              AppNavigation.openPremiumScreen(context),
-                        ),
-                        IconButton(
-                          tooltip: 'Message',
-                          icon: const Icon(Icons.chat_bubble_outline),
-                          color: AppColors.chatGreen,
-                          onPressed: () =>
-                              AppNavigation.openPremiumScreen(context),
-                        ),
-                      ],
-                    ),
                 ],
               ),
             ],

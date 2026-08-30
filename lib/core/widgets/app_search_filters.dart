@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
+import 'package:bombay_casting/core/widgets/app_filter_widgets.dart';
 
 class AppSearchField extends StatelessWidget {
   const AppSearchField({
@@ -63,50 +64,37 @@ class AppFilterChipRow extends StatelessWidget {
   const AppFilterChipRow({
     super.key,
     required this.options,
-    required this.selected,
-    required this.onSelected,
+    required this.selectedChips,
+    required this.onToggle,
   });
 
   final List<String> options;
-  final String selected;
-  final ValueChanged<String> onSelected;
+  final Set<String> selectedChips;
+  final ValueChanged<String> onToggle;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 40,
+      height: 32,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: options.length,
         separatorBuilder: (_, _) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
           final option = options[index];
-          final isSelected = option == selected;
-          return Material(
-            color: isSelected ? AppColors.primary : AppColors.surface,
-            borderRadius: BorderRadius.circular(AppRadius.pill),
-            child: InkWell(
-              onTap: () => onSelected(option),
-              borderRadius: BorderRadius.circular(AppRadius.pill),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(AppRadius.pill),
-                  border: Border.all(
-                    color: isSelected ? AppColors.primary : AppColors.border,
-                  ),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  option,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                    color: isSelected ? Colors.white : AppColors.textPrimary,
-                  ),
-                ),
-              ),
-            ),
+          final isAllOption = option == 'All' || option.toLowerCase() == 'any';
+          final isSelected = isAllOption
+              ? (selectedChips.isEmpty ||
+                  selectedChips.contains('Any') ||
+                  selectedChips.contains('All'))
+              : (selectedChips.contains(option) &&
+                  !selectedChips.contains('Any') &&
+                  !selectedChips.contains('All'));
+          return AppPillChip(
+            label: option,
+            isSelected: isSelected,
+            showCheckmark: isSelected && !isAllOption,
+            onTap: () => onToggle(option),
           );
         },
       ),
@@ -120,17 +108,19 @@ class AppSearchAndChips extends StatelessWidget {
     required this.searchController,
     required this.searchHint,
     required this.chipOptions,
-    required this.selectedChip,
+    required this.selectedChips,
     required this.onSearchChanged,
-    required this.onChipSelected,
+    required this.onChipToggled,
+    this.onFilterTap,
   });
 
   final TextEditingController searchController;
   final String searchHint;
   final List<String> chipOptions;
-  final String selectedChip;
+  final Set<String> selectedChips;
   final ValueChanged<String> onSearchChanged;
-  final ValueChanged<String> onChipSelected;
+  final ValueChanged<String> onChipToggled;
+  final VoidCallback? onFilterTap;
 
   @override
   Widget build(BuildContext context) {
@@ -143,16 +133,36 @@ class AppSearchAndChips extends StatelessWidget {
       ),
       child: Column(
         children: [
-          AppSearchField(
-            controller: searchController,
-            hintText: searchHint,
-            onChanged: onSearchChanged,
+          Row(
+            children: [
+              Expanded(
+                child: AppSearchField(
+                  controller: searchController,
+                  hintText: searchHint,
+                  onChanged: onSearchChanged,
+                ),
+              ),
+              if (onFilterTap != null) ...[
+                const SizedBox(width: 8),
+                Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: IconButton(
+                    onPressed: onFilterTap,
+                    icon: const Icon(Icons.tune, color: AppColors.textPrimary, size: 22),
+                  ),
+                ),
+              ],
+            ],
           ),
-          const SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: AppSpacing.sm + 2),
           AppFilterChipRow(
             options: chipOptions,
-            selected: selectedChip,
-            onSelected: onChipSelected,
+            selectedChips: selectedChips,
+            onToggle: onChipToggled,
           ),
         ],
       ),

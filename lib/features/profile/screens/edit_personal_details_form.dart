@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
+import 'package:bombay_casting/core/widgets/app_filter_widgets.dart';
 import 'package:bombay_casting/core/widgets/option_picker.dart';
 
 class EditPersonalFieldsScreen extends StatefulWidget {
@@ -79,6 +80,12 @@ class _EditPersonalFieldsScreenState extends State<EditPersonalFieldsScreen> {
     return const ['Hindi'];
   }
 
+  @override
+  void dispose() {
+    _aboutController.dispose();
+    super.dispose();
+  }
+
   void _toggleLanguage(String language) {
     setState(() {
       if (_selectedLanguages.contains(language)) {
@@ -118,12 +125,6 @@ class _EditPersonalFieldsScreenState extends State<EditPersonalFieldsScreen> {
   }
 
   @override
-  void dispose() {
-    _aboutController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
@@ -133,16 +134,15 @@ class _EditPersonalFieldsScreenState extends State<EditPersonalFieldsScreen> {
         leading: IconButton(
           tooltip: 'Back',
           icon: const Icon(Icons.arrow_back_ios, color: Colors.black, size: 20),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => Navigator.maybePop(context),
         ),
         title: Text(AppLocalizations.of(context)!.personal,
-          style: TextStyle(
+          style: const TextStyle(
             color: Colors.black,
             fontSize: 18,
             fontWeight: FontWeight.w600,
           ),
         ),
-        titleSpacing: 0,
       ),
       body: SafeArea(
         child: Column(
@@ -154,22 +154,22 @@ class _EditPersonalFieldsScreenState extends State<EditPersonalFieldsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildSectionTitle('Gender'),
-                    const SizedBox(height: 8),
+                    const AppFormSectionTitle('Gender'),
+                    const SizedBox(height: 6),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: ProfileOptions.genders.map((gender) {
-                        return _buildChoiceChip(
+                        return AppPillChip(
                           label: gender,
                           isSelected: _selectedGender == gender,
-                          onSelected: () =>
+                          onTap: () =>
                               setState(() => _selectedGender = gender),
                         );
                       }).toList(),
                     ),
-                    const SizedBox(height: 16),
-                    _buildDropdownField(
+                    const SizedBox(height: 14),
+                    AppDropdownField(
                       label: 'Age',
                       value: _selectedAge,
                       onTap: () async {
@@ -182,8 +182,8 @@ class _EditPersonalFieldsScreenState extends State<EditPersonalFieldsScreen> {
                         if (value != null) setState(() => _selectedAge = value);
                       },
                     ),
-                    const SizedBox(height: 16),
-                    _buildDropdownField(
+                    const SizedBox(height: 14),
+                    AppDropdownField(
                       label: 'Location',
                       value: _selectedLocation,
                       onTap: () async {
@@ -198,61 +198,56 @@ class _EditPersonalFieldsScreenState extends State<EditPersonalFieldsScreen> {
                         }
                       },
                     ),
-                    const SizedBox(height: 16),
-                    _buildSectionTitle('Content language'),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 14),
+                    const AppFormSectionTitle('Content language'),
+                    const SizedBox(height: 6),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: ProfileOptions.languages.map((language) {
-                        return _buildChoiceChip(
+                        return AppPillChip(
                           label: language,
                           isSelected: _selectedLanguages.contains(language),
-                          onSelected: () => _toggleLanguage(language),
+                          onTap: () => _toggleLanguage(language),
                         );
                       }).toList(),
                     ),
-                    const SizedBox(height: 20),
-                    _buildSectionTitle('Creator type'),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 14),
+                    const AppFormSectionTitle('Creator type'),
+                    const SizedBox(height: 6),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: ProfileOptions.creatorTypes.map((type) {
-                        return _buildChoiceChip(
+                        return AppPillChip(
                           label: type,
                           isSelected: _selectedCreatorType == type,
-                          onSelected: () =>
+                          onTap: () =>
                               setState(() => _selectedCreatorType = type),
                         );
                       }).toList(),
                     ),
-                    const SizedBox(height: 20),
-                    _buildSectionTitle('Open to'),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 14),
+                    const AppFormSectionTitle('Open to'),
+                    const SizedBox(height: 6),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: _lookingForOptions.map((option) {
-                        return _buildChoiceChip(
+                        return AppPillChip(
                           label: option,
                           isSelected: _selectedLookingFor == option,
-                          onSelected: () =>
+                          onTap: () =>
                               setState(() => _selectedLookingFor = option),
                         );
                       }).toList(),
                     ),
-                    const SizedBox(height: 20),
-                    Row(
-                      children: [
-                        _buildSectionTitle('Tell brands about yourself.'),
-                        const Spacer(),
-                        Text(AppLocalizations.of(context)!.optional,
-                          style: TextStyle(fontSize: 12, color: Colors.grey),
-                        ),
-                      ],
+                    const SizedBox(height: 14),
+                    const AppFormSectionTitle(
+                      'Tell brands about yourself.',
+                      optional: true,
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     TextField(
                       controller: _aboutController,
                       maxLines: 3,
@@ -260,24 +255,24 @@ class _EditPersonalFieldsScreenState extends State<EditPersonalFieldsScreen> {
                         hintText: 'Type...',
                         hintStyle: TextStyle(
                           color: Colors.grey.shade400,
-                          fontSize: 14,
+                          fontSize: 13.5,
                         ),
                         contentPadding: const EdgeInsets.all(12),
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(10),
                           borderSide: BorderSide(color: Colors.grey.shade300),
                         ),
                         enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(10),
                           borderSide: BorderSide(color: Colors.grey.shade200),
                         ),
                         focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(10),
                           borderSide: const BorderSide(color: AppColors.primary),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 16),
                   ],
                 ),
               ),
@@ -291,7 +286,7 @@ class _EditPersonalFieldsScreenState extends State<EditPersonalFieldsScreen> {
 
   Widget _buildBottomBar() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 24.0),
+      padding: const EdgeInsets.fromLTRB(16.0, 10.0, 16.0, 16.0),
       child: Column(
         children: [
           Row(
@@ -312,7 +307,7 @@ class _EditPersonalFieldsScreenState extends State<EditPersonalFieldsScreen> {
           const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
-            height: 48,
+            height: 42,
             child: ElevatedButton(
               onPressed: _save,
               style: ElevatedButton.styleFrom(
@@ -323,8 +318,8 @@ class _EditPersonalFieldsScreenState extends State<EditPersonalFieldsScreen> {
                 ),
               ),
               child: Text(AppLocalizations.of(context)!.update,
-                style: TextStyle(
-                  fontSize: 16,
+                style: const TextStyle(
+                  fontSize: 14,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                 ),
@@ -332,90 +327,6 @@ class _EditPersonalFieldsScreenState extends State<EditPersonalFieldsScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildDropdownField({
-    required String label,
-    required String value,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF8F9FA),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.black87,
-                  ),
-                ),
-              ],
-            ),
-            const Spacer(),
-            Icon(Icons.keyboard_arrow_down, color: Colors.grey.shade600),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 14,
-        fontWeight: FontWeight.w500,
-        color: Colors.black87,
-      ),
-    );
-  }
-
-  Widget _buildChoiceChip({
-    required String label,
-    required bool isSelected,
-    required VoidCallback onSelected,
-  }) {
-    return InkWell(
-      onTap: onSelected,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary.withValues(alpha: 0.06) : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? AppColors.primary : Colors.grey.shade300,
-            width: 1,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            color: isSelected ? AppColors.primary : Colors.grey.shade800,
-            fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
-          ),
-        ),
       ),
     );
   }

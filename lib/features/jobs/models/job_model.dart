@@ -51,6 +51,8 @@ class Job {
     this.minFollowers = 0,
     this.payMin = 0,
     this.payMax = 0,
+    this.gender = '',
+    this.age = '',
   })  : postedAt = postedAt ?? DateTime.now(),
         tags = tags ?? [],
         platforms = platforms ?? [],
@@ -81,6 +83,8 @@ class Job {
   final int minFollowers;
   final int payMin;
   final int payMax;
+  final String gender;
+  final String age;
 
   String get timeAgo {
     final diff = DateTime.now().difference(postedAt);
@@ -214,6 +218,8 @@ class Job {
       minFollowers: _jobMinFollowers(json, category),
       payMin: pay.$1,
       payMax: pay.$2,
+      gender: (json['gender'] ?? '').toString(),
+      age: (json['age'] ?? json['age_group'] ?? '').toString(),
     );
   }
 
@@ -243,6 +249,8 @@ class Job {
         'min_followers': minFollowers,
         'pay_min': payMin,
         'pay_max': payMax,
+        'gender': gender,
+        'age': age,
       };
 }
 

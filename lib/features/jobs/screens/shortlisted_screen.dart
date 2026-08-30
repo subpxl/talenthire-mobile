@@ -101,7 +101,7 @@ class _SavedJobCard extends StatelessWidget {
                 child: IconButton(
                   tooltip: 'Remove saved job',
                   onPressed: () => context.read<AppState>().toggleSavedJob(job),
-                  icon: const Icon(Icons.bookmark, color: AppColors.primary),
+                  icon: const Icon(Icons.favorite, color: AppColors.primary),
                 ),
               ),
             ],

@@ -69,7 +69,7 @@ class _GetHelpScreenState extends State<GetHelpScreen> {
               _HelpItem(
                 title: 'Where do I see creators I saved?',
                 body:
-                    'Use the bookmark on a creator card to save it. Saved creators appear under Creators → Saved.',
+                    'Use the heart on a creator card to save it. Saved creators appear under Creators → Saved.',
               ),
               _HelpItem(
                 title: 'Which jobs can I browse?',
@@ -94,12 +94,12 @@ class _GetHelpScreenState extends State<GetHelpScreen> {
               _HelpItem(
                 title: 'Where do I see jobs I saved?',
                 body:
-                    'Use the bookmark on a job card to save it. Saved jobs appear under Home → Saved.',
+                    'Use the heart on a job card to save it. Saved jobs appear under Home → Saved.',
               ),
               _HelpItem(
                 title: 'How do I track applications?',
                 body:
-                    'Open the Messages tab to chat with agencies, or use Home → Saved to revisit roles you bookmarked.',
+                    'Open the Messages tab to chat with agencies, or use Home → Saved to revisit roles you saved.',
               ),
               _HelpItem(
                 title: 'Can I talk to the agency about a role?',

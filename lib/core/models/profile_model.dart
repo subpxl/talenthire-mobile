@@ -32,6 +32,20 @@ class SocialPlatformMetric {
         'followers': followers,
         'url': url,
       };
+
+  SocialPlatformMetric copyWith({
+    String? platform,
+    String? handle,
+    int? followers,
+    String? url,
+  }) {
+    return SocialPlatformMetric(
+      platform: platform ?? this.platform,
+      handle: handle ?? this.handle,
+      followers: followers ?? this.followers,
+      url: url ?? this.url,
+    );
+  }
 }
 
 class Profile {
@@ -84,6 +98,41 @@ class Profile {
   int freeJobApplicationsUsed;
 
   bool get isPremium => subscriptionStatus == SubscriptionStatus.premium;
+
+  int get completionPercentage {
+    var score = 0;
+    if (profileImage.trim().isNotEmpty) score += 20;
+
+    final personal = formSection('personal');
+    final hasGender = gender.isNotEmpty || (personal['gender']?.toString().isNotEmpty ?? false);
+    final hasAge = age != null || (personal['age']?.toString().isNotEmpty ?? false);
+    final hasLocation = city.isNotEmpty || state.isNotEmpty || (personal['location']?.toString().isNotEmpty ?? false);
+    final hasLang = languages.isNotEmpty || (personal['language'] != null || personal['languages'] != null);
+    if (hasGender) score += 5;
+    if (hasAge) score += 5;
+    if (hasLocation) score += 5;
+    if (hasLang) score += 5;
+
+    if (bio.trim().isNotEmpty || (personal['about']?.toString().trim().isNotEmpty ?? false)) {
+      score += 10;
+    }
+
+    final work = formSection('work');
+    if (work.isNotEmpty || talent.isNotEmpty) score += 15;
+
+    final content = formSection('content');
+    if (niches.isNotEmpty || content.isNotEmpty) score += 15;
+
+    final social = formSection('social');
+    if (platformMetrics.isNotEmpty || contact.isNotEmpty || social.isNotEmpty) score += 10;
+
+    final rates = formSection('rates');
+    final prefs = formSection('preferences');
+    if (rates.isNotEmpty || prefs.isNotEmpty) score += 10;
+
+    if (score > 100) score = 100;
+    return score;
+  }
 
   static const maxPhotos = 4;
 

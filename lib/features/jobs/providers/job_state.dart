@@ -40,6 +40,13 @@ class JobState extends ChangeNotifier {
   HomeJobFilter get jobFilter => jobFeed.filter;
   List<JobListing> get filteredJobListings => jobFeed.filteredListings;
 
+  CreatorFilter creatorFilter = const CreatorFilter();
+  
+  void setCreatorFilter(CreatorFilter filter) {
+    creatorFilter = filter;
+    _notify();
+  }
+
   void _notify() {
     notifyListeners();
     _onChange();

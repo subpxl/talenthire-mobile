@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
+import 'package:bombay_casting/core/widgets/app_filter_widgets.dart';
 import 'package:bombay_casting/core/widgets/option_picker.dart';
 
 class EditPreferenceScreen extends StatefulWidget {
@@ -39,55 +40,38 @@ class _EditPreferenceScreenState extends State<EditPreferenceScreen> {
       );
       _selectedLocation = (prefs['location'] ?? 'Any').toString();
       _selectedWorkMode = (prefs['work_mode'] ?? 'Any').toString();
-      _replaceSet(_selectedCollabTypes, prefs['collab_types']);
-      _replaceSet(_selectedPlatforms, prefs['platforms']);
-      _replaceSet(_selectedNiches, prefs['niches']);
-      _replaceSet(_selectedDurations, prefs['durations']);
+      _selectedCollabTypes
+        ..clear()
+        ..addAll(
+          (prefs['collaboration_type'] as List?)?.cast<String>() ?? ['Any'],
+        );
+      _selectedPlatforms
+        ..clear()
+        ..addAll((prefs['platforms'] as List?)?.cast<String>() ?? ['Any']);
+      _selectedNiches
+        ..clear()
+        ..addAll((prefs['niches'] as List?)?.cast<String>() ?? ['Any']);
+      _selectedDurations
+        ..clear()
+        ..addAll((prefs['duration'] as List?)?.cast<String>() ?? ['Any']);
     });
-  }
-
-  void _replaceSet(Set<String> target, dynamic value) {
-    target.clear();
-    if (value is List && value.isNotEmpty) {
-      target.addAll(value.map((item) => item.toString()));
-    } else {
-      target.add('Any');
-    }
-  }
-
-  Future<void> _save() async {
-    await saveProfileSection(
-      context: context,
-      section: 'preferences',
-      data: {
-        'pay_min': _payRange.start.round(),
-        'pay_max': _payRange.end.round(),
-        'pay_limit':
-            '₹ ${_payRange.start.round()} - ₹ ${_payRange.end.round()}',
-        'location': _selectedLocation ?? 'Any',
-        'work_mode': _selectedWorkMode,
-        'collab_types': _selectedCollabTypes.toList(),
-        'platforms': _selectedPlatforms.toList(),
-        'niches': _selectedNiches.toList(),
-        'durations': _selectedDurations.toList(),
-      },
-    );
   }
 
   void _handleMultiSelect(Set<String> targetSet, String value) {
     setState(() {
       if (value == 'Any') {
-        targetSet.clear();
-        targetSet.add('Any');
-      } else {
-        targetSet.remove('Any');
-        if (targetSet.contains(value)) {
-          targetSet.remove(value);
-          if (targetSet.isEmpty) targetSet.add('Any');
-        } else {
-          targetSet.add(value);
-        }
+        targetSet
+          ..clear()
+          ..add('Any');
+        return;
       }
+      targetSet.remove('Any');
+      if (targetSet.contains(value)) {
+        targetSet.remove(value);
+      } else {
+        targetSet.add(value);
+      }
+      if (targetSet.isEmpty) targetSet.add('Any');
     });
   }
 
@@ -95,7 +79,6 @@ class _EditPreferenceScreenState extends State<EditPreferenceScreen> {
     setState(() {
       _payRange = const RangeValues(5000, 150000);
       _selectedLocation = 'Any';
-      _selectedWorkMode = 'Any';
       _selectedCollabTypes
         ..clear()
         ..add('Any');
@@ -108,13 +91,32 @@ class _EditPreferenceScreenState extends State<EditPreferenceScreen> {
       _selectedDurations
         ..clear()
         ..add('Any');
+      _selectedWorkMode = 'Any';
     });
   }
 
   String _payLabel(double value) {
-    if (value >= 300000) return '₹3L+';
-    if (value >= 100000) return '₹${(value / 100000).toStringAsFixed(1)}L';
+    if (value >= 100000) {
+      return '₹${(value / 100000).toStringAsFixed(1)}L';
+    }
     return '₹${(value / 1000).round()}k';
+  }
+
+  Future<void> _save() async {
+    await saveProfileSection(
+      context: context,
+      section: 'preferences',
+      data: {
+        'pay_min': _payRange.start.round(),
+        'pay_max': _payRange.end.round(),
+        'location': _selectedLocation ?? 'Any',
+        'collaboration_type': _selectedCollabTypes.toList(),
+        'platforms': _selectedPlatforms.toList(),
+        'niches': _selectedNiches.toList(),
+        'duration': _selectedDurations.toList(),
+        'work_mode': _selectedWorkMode,
+      },
+    );
   }
 
   @override
@@ -127,37 +129,36 @@ class _EditPreferenceScreenState extends State<EditPreferenceScreen> {
         leading: IconButton(
           tooltip: 'Back',
           icon: const Icon(Icons.arrow_back_ios, color: Colors.black, size: 20),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => Navigator.maybePop(context),
         ),
         title: Text(AppLocalizations.of(context)!.jobPreferences,
-          style: TextStyle(
+          style: const TextStyle(
             color: Colors.black,
             fontSize: 18,
             fontWeight: FontWeight.w600,
           ),
         ),
-        titleSpacing: 0,
       ),
       body: SafeArea(
         child: Column(
           children: [
             Expanded(
               child: SingleChildScrollView(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0, vertical: 8.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(AppLocalizations.of(context)!.whatKindOfJobsAreYouLookingFor,
                       style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey,
+                        fontSize: 13.5,
+                        color: Colors.grey.shade600,
                         fontWeight: FontWeight.w400,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    _buildSectionTitle('Pay range'),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 14),
+                    const AppFormSectionTitle('Pay range'),
+                    const SizedBox(height: 6),
                     _buildRangeSlider(
                       values: _payRange,
                       min: 0,
@@ -168,8 +169,8 @@ class _EditPreferenceScreenState extends State<EditPreferenceScreen> {
                           : _payLabel(_payRange.end),
                       onChanged: (values) => setState(() => _payRange = values),
                     ),
-                    const SizedBox(height: 16),
-                    _buildDropdownField(
+                    const SizedBox(height: 14),
+                    AppDropdownField(
                       label: 'Job location',
                       value: _selectedLocation ?? 'Any',
                       onTap: () async {
@@ -184,92 +185,102 @@ class _EditPreferenceScreenState extends State<EditPreferenceScreen> {
                         }
                       },
                     ),
-                    const SizedBox(height: 16),
-                    _buildSectionTitle('Collaboration type'),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 14),
+                    const AppFormSectionTitle('Collaboration type'),
+                    const SizedBox(height: 6),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: ['Any', ...ProfileOptions.jobCollabTypes]
                           .map((type) {
-                        return _buildCheckmarkChip(
+                        return AppPillChip(
                           label: type,
                           isSelected: _selectedCollabTypes.contains(type),
-                          onSelected: () =>
+                          showCheckmark: true,
+                          onTap: () =>
                               _handleMultiSelect(_selectedCollabTypes, type),
                         );
                       }).toList(),
                     ),
-                    const SizedBox(height: 16),
-                    _buildSectionTitle('Platforms'),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 14),
+                    const AppFormSectionTitle('Platforms'),
+                    const SizedBox(height: 6),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children:
                           ['Any', ...ProfileOptions.platforms].map((platform) {
-                        return _buildPlusOrCheckChip(
+                        return AppPillChip(
                           label: platform,
                           isSelected: _selectedPlatforms.contains(platform),
-                          onSelected: () =>
+                          icon: _selectedPlatforms.contains(platform)
+                              ? Icons.check
+                              : Icons.add,
+                          onTap: () =>
                               _handleMultiSelect(_selectedPlatforms, platform),
                         );
                       }).toList(),
                     ),
-                    const SizedBox(height: 16),
-                    _buildSectionTitle('Niches'),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 14),
+                    const AppFormSectionTitle('Niches'),
+                    const SizedBox(height: 6),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: ['Any', ...ProfileOptions.niches].map((niche) {
-                        return _buildPlusOrCheckChip(
+                        return AppPillChip(
                           label: niche,
                           isSelected: _selectedNiches.contains(niche),
-                          onSelected: () =>
+                          icon: _selectedNiches.contains(niche)
+                              ? Icons.check
+                              : Icons.add,
+                          onTap: () =>
                               _handleMultiSelect(_selectedNiches, niche),
                         );
                       }).toList(),
                     ),
-                    const SizedBox(height: 16),
-                    _buildSectionTitle('Duration'),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 14),
+                    const AppFormSectionTitle('Duration'),
+                    const SizedBox(height: 6),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children:
                           ['Any', ...ProfileOptions.jobDurations].map((item) {
-                        return _buildPlusOrCheckChip(
+                        return AppPillChip(
                           label: item,
                           isSelected: _selectedDurations.contains(item),
-                          onSelected: () =>
+                          icon: _selectedDurations.contains(item)
+                              ? Icons.check
+                              : Icons.add,
+                          onTap: () =>
                               _handleMultiSelect(_selectedDurations, item),
                         );
                       }).toList(),
                     ),
-                    const SizedBox(height: 16),
-                    _buildSectionTitle('Work mode'),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 14),
+                    const AppFormSectionTitle('Work mode'),
+                    const SizedBox(height: 6),
                     Wrap(
                       spacing: 8,
                       children: ['Any', ...ProfileOptions.workModes]
                           .map((mode) {
-                        return _buildChoiceChip(
+                        return AppPillChip(
                           label: mode,
                           isSelected: _selectedWorkMode == mode,
-                          onSelected: () =>
+                          onTap: () =>
                               setState(() => _selectedWorkMode = mode),
                         );
                       }).toList(),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 16),
                   ],
                 ),
               ),
             ),
             Padding(
               padding:
-                  const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 24.0),
+                  const EdgeInsets.fromLTRB(16.0, 10.0, 16.0, 16.0),
               child: Column(
                 children: [
                   Row(
@@ -292,7 +303,7 @@ class _EditPreferenceScreenState extends State<EditPreferenceScreen> {
                     children: [
                       Expanded(
                         child: SizedBox(
-                          height: 48,
+                          height: 42,
                           child: TextButton(
                             onPressed: _resetAllFilters,
                             style: TextButton.styleFrom(
@@ -302,8 +313,8 @@ class _EditPreferenceScreenState extends State<EditPreferenceScreen> {
                               ),
                             ),
                             child: Text(AppLocalizations.of(context)!.clear,
-                              style: TextStyle(
-                                fontSize: 15,
+                              style: const TextStyle(
+                                fontSize: 13,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -314,7 +325,7 @@ class _EditPreferenceScreenState extends State<EditPreferenceScreen> {
                       Expanded(
                         flex: 2,
                         child: SizedBox(
-                          height: 48,
+                          height: 42,
                           child: ElevatedButton(
                             onPressed: _save,
                             style: ElevatedButton.styleFrom(
@@ -325,8 +336,8 @@ class _EditPreferenceScreenState extends State<EditPreferenceScreen> {
                               ),
                             ),
                             child: Text(AppLocalizations.of(context)!.update,
-                              style: TextStyle(
-                                fontSize: 16,
+                              style: const TextStyle(
+                                fontSize: 14,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
                               ),
@@ -345,17 +356,6 @@ class _EditPreferenceScreenState extends State<EditPreferenceScreen> {
     );
   }
 
-  Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 14,
-        fontWeight: FontWeight.w500,
-        color: Colors.black87,
-      ),
-    );
-  }
-
   Widget _buildRangeSlider({
     required RangeValues values,
     required double min,
@@ -369,22 +369,8 @@ class _EditPreferenceScreenState extends State<EditPreferenceScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade300),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Text(minLabel, style: const TextStyle(fontSize: 12)),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade300),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Text(maxLabel, style: const TextStyle(fontSize: 12)),
-            ),
+            AppSliderBadge(minLabel, color: AppColors.primary),
+            AppSliderBadge(maxLabel, color: AppColors.primary),
           ],
         ),
         SliderTheme(
@@ -393,10 +379,10 @@ class _EditPreferenceScreenState extends State<EditPreferenceScreen> {
             inactiveTrackColor: Colors.grey.shade200,
             thumbColor: Colors.white,
             overlayColor: AppColors.primary.withValues(alpha: 0.12),
-            trackHeight: 4.0,
+            trackHeight: 3.0,
             rangeThumbShape: const RoundRangeSliderThumbShape(
               enabledThumbRadius: 10.0,
-              elevation: 3,
+              elevation: 2,
             ),
           ),
           child: RangeSlider(
@@ -407,153 +393,6 @@ class _EditPreferenceScreenState extends State<EditPreferenceScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildChoiceChip({
-    required String label,
-    required bool isSelected,
-    required VoidCallback onSelected,
-  }) {
-    return InkWell(
-      onTap: onSelected,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary.withValues(alpha: 0.06) : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? AppColors.primary : Colors.grey.shade300,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            color: isSelected ? AppColors.primary : Colors.grey.shade800,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCheckmarkChip({
-    required String label,
-    required bool isSelected,
-    required VoidCallback onSelected,
-  }) {
-    return InkWell(
-      onTap: onSelected,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary.withValues(alpha: 0.06) : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? AppColors.primary : Colors.grey.shade300,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                color: isSelected ? AppColors.primary : Colors.grey.shade800,
-              ),
-            ),
-            if (isSelected) ...[
-              const SizedBox(width: 4),
-              const Icon(Icons.check, size: 14, color: AppColors.primary),
-            ]
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPlusOrCheckChip({
-    required String label,
-    required bool isSelected,
-    required VoidCallback onSelected,
-  }) {
-    return InkWell(
-      onTap: onSelected,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary.withValues(alpha: 0.06) : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? AppColors.primary : Colors.grey.shade300,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                color: isSelected ? AppColors.primary : Colors.grey.shade800,
-              ),
-            ),
-            const SizedBox(width: 4),
-            Icon(
-              isSelected ? Icons.check : Icons.add,
-              size: 14,
-              color: isSelected ? AppColors.primary : Colors.grey.shade600,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDropdownField({
-    required String label,
-    required String value,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF8F9FA),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.black87,
-                  ),
-                ),
-              ],
-            ),
-            const Spacer(),
-            Icon(Icons.keyboard_arrow_down, color: Colors.grey.shade600),
-          ],
-        ),
-      ),
     );
   }
 }

@@ -10,6 +10,7 @@ import 'package:bombay_casting/core/widgets/app_screen_layout.dart';
 import 'package:bombay_casting/core/widgets/app_search_filters.dart';
 import 'package:bombay_casting/core/widgets/app_tab_bar.dart';
 import 'package:bombay_casting/core/widgets/option_picker.dart';
+import 'package:bombay_casting/features/creators/screens/creator_filter_screen.dart';
 
 class CreatorsScreen extends StatefulWidget {
   const CreatorsScreen({super.key});
@@ -19,8 +20,6 @@ class CreatorsScreen extends StatefulWidget {
 }
 
 class _CreatorsScreenState extends State<CreatorsScreen> {
-  int _selectedTab = 0;
-  String _selectedTalent = 'All';
   final _searchController = TextEditingController();
 
   static const _tabs = [
@@ -45,12 +44,13 @@ class _CreatorsScreenState extends State<CreatorsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final selectedTab = context.watch<AppState>().creatorsInnerTabIndex;
     return AppScreenLayout(
       tabs: _tabs,
-      selectedTabIndex: _selectedTab,
-      onTabChanged: (i) => setState(() => _selectedTab = i),
-      innerTabKey: _selectedTab,
-      body: _selectedTab == 0
+      selectedTabIndex: selectedTab,
+      onTabChanged: (i) => context.read<AppState>().setCreatorsInnerTab(i),
+      innerTabKey: selectedTab,
+      body: selectedTab == 0
           ? Column(
               children: [
                 AppSearchAndChips(
@@ -61,15 +61,50 @@ class _CreatorsScreenState extends State<CreatorsScreen> {
                     AppLocalizations.of(context)!.all,
                     ...ProfileOptions.talentCategories,
                   ],
-                  selectedChip: _selectedTalent == 'All'
-                      ? AppLocalizations.of(context)!.all
-                      : _selectedTalent,
+                  selectedChips: context
+                      .watch<AppState>()
+                      .creatorFilter
+                      .categories,
                   onSearchChanged: (_) => setState(() {}),
-                  onChipSelected: (label) {
+                  onChipToggled: (label) {
                     final l10n = AppLocalizations.of(context)!;
-                    setState(() {
-                      _selectedTalent = label == l10n.all ? 'All' : label;
-                    });
+                    final current = Set<String>.from(
+                      context.read<AppState>().creatorFilter.categories,
+                    );
+                    if (label == l10n.all ||
+                        label.toLowerCase() == 'all' ||
+                        label.toLowerCase() == 'any') {
+                      context.read<AppState>().setCreatorFilter(
+                            context.read<AppState>().creatorFilter.copyWith(
+                              categories: {'Any'},
+                            ),
+                          );
+                      return;
+                    }
+                    current.remove('Any');
+                    current.remove('All');
+                    current.remove(l10n.all);
+                    if (current.contains(label)) {
+                      current.remove(label);
+                    } else {
+                      current.add(label);
+                    }
+                    if (current.isEmpty) {
+                      current.add('Any');
+                    }
+                    context.read<AppState>().setCreatorFilter(
+                          context.read<AppState>().creatorFilter.copyWith(
+                            categories: current,
+                          ),
+                        );
+                  },
+                  onFilterTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const CreatorFilterScreen(),
+                      ),
+                    );
                   },
                 ),
                 Expanded(child: _buildAllTab(context)),
@@ -86,11 +121,11 @@ class _CreatorsScreenState extends State<CreatorsScreen> {
         .where(
           (creator) =>
               creator.matchesSearch(query) &&
-              creator.matchesTalent(_selectedTalent),
+              appState.creatorFilter.matches(creator),
         )
         .toList();
     final filtersActive =
-        query.trim().isNotEmpty || _selectedTalent != 'All';
+        query.trim().isNotEmpty || appState.creatorFilter.isActive;
     return RefreshIndicator(
       color: AppColors.primary,
       onRefresh: () =>

@@ -24,6 +24,10 @@ class JobListing {
     this.payMax = 0,
     this.company = '',
     this.locationType = LocationType.remote,
+    this.gender = '',
+    this.age = '',
+    this.description = '',
+    this.tags = const [],
   });
 
   final String title;
@@ -47,6 +51,10 @@ class JobListing {
   final int payMax;
   final String company;
   final LocationType locationType;
+  final String gender;
+  final String age;
+  final String description;
+  final List<String> tags;
 
   static const _avatarColors = [
     Color(0xFF7986CB),
@@ -79,6 +87,10 @@ class JobListing {
       payMax: job.payMax,
       company: job.company,
       locationType: job.locationType,
+      gender: job.gender,
+      age: job.age,
+      description: job.description,
+      tags: job.tags,
     );
   }
 }
@@ -92,6 +104,54 @@ List<JobListing> listingsForJobs(List<Job> jobs, [HomeJobFilter? filter]) {
   ];
 }
 
+String shortJobCity(String location) {
+  final trimmed = location.trim();
+  if (trimmed.isEmpty || trimmed.toLowerCase() == 'any') return trimmed;
+  final city = trimmed.split(',').first.trim();
+  final lower = city.toLowerCase();
+  if (lower.contains('delhi')) return 'Delhi';
+  if (lower.contains('mumbai') || lower.contains('bombay')) return 'Mumbai';
+  if (lower.contains('bengaluru') || lower.contains('bangalore')) {
+    return 'Bengaluru';
+  }
+  if (lower.contains('remote') ||
+      lower.contains('nationwide') ||
+      lower.contains('virtual') ||
+      lower == 'online' ||
+      lower == 'open nationwide') {
+    return 'Remote';
+  }
+  return city;
+}
+
+bool isRemoteJobCity(String location) {
+  final city = shortJobCity(location).toLowerCase();
+  return city.isEmpty || city == 'remote' || city == 'any';
+}
+
+List<String> postedJobCities(List<Job> jobs) {
+  final seen = <String>{};
+  final cities = <String>[];
+  for (final job in jobs) {
+    if (isRemoteJobCity(job.location)) continue;
+    final city = shortJobCity(job.location);
+    if (seen.add(city.toLowerCase())) cities.add(city);
+  }
+  return cities;
+}
+
+List<String> postedJobCategories(List<Job> jobs, {List<String> fallback = const []}) {
+  final seen = <String>{};
+  final categories = <String>[];
+  for (final job in jobs) {
+    final category = job.category.trim();
+    if (category.isEmpty) continue;
+    if (seen.add(category.toLowerCase())) categories.add(category);
+  }
+  if (categories.isNotEmpty) return categories;
+  return fallback;
+}
+
 class HomeJobFilter {
   const HomeJobFilter({
     this.followerStart = 0,
@@ -101,13 +161,13 @@ class HomeJobFilter {
     this.includeOtherCities = false,
     this.location = 'Any',
     this.jobTypes = const {'Any'},
-    this.language = 'Any',
-    this.category = 'Any',
+    this.languages = const {'Any'},
+    this.categories = const {'Any'},
+    this.gender = 'Any',
+    this.ageStart = 0,
+    this.ageEnd = 100,
     this.searchQuery = '',
-    this.workMode = 'All',
   });
-
-  static const workModes = ['All', 'Remote', 'Online', 'Onsite'];
 
   final double followerStart;
   final double followerEnd;
@@ -116,15 +176,20 @@ class HomeJobFilter {
   final bool includeOtherCities;
   final String location;
   final Set<String> jobTypes;
-  final String language;
-  final String category;
+  final Set<String> languages;
+  final Set<String> categories;
+  final String gender;
+  final double ageStart;
+  final double ageEnd;
   final String searchQuery;
-  final String workMode;
 
   bool get hasAdvancedFilters {
     return location != 'Any' ||
-        language != 'Any' ||
-        category != 'Any' ||
+        languages.any((item) => item != 'Any') ||
+        categories.any((item) => item != 'Any') ||
+        gender != 'Any' ||
+        ageStart > 0 ||
+        ageEnd < 100 ||
         jobTypes.any((item) => item != 'Any') ||
         followerStart > 0 ||
         followerEnd < 100 ||
@@ -134,8 +199,7 @@ class HomeJobFilter {
 
   bool get isActive {
     return hasAdvancedFilters ||
-        searchQuery.trim().isNotEmpty ||
-        workMode != 'All';
+        searchQuery.trim().isNotEmpty;
   }
 
   HomeJobFilter copyWith({
@@ -146,10 +210,12 @@ class HomeJobFilter {
     bool? includeOtherCities,
     String? location,
     Set<String>? jobTypes,
-    String? language,
-    String? category,
+    Set<String>? languages,
+    Set<String>? categories,
+    String? gender,
+    double? ageStart,
+    double? ageEnd,
     String? searchQuery,
-    String? workMode,
   }) {
     return HomeJobFilter(
       followerStart: followerStart ?? this.followerStart,
@@ -159,10 +225,12 @@ class HomeJobFilter {
       includeOtherCities: includeOtherCities ?? this.includeOtherCities,
       location: location ?? this.location,
       jobTypes: jobTypes ?? this.jobTypes,
-      language: language ?? this.language,
-      category: category ?? this.category,
+      languages: languages ?? this.languages,
+      categories: categories ?? this.categories,
+      gender: gender ?? this.gender,
+      ageStart: ageStart ?? this.ageStart,
+      ageEnd: ageEnd ?? this.ageEnd,
       searchQuery: searchQuery ?? this.searchQuery,
-      workMode: workMode ?? this.workMode,
     );
   }
 
@@ -172,13 +240,16 @@ class HomeJobFilter {
             .toLowerCase();
 
     if (!_matchesSearch(haystack)) return false;
-    if (!_matchesWorkMode(listing)) return false;
 
     if (location != 'Any' && !includeOtherCities) {
-      final city = location.split(',').first.trim().toLowerCase();
+      final wanted = shortJobCity(location).toLowerCase();
+      final jobCity = shortJobCity(listing.location).toLowerCase();
       final loc = listing.location.toLowerCase();
-      final isRemote = loc.contains('remote') || loc.contains('nationwide');
-      if (!loc.contains(city) && !isRemote) return false;
+      if (wanted.isNotEmpty &&
+          jobCity != wanted &&
+          !loc.contains(wanted)) {
+        return false;
+      }
     }
 
     final types = jobTypes.where((item) => item != 'Any').toList();
@@ -187,28 +258,36 @@ class HomeJobFilter {
       if (!matched) return false;
     }
 
-    if (category != 'Any' && !haystack.contains(category.toLowerCase())) {
-      return false;
+    final cats = categories.where((item) => item != 'Any').toList();
+    if (cats.isNotEmpty) {
+      final blob =
+          '${listing.role} ${listing.category} ${listing.title} ${listing.details} ${listing.tags.join(' ')}'
+              .toLowerCase();
+      final matched = cats.any((cat) => blob.contains(cat.toLowerCase()));
+      if (!matched) return false;
     }
 
-    if (language != 'Any') {
-      const languages = [
-        'Hindi',
-        'English',
-        'Gujarati',
-        'Marathi',
-        'Punjabi',
-        'Tamil',
-        'Telugu',
-        'Kannada',
-        'Malayalam',
-        'Bengali',
-        'Urdu',
+    if (gender != 'Any') {
+      final jobGender = listing.gender.trim().toLowerCase();
+      if (jobGender.isNotEmpty &&
+          jobGender != 'any' &&
+          jobGender != 'all' &&
+          !jobGender.contains(gender.toLowerCase())) {
+        return false;
+      }
+    }
+
+    if (!_matchesAgeRange(listing.age)) return false;
+
+    final langs = languages.where((item) => item != 'Any').toList();
+    if (langs.isNotEmpty) {
+      const allLanguages = [
+        'Hindi', 'English', 'Gujarati', 'Marathi', 'Punjabi', 
+        'Tamil', 'Telugu', 'Kannada', 'Malayalam', 'Bengali', 'Urdu',
       ];
-      final mentionsLanguage = haystack.contains(language.toLowerCase());
-      final mentionsAnyLanguage =
-          languages.any((item) => haystack.contains(item.toLowerCase()));
-      if (mentionsAnyLanguage && !mentionsLanguage) return false;
+      final mentionsAnyLanguage = allLanguages.any((item) => haystack.contains(item.toLowerCase()));
+      final matched = langs.any((lang) => haystack.contains(lang.toLowerCase()));
+      if (mentionsAnyLanguage && !matched) return false;
     }
 
     if (!_matchesFollowerRange(listing.minFollowers)) return false;
@@ -230,36 +309,7 @@ class HomeJobFilter {
     return terms.every(haystack.contains);
   }
 
-  bool _matchesWorkMode(JobListing listing) {
-    if (workMode == 'All') return true;
-    final loc = '${listing.location} ${listing.details}'.toLowerCase();
-    final type = _resolvedLocationType(listing.locationType, loc);
-    switch (workMode) {
-      case 'Remote':
-        return type == LocationType.remote;
-      case 'Online':
-        return type == LocationType.online;
-      case 'Onsite':
-        return type == LocationType.onsite;
-      default:
-        return true;
-    }
-  }
 
-  LocationType _resolvedLocationType(LocationType stored, String loc) {
-    if (loc.contains('online') || loc.contains('virtual')) {
-      return LocationType.online;
-    }
-    if (loc.contains('onsite') ||
-        loc.contains('on-site') ||
-        loc.contains('on site')) {
-      return LocationType.onsite;
-    }
-    if (loc.contains('remote') || loc.contains('nationwide')) {
-      return LocationType.remote;
-    }
-    return stored;
-  }
 
   bool _matchesFollowerRange(int minFollowers) {
     if (followerStart <= 0 && followerEnd >= 100) return true;
@@ -274,6 +324,36 @@ class HomeJobFilter {
     if (payStart <= 0 && payEnd >= 500000) return true;
     final filterMax = payEnd >= 500000 ? 1 << 31 : payEnd;
     return jobPayMax >= payStart && jobPayMin <= filterMax;
+  }
+
+  bool _matchesAgeRange(String ageStr) {
+    if (ageStart <= 0 && ageEnd >= 100) return true;
+    final trimmed = ageStr.trim().toLowerCase();
+    if (trimmed.isEmpty || trimmed == 'any' || trimmed == 'all') return true;
+
+    // Parse age like '18-25', '45+', '18'
+    int jobAgeMin = 0;
+    int jobAgeMax = 100;
+
+    if (trimmed.contains('-')) {
+      final parts = trimmed.split('-');
+      if (parts.length == 2) {
+        jobAgeMin = int.tryParse(parts[0].trim()) ?? 0;
+        jobAgeMax = int.tryParse(parts[1].trim()) ?? 100;
+      }
+    } else if (trimmed.contains('+')) {
+      jobAgeMin = int.tryParse(trimmed.replaceAll('+', '').trim()) ?? 0;
+      jobAgeMax = 100;
+    } else {
+      final single = int.tryParse(trimmed);
+      if (single != null) {
+        jobAgeMin = single;
+        jobAgeMax = single;
+      }
+    }
+
+    // Check for overlap
+    return jobAgeMax >= ageStart && jobAgeMin <= ageEnd;
   }
 }
 

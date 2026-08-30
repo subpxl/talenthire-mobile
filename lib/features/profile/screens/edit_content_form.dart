@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
+import 'package:bombay_casting/core/widgets/app_filter_widgets.dart';
 import 'package:bombay_casting/core/widgets/option_picker.dart';
 
 class EditContentFieldsScreen extends StatefulWidget {
@@ -99,16 +100,15 @@ class _EditContentFieldsScreenState extends State<EditContentFieldsScreen> {
         leading: IconButton(
           tooltip: 'Back',
           icon: const Icon(Icons.arrow_back_ios, color: Colors.black, size: 20),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => Navigator.maybePop(context),
         ),
         title: Text(AppLocalizations.of(context)!.content,
-          style: TextStyle(
+          style: const TextStyle(
             color: Colors.black,
             fontSize: 18,
             fontWeight: FontWeight.w600,
           ),
         ),
-        titleSpacing: 0,
       ),
       body: SafeArea(
         child: Column(
@@ -120,68 +120,71 @@ class _EditContentFieldsScreenState extends State<EditContentFieldsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildSectionTitle('Niches'),
-                    const SizedBox(height: 8),
+                    const AppFormSectionTitle('Niches'),
+                    const SizedBox(height: 6),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: ProfileOptions.niches.map((niche) {
                         final isSelected = _selectedNiches.contains(niche);
-                        return _buildChip(
-                          label: '$niche +',
+                        return AppPillChip(
+                          label: niche,
                           isSelected: isSelected,
-                          onSelected: () => _toggle(_selectedNiches, niche),
+                          icon: isSelected ? Icons.check : Icons.add,
+                          onTap: () => _toggle(_selectedNiches, niche),
                         );
                       }).toList(),
                     ),
-                    const SizedBox(height: 20),
-                    _buildSectionTitle('Content formats'),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 14),
+                    const AppFormSectionTitle('Content formats'),
+                    const SizedBox(height: 6),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: ProfileOptions.contentFormats.map((format) {
                         final isSelected = _selectedFormats.contains(format);
-                        return _buildChip(
-                          label: '$format +',
+                        return AppPillChip(
+                          label: format,
                           isSelected: isSelected,
-                          onSelected: () => _toggle(_selectedFormats, format),
+                          icon: isSelected ? Icons.check : Icons.add,
+                          onTap: () => _toggle(_selectedFormats, format),
                         );
                       }).toList(),
                     ),
-                    const SizedBox(height: 20),
-                    _buildSectionTitle('Brand categories you take'),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 14),
+                    const AppFormSectionTitle('Brand categories you take'),
+                    const SizedBox(height: 6),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: ProfileOptions.niches.map((category) {
                         final isSelected =
                             _selectedBrandCategories.contains(category);
-                        return _buildChip(
-                          label: '$category +',
+                        return AppPillChip(
+                          label: category,
                           isSelected: isSelected,
-                          onSelected: () =>
+                          icon: isSelected ? Icons.check : Icons.add,
+                          onTap: () =>
                               _toggle(_selectedBrandCategories, category),
                         );
                       }).toList(),
                     ),
-                    const SizedBox(height: 20),
-                    _buildSectionTitle('Comfortable with'),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 14),
+                    const AppFormSectionTitle('Comfortable with'),
+                    const SizedBox(height: 6),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: _styleOptions.map((style) {
-                        return _buildChip(
+                        return AppPillChip(
                           label: style,
                           isSelected: _selectedStyle == style,
-                          onSelected: () =>
+                          onTap: () =>
                               setState(() => _selectedStyle = style),
                         );
                       }).toList(),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 16),
                   ],
                 ),
               ),
@@ -195,7 +198,7 @@ class _EditContentFieldsScreenState extends State<EditContentFieldsScreen> {
 
   Widget _buildBottomBar() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 24.0),
+      padding: const EdgeInsets.fromLTRB(16.0, 10.0, 16.0, 16.0),
       child: Column(
         children: [
           Row(
@@ -216,7 +219,7 @@ class _EditContentFieldsScreenState extends State<EditContentFieldsScreen> {
           const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
-            height: 48,
+            height: 42,
             child: ElevatedButton(
               onPressed: _save,
               style: ElevatedButton.styleFrom(
@@ -227,8 +230,8 @@ class _EditContentFieldsScreenState extends State<EditContentFieldsScreen> {
                 ),
               ),
               child: Text(AppLocalizations.of(context)!.update,
-                style: TextStyle(
-                  fontSize: 16,
+                style: const TextStyle(
+                  fontSize: 14,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                 ),
@@ -239,45 +242,5 @@ class _EditContentFieldsScreenState extends State<EditContentFieldsScreen> {
       ),
     );
   }
-
-  Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 14,
-        fontWeight: FontWeight.w500,
-        color: Colors.black87,
-      ),
-    );
-  }
-
-  Widget _buildChip({
-    required String label,
-    required bool isSelected,
-    required VoidCallback onSelected,
-  }) {
-    return InkWell(
-      onTap: onSelected,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary.withValues(alpha: 0.06) : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? AppColors.primary : Colors.grey.shade300,
-            width: 1,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            color: isSelected ? AppColors.primary : Colors.grey.shade800,
-            fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
-          ),
-        ),
-      ),
-    );
-  }
 }
+

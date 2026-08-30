@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/features/creators/screens/creators_screen.dart';
 import 'package:bombay_casting/features/jobs/screens/home_screen.dart';
 import 'package:bombay_casting/features/messaging/screens/message_list_screen.dart';
@@ -47,6 +49,7 @@ class _MainShellState extends State<MainShell> {
 
   void _onTabTapped(int index) {
     if (_currentIndex == index) return;
+    context.read<AppState>().onMainShellTabSelected(index);
     setState(() => _currentIndex = index);
     _pageController.animateToPage(
       index,
@@ -59,6 +62,7 @@ class _MainShellState extends State<MainShell> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
+      resizeToAvoidBottomInset: false,
       body: PageView.builder(
         controller: _pageController,
         physics: const NeverScrollableScrollPhysics(),

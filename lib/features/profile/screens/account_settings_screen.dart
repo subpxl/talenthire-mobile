@@ -237,7 +237,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
 
     final status = (data['subscription_status'] ?? '').toString();
     final createdAt = parseFlexibleDate(data['created_at']);
-    final firstChargeAt = parseFlexibleDate(data['first_charge_at']);
+    final storedFirstChargeAt = parseFlexibleDate(data['first_charge_at']);
+    final firstChargeAt = storedFirstChargeAt;
     final authAmount = data['authorization_amount'] ?? 1;
     final recurringAmount = data['recurring_amount'] ?? 299;
     final cancellationStatus =

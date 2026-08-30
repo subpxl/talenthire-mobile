@@ -5,142 +5,87 @@ import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/core/widgets/app_filter_widgets.dart';
 import 'package:bombay_casting/core/widgets/option_picker.dart';
 import 'package:bombay_casting/core/widgets/searchable_option_picker.dart';
-import 'package:bombay_casting/features/jobs/models/job_listing.dart';
 
-class PreferenceScreen extends StatefulWidget {
-  const PreferenceScreen({super.key});
+class CreatorFilterScreen extends StatefulWidget {
+  const CreatorFilterScreen({super.key});
 
   @override
-  State<PreferenceScreen> createState() => _PreferenceScreenState();
+  State<CreatorFilterScreen> createState() => _CreatorFilterScreenState();
 }
 
-class _PreferenceScreenState extends State<PreferenceScreen> {
-  RangeValues _salaryRange = const RangeValues(0, 500000);
-  final Set<String> _selectedJobTypes = {'Any'};
-  String _selectedLocation = 'Any';
-  final Set<String> _selectedLanguages = {'Any'};
-  final Set<String> _selectedCategories = {'Any'};
-  String _selectedGender = 'Any';
+class _CreatorFilterScreenState extends State<CreatorFilterScreen> {
+  final Set<String> _selectedGenders = {'Any'};
   RangeValues _ageRange = const RangeValues(0, 100);
-
-  List<String> get _categoryOptions {
-    final posted = postedJobCategories(
-      context.read<AppState>().jobs,
-      fallback: const [],
-    );
-    final extras = posted.where(
-      (category) => !ProfileOptions.talentCategories.any(
-        (item) => item.toLowerCase() == category.toLowerCase(),
-      ),
-    );
-    return [
-      'Any',
-      ...ProfileOptions.talentCategories,
-      ...extras,
-    ];
-  }
+  final Set<String> _selectedCategories = {'Any'};
+  String _selectedLocation = 'Any';
 
   final List<String> _genderOptions = [
     'Any',
     'Male',
     'Female',
-    'Other',
+    'Other'
   ];
 
-  final List<String> _jobTypeOptions = [
-    'Any',
-    'Paid',
-    'Barter',
-    'Collab',
-  ];
+  List<String> get _categoryOptions => [
+        'Any',
+        ...ProfileOptions.talentCategories,
+      ];
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final filter = context.read<AppState>().jobFilter;
+      final filter = context.read<AppState>().creatorFilter;
       setState(() {
-        _salaryRange = RangeValues(filter.payStart, filter.payEnd);
-        _selectedLocation = filter.location;
-        _selectedLanguages
+        _selectedGenders
           ..clear()
-          ..addAll(filter.languages);
+          ..addAll(filter.genders);
+        _ageRange = RangeValues(filter.ageStart, filter.ageEnd);
         _selectedCategories
           ..clear()
           ..addAll(filter.categories);
-        _selectedGender = filter.gender;
-        _ageRange = RangeValues(filter.ageStart, filter.ageEnd);
-        _selectedJobTypes
-          ..clear()
-          ..addAll(filter.jobTypes);
+        _selectedLocation = filter.location;
       });
     });
   }
 
-  void _toggleJobType(String type) {
+  void _toggleGender(String type) {
     setState(() {
       if (type == 'Any') {
-        _selectedJobTypes
-          ..clear()
-          ..add('Any');
+        _selectedGenders..clear()..add('Any');
         return;
       }
-      _selectedJobTypes.remove('Any');
-      if (_selectedJobTypes.contains(type)) {
-        _selectedJobTypes.remove(type);
+      _selectedGenders.remove('Any');
+      if (_selectedGenders.contains(type)) {
+        _selectedGenders.remove(type);
       } else {
-        _selectedJobTypes.add(type);
+        _selectedGenders.add(type);
       }
-      if (_selectedJobTypes.isEmpty) _selectedJobTypes.add('Any');
-    });
-  }
-
-  void _toggleLanguage(String type) {
-    setState(() {
-      if (type == 'Any') {
-        _selectedLanguages..clear()..add('Any');
-        return;
-      }
-      _selectedLanguages.remove('Any');
-      if (_selectedLanguages.contains(type)) {
-        _selectedLanguages.remove(type);
-      } else {
-        _selectedLanguages.add(type);
-      }
-      if (_selectedLanguages.isEmpty) _selectedLanguages.add('Any');
+      if (_selectedGenders.isEmpty) _selectedGenders.add('Any');
     });
   }
 
   void _clear() {
     setState(() {
-      _salaryRange = const RangeValues(0, 500000);
-      _selectedLocation = 'Any';
-      _selectedLanguages
+      _selectedGenders
         ..clear()
         ..add('Any');
+      _ageRange = const RangeValues(0, 100);
       _selectedCategories
         ..clear()
         ..add('Any');
-      _selectedGender = 'Any';
-      _ageRange = const RangeValues(0, 100);
-      _selectedJobTypes
-        ..clear()
-        ..add('Any');
+      _selectedLocation = 'Any';
     });
   }
 
   void _apply() {
-    context.read<AppState>().setJobFilter(
-          context.read<AppState>().jobFilter.copyWith(
-            payStart: _salaryRange.start,
-            payEnd: _salaryRange.end,
-            location: _selectedLocation,
-            jobTypes: Set<String>.from(_selectedJobTypes),
-            languages: Set<String>.from(_selectedLanguages),
-            categories: Set<String>.from(_selectedCategories),
-            gender: _selectedGender,
+    context.read<AppState>().setCreatorFilter(
+          context.read<AppState>().creatorFilter.copyWith(
+            genders: Set<String>.from(_selectedGenders),
             ageStart: _ageRange.start,
             ageEnd: _ageRange.end,
+            categories: Set<String>.from(_selectedCategories),
+            location: _selectedLocation,
           ),
         );
     Navigator.maybePop(context);
@@ -152,7 +97,6 @@ class _PreferenceScreenState extends State<PreferenceScreen> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -161,8 +105,8 @@ class _PreferenceScreenState extends State<PreferenceScreen> {
           icon: const Icon(Icons.arrow_back_ios, color: Colors.black, size: 20),
           onPressed: () => Navigator.maybePop(context),
         ),
-        title: Text(AppLocalizations.of(context)!.jobFilters,
-          style: const TextStyle(
+        title: const Text('Creator Filters',
+          style: TextStyle(
             color: Colors.black,
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -173,12 +117,12 @@ class _PreferenceScreenState extends State<PreferenceScreen> {
         children: [
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(AppLocalizations.of(context)!.whatKindOfJobsAreYouLookingFor,
-                    style: const TextStyle(
+                  const Text('What kind of creators are you looking for?',
+                    style: TextStyle(
                       fontSize: 13.5,
                       fontWeight: FontWeight.w500,
                       color: Colors.black87,
@@ -186,10 +130,10 @@ class _PreferenceScreenState extends State<PreferenceScreen> {
                   ),
                   const SizedBox(height: 14),
 
-                  // Category section
+                  // Category selection dropdown
                   AppDropdownField(
                     label: 'Category',
-                    value: _selectedCategories.contains('Any')
+                    value: _selectedCategories.contains('Any') || _selectedCategories.isEmpty
                         ? 'Any'
                         : (_selectedCategories.length > 2
                             ? '${_selectedCategories.length} selected'
@@ -211,31 +155,17 @@ class _PreferenceScreenState extends State<PreferenceScreen> {
                   ),
                   const SizedBox(height: 14),
 
-                  // City selection
+                  // City selection dropdown
                   AppDropdownField(
                     label: 'City',
                     value: _selectedLocation == 'Any'
                         ? 'Any'
                         : ProfileOptions.shortCity(_selectedLocation),
                     onTap: () async {
-                      final posted = postedJobCities(
-                        context.read<AppState>().jobs,
-                      );
-                      final cityOptions = <String>['Any'];
-                      for (final city in [...posted, ...ProfileOptions.cityNames]) {
-                        if (!cityOptions.any(
-                          (item) => item.toLowerCase() == city.toLowerCase(),
-                        )) {
-                          cityOptions.add(city);
-                        }
-                      }
-                      if (!cityOptions.contains('Remote')) {
-                        cityOptions.add('Remote');
-                      }
                       final value = await showSearchableOptionPicker(
                         context: context,
                         title: 'City',
-                        options: cityOptions,
+                        options: ['Any', ...ProfileOptions.cityNames],
                         selected: _selectedLocation == 'Any'
                             ? 'Any'
                             : ProfileOptions.shortCity(_selectedLocation),
@@ -247,25 +177,24 @@ class _PreferenceScreenState extends State<PreferenceScreen> {
                   ),
                   const SizedBox(height: 14),
 
-                  // Gender section
                   const AppFormSectionTitle('Gender'),
                   const SizedBox(height: 6),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
                     children: _genderOptions.map((gender) {
-                      final isSelected = _selectedGender == gender;
+                      final isSelected = _selectedGenders.contains(gender);
                       return AppPillChip(
                         label: gender,
                         isSelected: isSelected,
-                        onTap: () => setState(() => _selectedGender = gender),
+                        showCheckmark: true,
+                        onTap: () => _toggleGender(gender),
                         activeColor: primaryColor,
                       );
                     }).toList(),
                   ),
                   const SizedBox(height: 14),
 
-                  // Age Range section
                   const AppFormSectionTitle('Age Range'),
                   const SizedBox(height: 4),
                   Stack(
@@ -298,82 +227,12 @@ class _PreferenceScreenState extends State<PreferenceScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
-
-                  AppFormSectionTitle(AppLocalizations.of(context)!.jobType),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _jobTypeOptions.map((type) {
-                      final isSelected = _selectedJobTypes.contains(type);
-                      return AppPillChip(
-                        label: type,
-                        isSelected: isSelected,
-                        showCheckmark: true,
-                        onTap: () => _toggleJobType(type),
-                        activeColor: primaryColor,
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 14),
-
-                  const AppFormSectionTitle('Content language'),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: ['Any', ...ProfileOptions.languages].map((language) {
-                      final isSelected = _selectedLanguages.contains(language);
-                      return AppPillChip(
-                        label: language,
-                        isSelected: isSelected,
-                        showCheckmark: true,
-                        onTap: () => _toggleLanguage(language),
-                        activeColor: primaryColor,
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 14),
-                  AppFormSectionTitle(AppLocalizations.of(context)!.payRange),
-                  const SizedBox(height: 4),
-                  Stack(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(top: 20),
-                        child: SliderTheme(
-                          data: _getSliderTheme(primaryColor),
-                          child: RangeSlider(
-                            values: _salaryRange,
-                            min: 0,
-                            max: 500000,
-                            onChanged: (values) {
-                              setState(() => _salaryRange = values);
-                            },
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        left: 12,
-                        top: 0,
-                        child: AppSliderBadge('₹${(_salaryRange.start / 1000).round()}'),
-                      ),
-                      Positioned(
-                        right: 12,
-                        top: 0,
-                        child: AppSliderBadge(
-                          _salaryRange.end >= 500000 ? '₹5L+' : '₹${(_salaryRange.end / 100000).toStringAsFixed(1)}L',
-                        ),
-                      ),
-                    ],
-                  ),
                   const SizedBox(height: 16),
                 ],
               ),
             ),
           ),
 
-          // Bottom Action Bar
           SafeArea(
             minimum: const EdgeInsets.only(bottom: 12),
             child: Container(
@@ -387,21 +246,6 @@ class _PreferenceScreenState extends State<PreferenceScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.check_circle_outline, color: Colors.green.shade600, size: 16),
-                      const SizedBox(width: 6),
-                      Text(AppLocalizations.of(context)!.yourDataIs100SafeWithUs,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade700,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
                   Row(
                     children: [
                       Expanded(

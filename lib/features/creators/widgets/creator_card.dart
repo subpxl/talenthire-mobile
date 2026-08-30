@@ -49,8 +49,8 @@ class CreatorCard extends StatelessWidget {
                   ),
                 ),
                 Positioned(
-                  top: 4,
-                  right: 4,
+                  top: 2,
+                  right: 2,
                   child: IconButton(
                     tooltip: saved ? 'Remove saved creator' : 'Save creator',
                     onPressed: creator.id.isEmpty
@@ -61,6 +61,7 @@ class CreatorCard extends StatelessWidget {
                     icon: Icon(
                       saved ? Icons.bookmark : Icons.bookmark_border,
                       color: saved ? AppColors.primary : Colors.white,
+                      size: 23,
                     ),
                   ),
                 ),

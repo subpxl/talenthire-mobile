@@ -9,6 +9,7 @@ import 'package:bombay_casting/core/models/models.dart';
 import 'package:bombay_casting/core/navigation/app_navigation.dart';
 import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
+import 'package:bombay_casting/core/widgets/social_platforms.dart';
 import 'package:bombay_casting/features/profile/screens/edit_content_form.dart';
 import 'package:bombay_casting/features/profile/screens/edit_rates_form.dart';
 import 'package:bombay_casting/features/profile/screens/edit_social_form.dart';
@@ -23,7 +24,7 @@ class EditProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final profile = context.watch<AppState>().profile;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -32,8 +33,9 @@ class EditProfileScreen extends StatelessWidget {
           icon: const Icon(Icons.arrow_back_ios, color: Colors.black, size: 20),
           onPressed: () => Navigator.maybePop(context),
         ),
-        title: Text(AppLocalizations.of(context)!.editProfile,
-          style: TextStyle(
+        title: Text(
+          AppLocalizations.of(context)!.editProfile,
+          style: const TextStyle(
             color: Colors.black,
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -42,51 +44,52 @@ class EditProfileScreen extends StatelessWidget {
         titleSpacing: 0,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
         child: Column(
           children: [
-            _UploadPhotoBox(profile: profile),
-            const SizedBox(height: 20),
-            _buildSectionHeader(
-              context: context,
-              icon: Icons.badge_outlined,
-              title: 'Profile Verification',
-              onUpdate: () => _openVerification(context),
+            _sectionCard(
+              child: _UploadPhotoBox(profile: profile),
             ),
-            GestureDetector(
+            const SizedBox(height: 12),
+            _tappableSection(
+              context: context,
+              icon: Icons.verified_outlined,
+              title: 'Verification',
               onTap: () => _openVerification(context),
-              child: _buildCardContainer(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _verificationTitle(profile),
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade600,
-                      ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _verificationTitle(profile),
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _verificationSubtitle(profile),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _verificationSubtitle(profile),
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 20),
-            _buildSectionHeader(
+            const SizedBox(height: 12),
+            _tappableSection(
               context: context,
-              icon: Icons.person_outline,
+              icon: Icons.person_outline_rounded,
               title: 'Personal',
-              onUpdate: () => _open(context, const EditPersonalFieldsScreen()),
-            ),
-            _buildCardContainer(
+              onTap: () => _open(context, const EditPersonalFieldsScreen()),
               child: Column(
                 children: [
                   _item(profile, 'personal', 'gender', 'Gender'),
@@ -104,19 +107,17 @@ class EditProfileScreen extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 20),
-            _buildSectionHeader(
+            const SizedBox(height: 12),
+            _tappableSection(
               context: context,
-              icon: Icons.work_outline,
+              icon: Icons.work_outline_rounded,
               title: 'Work',
-              onUpdate: () => _open(context, const EditOccupationScreen()),
-            ),
-            _buildCardContainer(
+              onTap: () => _open(context, const EditOccupationScreen()),
               child: Column(
                 children: [
                   _item(profile, 'work', 'role', 'Role'),
                   _item(profile, 'work', 'experience', 'Experience'),
-                  _item(profile, 'work', 'monthly_income', 'Monthly content income'),
+                  _item(profile, 'work', 'monthly_income', 'Monthly income'),
                   _item(profile, 'work', 'based_in', 'Based in'),
                   _item(
                     profile,
@@ -128,33 +129,20 @@ class EditProfileScreen extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 20),
-            _buildSectionHeader(
+            const SizedBox(height: 12),
+            _tappableSection(
               context: context,
               icon: Icons.share_outlined,
               title: 'Social',
-              onUpdate: () => _open(context, const EditSocialFieldsScreen()),
+              onTap: () => _open(context, const EditSocialFieldsScreen()),
+              child: _socialPreview(profile),
             ),
-            _buildCardContainer(
-              child: Column(
-                children: [
-                  _item(profile, 'social', 'primary_platform', 'Primary platform'),
-                  _item(profile, 'social', 'handle', 'Handle'),
-                  _item(profile, 'social', 'followers', 'Followers'),
-                  _item(profile, 'social', 'engagement', 'Engagement'),
-                  _item(profile, 'social', 'other_platforms', 'Other platforms'),
-                  _item(profile, 'social', 'audience', 'Audience', isLast: true),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-            _buildSectionHeader(
+            const SizedBox(height: 12),
+            _tappableSection(
               context: context,
               icon: Icons.payments_outlined,
               title: 'Rates',
-              onUpdate: () => _open(context, const EditRatesFieldsScreen()),
-            ),
-            _buildCardContainer(
+              onTap: () => _open(context, const EditRatesFieldsScreen()),
               child: Column(
                 children: [
                   _item(profile, 'rates', 'collab_type', 'Collaboration type'),
@@ -165,14 +153,12 @@ class EditProfileScreen extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 20),
-            _buildSectionHeader(
+            const SizedBox(height: 12),
+            _tappableSection(
               context: context,
               icon: Icons.movie_outlined,
               title: 'Content',
-              onUpdate: () => _open(context, const EditContentFieldsScreen()),
-            ),
-            _buildCardContainer(
+              onTap: () => _open(context, const EditContentFieldsScreen()),
               child: Column(
                 children: [
                   _item(profile, 'content', 'niches', 'Niches'),
@@ -188,14 +174,12 @@ class EditProfileScreen extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 20),
-            _buildSectionHeader(
+            const SizedBox(height: 12),
+            _tappableSection(
               context: context,
-              icon: Icons.tune,
+              icon: Icons.tune_rounded,
               title: 'Job preferences',
-              onUpdate: () => _open(context, const EditPreferenceScreen()),
-            ),
-            _buildCardContainer(
+              onTap: () => _open(context, const EditPreferenceScreen()),
               child: Column(
                 children: [
                   _item(profile, 'preferences', 'pay_limit', 'Pay range'),
@@ -214,7 +198,6 @@ class EditProfileScreen extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 24),
           ],
         ),
       ),
@@ -261,95 +244,188 @@ class EditProfileScreen extends StatelessWidget {
     String label, {
     bool isLast = false,
   }) {
-    return _buildDetailItem(
+    return _detailRow(
       label,
       profile?.formValue(section, key) ?? '-',
       isLast: isLast,
     );
   }
 
-  Widget _buildSectionHeader({
-    required BuildContext context,
-    required IconData icon,
-    required String title,
-    required VoidCallback onUpdate,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0, left: 4.0, right: 4.0),
-      child: Row(
+  Widget _socialPreview(Profile? profile) {
+    final metrics = profile?.platformMetrics
+            .where(
+              (metric) =>
+                  metric.platform.isNotEmpty ||
+                  metric.handle.isNotEmpty ||
+                  metric.url.isNotEmpty,
+            )
+            .toList() ??
+        const <SocialPlatformMetric>[];
+    if (metrics.isEmpty) {
+      return Row(
         children: [
-          Icon(icon, color: AppColors.primary, size: 20),
-          const SizedBox(width: 8),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
+          Expanded(
+            child: Text(
+              'Add Instagram, YouTube, and other profiles with one tap.',
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
             ),
           ),
-          const Spacer(),
-          InkWell(
-            onTap: onUpdate,
-            child: Row(
-              children: [
-                Text(AppLocalizations.of(context)!.update,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey.shade700,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(width: 2),
-                Icon(
-                  Icons.chevron_right,
-                  size: 18,
-                  color: Colors.grey.shade600,
-                ),
-              ],
+          Text(
+            'Add',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppColors.primary,
             ),
           ),
         ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            for (final metric in metrics)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SocialPlatformIcon(
+                    info: SocialPlatformInfo.forName(metric.platform),
+                    size: 32,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    metric.handle.isNotEmpty ? metric.handle : metric.platform,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _detailRow(
+          'Followers',
+          profile?.formValue('social', 'followers') ?? '-',
+        ),
+        _detailRow(
+          'Engagement',
+          profile?.formValue('social', 'engagement') ?? '-',
+          isLast: true,
+        ),
+      ],
+    );
+  }
+
+  Widget _tappableSection({
+    required BuildContext context,
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+    required Widget child,
+  }) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Ink(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.border),
+          ),
+          padding: const EdgeInsets.fromLTRB(14, 14, 10, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: const BoxDecoration(
+                      color: AppColors.primaryLight,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(icon, size: 18, color: AppColors.primary),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    AppLocalizations.of(context)!.update,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
+                ],
+              ),
+              const SizedBox(height: 12),
+              child,
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildCardContainer({required Widget child}) {
+  Widget _sectionCard({required Widget child}) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
       decoration: BoxDecoration(
-        color: AppColors.primaryLight,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.primary),
+        border: Border.all(color: AppColors.border),
       ),
       child: child,
     );
   }
 
-  Widget _buildDetailItem(String label, String value, {bool isLast = false}) {
+  Widget _detailRow(String label, String value, {bool isLast = false}) {
+    final empty = value.trim().isEmpty || value.trim() == '-';
     return Padding(
-      padding: EdgeInsets.only(bottom: isLast ? 0 : 12.0),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Text(
               label,
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
             ),
-            const SizedBox(height: 2),
-            Text(
-              value,
-              style: const TextStyle(
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              empty ? 'Not set' : value,
+              textAlign: TextAlign.right,
+              style: TextStyle(
                 fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: AppColors.primary,
+                fontWeight: FontWeight.w600,
+                color: empty ? AppColors.textHint : AppColors.textPrimary,
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

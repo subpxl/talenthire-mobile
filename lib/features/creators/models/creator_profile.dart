@@ -30,6 +30,7 @@ class CreatorProfile {
     required this.location,
     required this.photos,
     this.isVerified = false,
+    this.isPremium = false,
     this.aboutInfo = const [],
     this.workInfo = const [],
     this.platformMetrics = const [],
@@ -43,6 +44,7 @@ class CreatorProfile {
   final String location;
   final List<CreatorPhoto> photos;
   final bool isVerified;
+  final bool isPremium;
   final List<MapEntry<String, String>> aboutInfo;
   final List<MapEntry<String, String>> workInfo;
   final List<SocialPlatformMetric> platformMetrics;
@@ -106,7 +108,8 @@ class CreatorProfile {
       title: title,
       location: location.isEmpty ? 'India' : location,
       photos: photos,
-      isVerified: profile.isVerified,
+      isVerified: profile.isVerified || profile.isPremium,
+      isPremium: profile.isPremium,
       aboutInfo: [
         if (profile.gender.isNotEmpty) MapEntry('Gender', profile.gender),
         if (profile.age != null) MapEntry('Age', '${profile.age}'),
@@ -162,7 +165,8 @@ class CreatorProfile {
       title: (json['title'] ?? '').toString(),
       location: (json['location'] ?? '').toString(),
       photos: photos.isEmpty ? const [CreatorPhoto()] : photos,
-      isVerified: json['is_verified'] == true,
+      isVerified: json['is_verified'] == true || json['is_premium'] == true,
+      isPremium: json['is_premium'] == true,
       aboutInfo: _entriesFromJson(json['about_info']),
       workInfo: _entriesFromJson(json['work_info']),
       platformMetrics: metrics,
@@ -178,6 +182,7 @@ class CreatorProfile {
         'location': location,
         'photos': photos.map((photo) => photo.toJson()).toList(),
         'is_verified': isVerified,
+        'is_premium': isPremium,
         'about_info': _entriesToJson(aboutInfo),
         'work_info': _entriesToJson(workInfo),
         'platform_metrics':
@@ -203,4 +208,74 @@ List<MapEntry<String, String>> _entriesFromJson(dynamic value) {
           (item['value'] ?? '').toString(),
         ),
   ];
+}
+
+class CreatorFilter {
+  const CreatorFilter({
+    this.genders = const {'Any'},
+    this.ageStart = 0,
+    this.ageEnd = 100,
+    this.categories = const {'Any'},
+    this.location = 'Any',
+  });
+
+  final Set<String> genders;
+  final double ageStart;
+  final double ageEnd;
+  final Set<String> categories;
+  final String location;
+
+  bool get isActive =>
+      genders.any((g) => g != 'Any') ||
+      ageStart > 0 ||
+      ageEnd < 100 ||
+      categories.any((c) => c != 'Any') ||
+      location != 'Any';
+
+  CreatorFilter copyWith({
+    Set<String>? genders,
+    double? ageStart,
+    double? ageEnd,
+    Set<String>? categories,
+    String? location,
+  }) {
+    return CreatorFilter(
+      genders: genders ?? this.genders,
+      ageStart: ageStart ?? this.ageStart,
+      ageEnd: ageEnd ?? this.ageEnd,
+      categories: categories ?? this.categories,
+      location: location ?? this.location,
+    );
+  }
+
+  bool matches(CreatorProfile creator) {
+    if (location != 'Any') {
+      final loc = creator.location.toLowerCase();
+      final city = location.split(',').first.trim().toLowerCase();
+      if (!loc.contains(city)) return false;
+    }
+
+    final cats = categories.where((c) => c != 'Any').toList();
+    if (cats.isNotEmpty) {
+      final matched = cats.any((c) => creator.matchesTalent(c));
+      if (!matched) return false;
+    }
+
+    final gens = genders.where((g) => g != 'Any').toList();
+    if (gens.isNotEmpty) {
+      final genderEntry = creator.aboutInfo.where((e) => e.key == 'Gender').toList();
+      if (genderEntry.isEmpty) return false;
+      final matched = gens.any((g) => genderEntry.first.value.toLowerCase() == g.toLowerCase());
+      if (!matched) return false;
+    }
+
+    if (ageStart > 0 || ageEnd < 100) {
+      final ageEntry = creator.aboutInfo.where((e) => e.key == 'Age').toList();
+      if (ageEntry.isEmpty) return false;
+      final age = int.tryParse(ageEntry.first.value) ?? 0;
+      if (age < ageStart || age > ageEnd) return false;
+    }
+
+    return true;
+  }
 }

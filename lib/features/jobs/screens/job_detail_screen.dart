@@ -22,7 +22,6 @@ class JobDetailScreen extends StatelessWidget {
     final appState = context.watch<AppState>();
     final hasApplied =
         profile.jobId.isNotEmpty && appState.hasApplied(profile.jobId);
-    final isPremium = appState.isPremiumUser;
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -70,48 +69,88 @@ class JobDetailScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(child: _buildHeader(context)),
-                Row(
-                  children: [
-                    if (profile.jobId.isNotEmpty)
-                      IconButton(
-                        tooltip: appState.isJobSaved(profile.jobId)
-                            ? 'Remove saved job'
-                            : 'Save job',
-                        onPressed: () {
-                          final job = appState.jobById(profile.jobId);
-                          if (job != null) appState.toggleSavedJob(job);
-                        },
-                        icon: Icon(
-                          appState.isJobSaved(profile.jobId)
-                              ? Icons.bookmark
-                              : Icons.bookmark_border,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                    if (!isPremium) ...[
-                      IconButton(
-                        tooltip: 'Call',
-                        icon: const Icon(Icons.phone_outlined),
-                        color: AppColors.textSecondary,
-                        onPressed: () =>
-                            AppNavigation.openPremiumScreen(context),
-                      ),
-                      IconButton(
-                        tooltip: 'Message',
-                        icon: const Icon(Icons.chat_bubble_outline),
-                        color: AppColors.chatGreen,
-                        onPressed: () =>
-                            AppNavigation.openPremiumScreen(context),
-                      ),
-                    ],
-                  ],
-                ),
+                if (profile.jobId.isNotEmpty)
+                  IconButton(
+                    tooltip: appState.isJobSaved(profile.jobId)
+                        ? 'Remove saved job'
+                        : 'Save job',
+                    onPressed: () {
+                      final job = appState.jobById(profile.jobId);
+                      if (job != null) appState.toggleSavedJob(job);
+                    },
+                    icon: Icon(
+                      appState.isJobSaved(profile.jobId)
+                          ? Icons.favorite
+                          : Icons.favorite_border,
+                      color: AppColors.primary,
+                    ),
+                  ),
               ],
             ),
             const SizedBox(height: AppSpacing.lg),
-            _InfoSection(title: 'Role', items: profile.roleInfo),
-            const SizedBox(height: AppSpacing.md),
-            _InfoSection(title: 'Pay & type', items: profile.payInfo),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final itemWidth = (constraints.maxWidth - 16) / 2;
+                return Wrap(
+                  spacing: 16,
+                  runSpacing: 0,
+                  children: [
+                    SizedBox(width: itemWidth, child: _buildDetailRow('Location', profile.location, Icons.location_on_outlined)),
+                    if (profile.category.isNotEmpty)
+                      SizedBox(width: itemWidth, child: _buildDetailRow('Looking for', profile.category, Icons.person_search_outlined)),
+                    if (profile.offerType.isNotEmpty)
+                      SizedBox(width: itemWidth, child: _buildDetailRow('Offer Type', profile.offerType, Icons.handshake_outlined)),
+                    SizedBox(width: itemWidth, child: _buildDetailRow('Budget', profile.budget, Icons.payments_outlined)),
+                    if (profile.age.isNotEmpty)
+                      SizedBox(width: itemWidth, child: _buildDetailRow('Age Range', profile.age, Icons.calendar_today_outlined)),
+                    if (profile.gender.isNotEmpty)
+                      SizedBox(width: itemWidth, child: _buildDetailRow('Gender', profile.gender, Icons.wc_outlined)),
+                  ],
+                );
+              },
+            ),
+            
+            if (profile.description.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.lg),
+              const AppSectionTitle('Job Description'),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                profile.description,
+                style: const TextStyle(
+                  fontSize: 15,
+                  height: 1.5,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ],
+
+            if (profile.tags.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.lg),
+              const AppSectionTitle('Tags'),
+              const SizedBox(height: AppSpacing.sm),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: profile.tags.map((tag) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: Text(
+                      tag,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade800,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
             const SizedBox(height: AppSpacing.lg),
           ],
         ),
@@ -154,6 +193,43 @@ class JobDetailScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildDetailRow(String label, String value, IconData icon) {
+    if (value.trim().isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: Colors.grey.shade600),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildHeader(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -176,9 +252,7 @@ class JobDetailScreen extends StatelessWidget {
             ],
           ],
         ),
-        const SizedBox(height: AppSpacing.xs),
-        Text(profile.details, style: context.bodyMedium),
-        Text(profile.location, style: context.bodyMedium),
+
         if (profile.postedLabel != null)
           Padding(
             padding: const EdgeInsets.only(top: AppSpacing.xs),
@@ -189,61 +263,7 @@ class JobDetailScreen extends StatelessWidget {
   }
 }
 
-class _InfoSection extends StatelessWidget {
-  const _InfoSection({required this.title, required this.items});
-
-  final String title;
-  final List<MapEntry<String, String>> items;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        AppSectionTitle(title),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: AppSpacing.sm + 4,
-          ),
-          decoration: BoxDecoration(
-            color: AppColors.primaryLight,
-            borderRadius: BorderRadius.circular(AppRadius.md),
-            border: Border.all(color: AppColors.primary),
-          ),
-          child: Column(
-            children: items.map((item) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      flex: 2,
-                      child: Text(item.key, style: context.caption),
-                    ),
-                    Expanded(
-                      flex: 3,
-                      child: Text(
-                        item.value,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-      ],
-    );
-  }
-}
+// removed _InfoSection
 
 class JobDetailData {
   final String name;
@@ -255,8 +275,13 @@ class JobDetailData {
   final int imageIndex;
   final String imageUrl;
   final String jobId;
-  final List<MapEntry<String, String>> roleInfo;
-  final List<MapEntry<String, String>> payInfo;
+  final String description;
+  final String gender;
+  final String age;
+  final String category;
+  final String offerType;
+  final String budget;
+  final List<String> tags;
 
   const JobDetailData({
     required this.name,
@@ -268,8 +293,13 @@ class JobDetailData {
     this.jobId = '',
     this.postedLabel,
     this.isVerified = false,
-    this.roleInfo = const [],
-    this.payInfo = const [],
+    this.description = '',
+    this.gender = '',
+    this.age = '',
+    this.category = '',
+    this.offerType = '',
+    this.budget = '',
+    this.tags = const [],
   });
 
   factory JobDetailData.fromJob(Job job, {int index = 0}) {
@@ -287,20 +317,13 @@ class JobDetailData {
       imageIndex: job.imageIndex,
       imageUrl: job.imageUrl,
       jobId: job.jobId,
-      roleInfo: [
-        MapEntry('Role', _detailValue(job.role, 'Creator')),
-        MapEntry('Platform', _detailValue(job.platforms, 'Open')),
-        MapEntry('Type', _detailValue(job.collabType, job.details)),
-        MapEntry(
-          'Followers',
-          _detailValue(job.followersLabel, 'Open to creators'),
-        ),
-      ],
-      payInfo: [
-        MapEntry('Category', _detailValue(job.category, job.details)),
-        MapEntry('Duration', _detailValue(job.duration, 'Campaign based')),
-        MapEntry('Pay', _detailValue(job.pay, job.details)),
-      ],
+      description: job.description,
+      gender: job.gender,
+      age: job.age,
+      category: job.category,
+      offerType: job.collabType,
+      budget: job.pay.toLowerCase().contains('not specified') ? 'Undisclosed' : job.pay,
+      tags: job.tags,
     );
   }
 
@@ -313,23 +336,14 @@ class JobDetailData {
       isVerified: contact.isVerified,
       avatarColor: contact.avatarColor,
       imageIndex: contact.imageIndex,
-      roleInfo: const [
-        MapEntry('Role', 'Creator / influencer'),
-        MapEntry('Platform', 'Instagram, YouTube'),
-        MapEntry('Type', 'Paid collaboration'),
-        MapEntry('Followers', '10K+ preferred'),
-      ],
-      payInfo: const [
-        MapEntry('Category', 'Brand collab'),
-        MapEntry('Duration', '2 weeks'),
-        MapEntry('Pay', '₹ 15,000 - ₹ 40,000'),
-      ],
+      description: 'Looking for creators for upcoming campaign.',
+      gender: 'Any',
+      age: 'Any',
+      category: 'Influencer',
+      offerType: 'Paid collaboration',
+      budget: '₹ 15,000 - ₹ 40,000',
+      tags: const ['instagram', 'youtube'],
     );
-  }
-
-  static String _detailValue(String value, String fallback) {
-    final text = value.trim();
-    return text.isEmpty ? fallback : text;
   }
 }
 
