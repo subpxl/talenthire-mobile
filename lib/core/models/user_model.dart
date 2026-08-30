@@ -63,4 +63,25 @@ class User {
         'created_at': createdAt.toIso8601String(),
         'updated_at': updatedAt.toIso8601String(),
       };
+
+  User copyWith({
+    String? mobile,
+    String? name,
+    String? email,
+    DateTime? updatedAt,
+  }) {
+    return User(
+      id: id,
+      mobile: mobile ?? this.mobile,
+      name: name ?? this.name,
+      email: email ?? this.email,
+      role: role,
+      birthDay: birthDay,
+      birthMonth: birthMonth,
+      birthYear: birthYear,
+      isActive: isActive,
+      createdAt: createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
 }

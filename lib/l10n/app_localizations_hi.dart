@@ -147,6 +147,17 @@ class AppLocalizationsHi extends AppLocalizations {
       'आवेदन करने के बाद एजेंसियां आपको मैसेज करती हैं';
 
   @override
+  String get companyWelcomeMessagePreview =>
+      'Welcome! Browse UGC jobs and start your next collab.';
+
+  @override
+  String get companyWelcomeMessageBody =>
+      'Hi there! Welcome to Bombay Casting Company.\n\nBrowse UGC opportunities, apply to brands you love, and chat with agencies right here. Complete your profile to stand out and land your next collab.\n\nWe\'re excited to have you on board!';
+
+  @override
+  String get today => 'Today';
+
+  @override
   String get howCanWeHelpYou => 'हम आपकी कैसे मदद कर सकते हैं?';
 
   @override
@@ -323,7 +334,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get navCreators => 'क्रिएटर्स';
 
   @override
-  String get navJobs => 'जॉब्स';
+  String get navJobs => 'UGC';
 
   @override
   String get navMessages => 'संदेश';

@@ -9,65 +9,58 @@ class AppDropdownField extends StatelessWidget {
     required this.value,
     required this.onTap,
     this.hint,
+    this.labelAsPlaceholder = false,
   });
 
   final String label;
   final String value;
   final VoidCallback onTap;
   final String? hint;
+  final bool labelAsPlaceholder;
 
   @override
   Widget build(BuildContext context) {
-    final displayValue = value.isEmpty ? (hint ?? '') : value;
-    final isPlaceholder = value.isEmpty && hint != null;
+    final placeholder = hint ?? (labelAsPlaceholder ? label : null);
+    final displayValue = value.isEmpty ? (placeholder ?? '') : value;
+    final isPlaceholder = value.isEmpty && placeholder != null;
 
+    final box = InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppFormStyle.fieldRadius),
+      child: Container(
+        width: double.infinity,
+        padding: AppFormStyle.fieldPadding,
+        decoration: AppFormStyle.fieldBox,
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                displayValue,
+                style: isPlaceholder
+                    ? AppFormStyle.hintStyle
+                    : AppFormStyle.valueStyle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Icon(
+              Icons.keyboard_arrow_down,
+              size: 18,
+              color: Colors.grey.shade600,
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (labelAsPlaceholder) return box;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 13.5,
-            fontWeight: FontWeight.w500,
-            color: Colors.black87,
-          ),
-        ),
-        const SizedBox(height: 6),
-        InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(10),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.grey.shade200),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    displayValue,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: isPlaceholder
-                          ? Colors.grey.shade400
-                          : Colors.grey.shade800,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                Icon(
-                  Icons.keyboard_arrow_down,
-                  size: 20,
-                  color: Colors.grey.shade600,
-                ),
-              ],
-            ),
-          ),
-        ),
+        Text(label, style: AppFormStyle.labelStyle),
+        const SizedBox(height: AppFormStyle.labelGap),
+        box,
       ],
     );
   }
@@ -155,14 +148,7 @@ class AppFormSectionTitle extends StatelessWidget {
     if (optional) {
       return Row(
         children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w500,
-              color: Colors.black87,
-            ),
-          ),
+          Text(title, style: AppFormStyle.labelStyle),
           const Spacer(),
           Text(
             optionalText,
@@ -171,14 +157,7 @@ class AppFormSectionTitle extends StatelessWidget {
         ],
       );
     }
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 13.5,
-        fontWeight: FontWeight.w500,
-        color: Colors.black87,
-      ),
-    );
+    return Text(title, style: AppFormStyle.labelStyle);
   }
 }
 

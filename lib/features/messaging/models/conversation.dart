@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:bombay_casting/core/theme/app_theme.dart';
+import 'package:bombay_casting/l10n/app_localizations.dart';
 
 class ChatMessage {
   const ChatMessage({
@@ -36,4 +38,23 @@ class ConversationThread {
   final int unreadCount;
   final bool isVerified;
   final List<ChatMessage> messages;
+}
+
+ConversationThread welcomeConversation(AppLocalizations l10n) {
+  return ConversationThread(
+    id: 'welcome',
+    name: l10n.bombayCastingCompany,
+    lastMessage: l10n.companyWelcomeMessagePreview,
+    time: l10n.today,
+    avatarColor: AppColors.primary,
+    unreadCount: 1,
+    isVerified: true,
+    messages: [
+      ChatMessage(
+        text: l10n.companyWelcomeMessageBody,
+        isMine: false,
+        time: l10n.today,
+      ),
+    ],
+  );
 }

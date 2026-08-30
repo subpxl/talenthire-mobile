@@ -44,6 +44,67 @@ class AppRadius {
   static const pill = 24.0;
 }
 
+/// Shared tokens for every labeled form field (text, readonly, dropdown).
+class AppFormStyle {
+  AppFormStyle._();
+
+  static const labelSize = 13.5;
+  static const valueSize = 13.0;
+  static const fieldRadius = 10.0;
+  static const labelGap = 6.0;
+  static const fieldGap = 14.0;
+  static const fieldPadding = EdgeInsets.symmetric(horizontal: 12, vertical: 8);
+  static const fill = Color(0xFFFAFAFA);
+  static const border = Color(0xFFEEEEEE);
+  static const valueColor = Color(0xFF424242);
+  static const hintColor = Color(0xFFBDBDBD);
+
+  static const labelStyle = TextStyle(
+    fontSize: labelSize,
+    fontWeight: FontWeight.w500,
+    color: Colors.black87,
+  );
+
+  static const valueStyle = TextStyle(
+    fontSize: valueSize,
+    color: valueColor,
+  );
+
+  static const hintStyle = TextStyle(
+    fontSize: valueSize,
+    color: hintColor,
+  );
+
+  static BoxDecoration get fieldBox => BoxDecoration(
+        color: fill,
+        borderRadius: BorderRadius.circular(fieldRadius),
+        border: Border.all(color: border),
+      );
+
+  static OutlineInputBorder get _inputBorder => OutlineInputBorder(
+        borderRadius: BorderRadius.circular(fieldRadius),
+        borderSide: const BorderSide(color: border),
+      );
+
+  static InputDecoration inputDecoration({String? hint}) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: hintStyle,
+      filled: true,
+      fillColor: fill,
+      isDense: true,
+      contentPadding: fieldPadding,
+      border: _inputBorder,
+      enabledBorder: _inputBorder,
+      disabledBorder: _inputBorder,
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(fieldRadius),
+        borderSide: const BorderSide(color: AppColors.primary),
+      ),
+    );
+  }
+}
+
 class AppDurations {
   AppDurations._();
 

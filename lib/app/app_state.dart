@@ -203,6 +203,13 @@ class AppState extends ChangeNotifier {
   Future<void> updateProfile(Profile updated) =>
       _profile.updateProfile(updated, userId: user?.id);
 
+  Future<void> updateUser({
+    String? name,
+    String? email,
+    String? mobile,
+  }) =>
+      _auth.updateUser(name: name, email: email, mobile: mobile);
+
   Future<void> uploadProfilePhoto(File file) async {
     final uid = user?.id;
     if (uid == null) return;

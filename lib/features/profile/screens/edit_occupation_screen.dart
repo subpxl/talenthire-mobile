@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/core/widgets/app_filter_widgets.dart';
+import 'package:bombay_casting/core/widgets/app_form_fields.dart';
 import 'package:bombay_casting/core/widgets/option_picker.dart';
 
 class EditOccupationScreen extends StatefulWidget {
@@ -166,10 +167,10 @@ class _EditOccupationScreenState extends State<EditOccupationScreen> {
                       },
                     ),
                     const SizedBox(height: 14),
-                    _buildInputField(
+                    AppTextField(
                       label: 'Agency / manager name',
                       controller: _agencyController,
-                      hintText: 'Type...',
+                      hint: 'Type...',
                       optional: true,
                     ),
                     const SizedBox(height: 16),
@@ -231,42 +232,5 @@ class _EditOccupationScreenState extends State<EditOccupationScreen> {
     );
   }
 
-  Widget _buildInputField({
-    required String label,
-    required TextEditingController controller,
-    required String hintText,
-    bool optional = false,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        AppFormSectionTitle(label, optional: optional),
-        const SizedBox(height: 6),
-        TextField(
-          controller: controller,
-          decoration: InputDecoration(
-            hintText: hintText,
-            hintStyle: TextStyle(
-              color: Colors.grey.shade400,
-              fontSize: 13.5,
-            ),
-            contentPadding: const EdgeInsets.all(12),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: Colors.grey.shade300),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: Colors.grey.shade200),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: AppColors.primary),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 }
 

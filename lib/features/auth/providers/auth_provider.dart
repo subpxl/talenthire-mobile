@@ -184,6 +184,25 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> updateUser({
+    String? name,
+    String? email,
+    String? mobile,
+  }) async {
+    if (user == null) return;
+    user = user!.copyWith(
+      name: name,
+      email: email,
+      mobile: mobile,
+      updatedAt: DateTime.now(),
+    );
+    _notify();
+    await _firestore.collection('users').doc(user!.id).set(
+          user!.toJson(),
+          SetOptions(merge: true),
+        );
+  }
+
   Future<void> logout() async {
     await authService.signOut();
     user = null;

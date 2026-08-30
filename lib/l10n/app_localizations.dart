@@ -368,6 +368,24 @@ abstract class AppLocalizations {
   /// **'Agencies message you after you apply'**
   String get agenciesMessageYouAfterYouApply;
 
+  /// No description provided for @companyWelcomeMessagePreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Welcome! Browse UGC jobs and start your next collab.'**
+  String get companyWelcomeMessagePreview;
+
+  /// No description provided for @companyWelcomeMessageBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Hi there! Welcome to Bombay Casting Company.\n\nBrowse UGC opportunities, apply to brands you love, and chat with agencies right here. Complete your profile to stand out and land your next collab.\n\nWe\'re excited to have you on board!'**
+  String get companyWelcomeMessageBody;
+
+  /// No description provided for @today.
+  ///
+  /// In en, this message translates to:
+  /// **'Today'**
+  String get today;
+
   /// No description provided for @howCanWeHelpYou.
   ///
   /// In en, this message translates to:
@@ -707,7 +725,7 @@ abstract class AppLocalizations {
   /// No description provided for @navJobs.
   ///
   /// In en, this message translates to:
-  /// **'Jobs'**
+  /// **'UGC'**
   String get navJobs;
 
   /// No description provided for @navMessages.

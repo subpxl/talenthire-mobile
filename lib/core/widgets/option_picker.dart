@@ -181,8 +181,7 @@ class ProfileOptions {
   static const genders = [
     'Female',
     'Male',
-    'Non-binary',
-    'Prefer not to say',
+    'Other',
   ];
 
   static const creatorTypes = [

@@ -22,7 +22,9 @@ class EditProfileScreen extends StatelessWidget {
   const EditProfileScreen({super.key});
   @override
   Widget build(BuildContext context) {
-    final profile = context.watch<AppState>().profile;
+    final appState = context.watch<AppState>();
+    final profile = appState.profile;
+    final user = appState.user;
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -92,16 +94,25 @@ class EditProfileScreen extends StatelessWidget {
               onTap: () => _open(context, const EditPersonalFieldsScreen()),
               child: Column(
                 children: [
+                  _item(profile, 'personal', 'name', 'Name', fallback: user?.name),
+                  _item(profile, 'personal', 'email', 'Email', fallback: user?.email),
                   _item(profile, 'personal', 'gender', 'Gender'),
-                  _item(profile, 'personal', 'age', 'Age'),
-                  _item(profile, 'personal', 'location', 'Location'),
-                  _item(profile, 'personal', 'language', 'Content language'),
-                  _item(profile, 'personal', 'creator_type', 'Creator type'),
                   _item(
                     profile,
                     'personal',
-                    'looking_for',
-                    'Open to',
+                    'mobile',
+                    'Mobile number',
+                    fallback: user?.mobile,
+                  ),
+                  _item(profile, 'personal', 'whatsapp', 'WhatsApp number'),
+                  _item(profile, 'personal', 'age', 'Age'),
+                  _item(profile, 'personal', 'location', 'Location'),
+                  _item(profile, 'personal', 'language', 'Language'),
+                  _item(
+                    profile,
+                    'personal',
+                    'categories',
+                    'Category',
                     isLast: true,
                   ),
                 ],
@@ -243,12 +254,20 @@ class EditProfileScreen extends StatelessWidget {
     String key,
     String label, {
     bool isLast = false,
+    String? fallback,
   }) {
-    return _detailRow(
-      label,
-      profile?.formValue(section, key) ?? '-',
-      isLast: isLast,
-    );
+    var value = profile?.formValue(section, key) ?? '-';
+    if ((value.trim().isEmpty || value.trim() == '-') &&
+        (fallback?.trim().isNotEmpty ?? false)) {
+      value = fallback!.trim();
+    }
+    if (key == 'gender') {
+      final lower = value.toLowerCase();
+      if (lower == 'non-binary' || lower == 'nonbinary' || lower == 'non binary') {
+        value = 'Other';
+      }
+    }
+    return _detailRow(label, value, isLast: isLast);
   }
 
   Widget _socialPreview(Profile? profile) {
