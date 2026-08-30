@@ -138,7 +138,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 child: OutlinedButton(
                   onPressed: () =>
                       AppNavigation.push(context, const EditProfileScreen()),
-                  child: Text(AppLocalizations.of(context)!.updateProfile),
+                  child: Text(AppLocalizations.of(context)!.editProfile),
                 ),
               ),
             ],
@@ -151,7 +151,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   Widget _buildPremiumCard(BuildContext context) {
     final isPremium = context.watch<AppState>().isPremiumUser;
     return Material(
-      color: AppColors.primaryTint,
+      color: AppColors.bannerStart,
       borderRadius: BorderRadius.circular(AppRadius.sm),
       child: InkWell(
         onTap: isPremium

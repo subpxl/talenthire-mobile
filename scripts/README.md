@@ -66,3 +66,23 @@ The project and bucket can alternatively be supplied with
 The command prints validation progress, upload progress, skipped records, a
 machine-readable final summary, and per-record errors. A partial upload failure
 is reported and prevents that record from being written to Firestore.
+
+## Seed test creators
+
+`seed_creators.js` creates 12 test creator accounts from `demophotos_model`
+(35 JPEGs). It writes Auth users, `users` / `profiles` documents, and Storage
+photos so they appear on the Creators page.
+
+```powershell
+npm run validate:creators
+npm run seed:creators
+```
+
+- Deterministic IDs: `seed-creator-001` through `seed-creator-012`
+- Storage objects: `users/{id}/profile/photo-N.jpeg`
+- Test password: `DemoCreator@2026`
+- Existing seed IDs are skipped unless you pass `--overwrite`
+
+```powershell
+node seed_creators.js --apply --overwrite --project talenthire-d86a1
+```

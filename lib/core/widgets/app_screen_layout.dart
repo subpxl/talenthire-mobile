@@ -13,6 +13,7 @@ class AppScreenLayout extends StatelessWidget {
     this.actions,
     required this.body,
     this.innerTabKey,
+    this.showAppBar = true,
   });
 
   final String? title;
@@ -22,6 +23,7 @@ class AppScreenLayout extends StatelessWidget {
   final List<Widget>? actions;
   final Widget body;
   final Object? innerTabKey;
+  final bool showAppBar;
 
   bool get _hasTabs => tabs != null && tabs!.isNotEmpty;
 
@@ -30,24 +32,26 @@ class AppScreenLayout extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       resizeToAvoidBottomInset: false,
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: _hasTabs
-            ? AppTabBar(
-                tabs: tabs!,
-                selectedIndex: selectedTabIndex ?? 0,
-                onChanged: onTabChanged ?? (_) {},
-              )
-            : Text(
-                title ?? '',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-        actions: actions,
-      ),
+      appBar: showAppBar
+          ? AppBar(
+              automaticallyImplyLeading: false,
+              title: _hasTabs
+                  ? AppTabBar(
+                      tabs: tabs!,
+                      selectedIndex: selectedTabIndex ?? 0,
+                      onChanged: onTabChanged ?? (_) {},
+                    )
+                  : Text(
+                      title ?? '',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+              actions: actions,
+            )
+          : null,
       body: AnimatedSwitcher(
         duration: AppDurations.innerTab,
         switchInCurve: Curves.easeOutCubic,

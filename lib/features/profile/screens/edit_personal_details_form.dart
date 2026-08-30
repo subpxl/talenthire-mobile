@@ -332,7 +332,7 @@ class _EditPersonalFieldsScreenState extends State<EditPersonalFieldsScreen> {
                     AppDropdownField(
                       label: 'Category',
                       value: _categoryDisplay,
-                      labelAsPlaceholder: true,
+                      hint: 'Select',
                       onTap: () async {
                         final value = await showMultiSearchableOptionPicker(
                           context: context,
@@ -353,8 +353,8 @@ class _EditPersonalFieldsScreenState extends State<EditPersonalFieldsScreen> {
                     AppTextField(
                       label: 'About me',
                       controller: _aboutController,
-                      maxLines: 3,
-                      labelAsPlaceholder: true,
+                      hint: 'Type...',
+                      maxLines: 6,
                     ),
                   ],
                 ),

@@ -203,6 +203,46 @@ class AppReadOnlyField extends StatelessWidget {
   }
 }
 
+class AppPlatformLinkField extends StatelessWidget {
+  const AppPlatformLinkField({
+    super.key,
+    required this.label,
+    required this.icon,
+    required this.controller,
+    this.hint = 'Paste here your URL',
+  });
+
+  final String label;
+  final Widget icon;
+  final TextEditingController controller;
+  final String hint;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(label, style: AppFormStyle.labelStyle),
+            ),
+            icon,
+          ],
+        ),
+        const SizedBox(height: AppFormStyle.labelGap),
+        TextField(
+          controller: controller,
+          keyboardType: TextInputType.url,
+          textInputAction: TextInputAction.next,
+          style: AppFormStyle.valueStyle,
+          decoration: AppFormStyle.inputDecoration(hint: hint),
+        ),
+      ],
+    );
+  }
+}
+
 class AppChipField extends StatelessWidget {
   const AppChipField({
     super.key,

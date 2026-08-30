@@ -76,6 +76,7 @@ class AppPillChip extends StatelessWidget {
     this.activeColor = AppColors.primary,
     this.showCheckmark = false,
     this.icon,
+    this.fontWeight,
   });
 
   final String label;
@@ -84,6 +85,7 @@ class AppPillChip extends StatelessWidget {
   final Color activeColor;
   final bool showCheckmark;
   final IconData? icon;
+  final FontWeight? fontWeight;
 
   @override
   Widget build(BuildContext context) {
@@ -109,7 +111,8 @@ class AppPillChip extends StatelessWidget {
               style: TextStyle(
                 fontSize: 12,
                 color: isSelected ? activeColor : Colors.grey.shade700,
-                fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
+                fontWeight: fontWeight ??
+                    (isSelected ? FontWeight.w600 : FontWeight.w500),
               ),
             ),
             if (showCheckmark && isSelected) ...[

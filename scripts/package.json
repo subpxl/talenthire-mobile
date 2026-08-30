@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "validate": "node seed_jobs.js",
-    "seed": "node seed_jobs.js --apply"
+    "seed": "node seed_jobs.js --apply",
+    "validate:creators": "node seed_creators.js",
+    "seed:creators": "node seed_creators.js --apply --project talenthire-d86a1"
   },
   "engines": {
     "node": ">=20"

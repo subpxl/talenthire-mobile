@@ -44,6 +44,8 @@ class PlaceholderProfileImage extends StatelessWidget {
     this.imageIndex = 1,
     this.imageUrl = '',
     this.fill = false,
+    this.fit = BoxFit.cover,
+    this.intrinsicHeight = false,
   });
 
   final double height;
@@ -52,6 +54,8 @@ class PlaceholderProfileImage extends StatelessWidget {
   final int imageIndex;
   final String imageUrl;
   final bool fill;
+  final BoxFit fit;
+  final bool intrinsicHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -59,36 +63,56 @@ class PlaceholderProfileImage extends StatelessWidget {
       color: Colors.grey.shade300,
       child: Icon(Icons.movie_filter_outlined, size: 72, color: Colors.grey.shade500),
     );
+    final expand = fill || !intrinsicHeight;
     final image = imageUrl.isNotEmpty
         ? CachedNetworkImage(
             imageUrl: imageUrl,
-            fit: BoxFit.cover,
+            fit: fit,
             width: double.infinity,
-            height: double.infinity,
+            height: expand ? double.infinity : null,
+            imageBuilder: intrinsicHeight
+                ? (context, provider) => Image(
+                      image: provider,
+                      fit: fit,
+                      width: double.infinity,
+                    )
+                : null,
             fadeInDuration: const Duration(milliseconds: 280),
             fadeOutDuration: Duration.zero,
             memCacheWidth: 900,
-            placeholder: (context, url) => ColoredBox(
-              color: Colors.grey.shade200,
-              child: Icon(
-                Icons.movie_filter_outlined,
-                size: 56,
-                color: Colors.grey.shade400,
-              ),
-            ),
+            placeholder: (context, url) => intrinsicHeight
+                ? AspectRatio(
+                    aspectRatio: aspectRatio ?? 3 / 4,
+                    child: ColoredBox(
+                      color: Colors.grey.shade200,
+                      child: Icon(
+                        Icons.movie_filter_outlined,
+                        size: 40,
+                        color: Colors.grey.shade400,
+                      ),
+                    ),
+                  )
+                : ColoredBox(
+                    color: Colors.grey.shade200,
+                    child: Icon(
+                      Icons.movie_filter_outlined,
+                      size: 56,
+                      color: Colors.grey.shade400,
+                    ),
+                  ),
             errorWidget: (context, url, error) => Image.asset(
               JobAssets.pathFor(imageIndex),
-              fit: BoxFit.cover,
+              fit: fit,
               width: double.infinity,
-              height: double.infinity,
+              height: expand ? double.infinity : null,
               errorBuilder: (context, error, stackTrace) => fallback,
             ),
           )
         : Image.asset(
             JobAssets.pathFor(imageIndex),
-            fit: BoxFit.cover,
+            fit: fit,
             width: double.infinity,
-            height: double.infinity,
+            height: expand ? double.infinity : null,
             errorBuilder: (context, error, stackTrace) => fallback,
           );
 
@@ -96,9 +120,11 @@ class PlaceholderProfileImage extends StatelessWidget {
       borderRadius: BorderRadius.circular(borderRadius),
       child: fill
           ? SizedBox.expand(child: image)
-          : aspectRatio != null
-              ? AspectRatio(aspectRatio: aspectRatio!, child: image)
-              : SizedBox(width: double.infinity, height: height, child: image),
+          : intrinsicHeight
+              ? image
+              : aspectRatio != null
+                  ? AspectRatio(aspectRatio: aspectRatio!, child: image)
+                  : SizedBox(width: double.infinity, height: height, child: image),
     );
     return clipped;
   }

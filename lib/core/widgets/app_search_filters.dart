@@ -8,40 +8,47 @@ class AppSearchField extends StatelessWidget {
     required this.controller,
     required this.hintText,
     this.onChanged,
+    this.compact = false,
   });
 
   final TextEditingController controller;
   final String hintText;
   final ValueChanged<String>? onChanged;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
+    final fontSize = compact ? 13.0 : 14.0;
+    final iconSize = compact ? 18.0 : 22.0;
     return TextField(
       controller: controller,
       onChanged: onChanged,
       textInputAction: TextInputAction.search,
-      style: const TextStyle(
-        fontSize: 14,
+      style: TextStyle(
+        fontSize: fontSize,
         color: AppColors.textPrimary,
       ),
       decoration: InputDecoration(
         hintText: hintText,
-        hintStyle: const TextStyle(
+        hintStyle: TextStyle(
           color: AppColors.textHint,
-          fontSize: 14,
+          fontSize: fontSize,
           fontWeight: FontWeight.w400,
         ),
-        prefixIcon: const Icon(
+        prefixIcon: Icon(
           Icons.search,
           color: AppColors.textHint,
-          size: 22,
+          size: iconSize,
         ),
+        prefixIconConstraints: compact
+            ? const BoxConstraints(minWidth: 36, minHeight: 36)
+            : null,
         filled: true,
         fillColor: AppColors.surface,
         isDense: true,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 12,
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: compact ? 12 : 16,
+          vertical: compact ? 8 : 12,
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadius.pill),
@@ -94,6 +101,7 @@ class AppFilterChipRow extends StatelessWidget {
             label: option,
             isSelected: isSelected,
             showCheckmark: isSelected && !isAllOption,
+            fontWeight: FontWeight.w700,
             onTap: () => onToggle(option),
           );
         },
@@ -127,9 +135,9 @@ class AppSearchAndChips extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.screenH,
-        AppSpacing.screenV,
+        4,
         AppSpacing.screenH,
-        AppSpacing.sm,
+        4,
       ),
       child: Column(
         children: [
@@ -140,25 +148,34 @@ class AppSearchAndChips extends StatelessWidget {
                   controller: searchController,
                   hintText: searchHint,
                   onChanged: onSearchChanged,
+                  compact: true,
                 ),
               ),
               if (onFilterTap != null) ...[
-                const SizedBox(width: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(AppRadius.pill),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: IconButton(
-                    onPressed: onFilterTap,
-                    icon: const Icon(Icons.tune, color: AppColors.textPrimary, size: 22),
+                const SizedBox(width: 6),
+                InkWell(
+                  onTap: onFilterTap,
+                  customBorder: const CircleBorder(),
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: const Icon(
+                      Icons.tune,
+                      color: AppColors.textPrimary,
+                      size: 18,
+                    ),
                   ),
                 ),
               ],
             ],
           ),
-          const SizedBox(height: AppSpacing.sm + 2),
+          const SizedBox(height: 6),
           AppFilterChipRow(
             options: chipOptions,
             selectedChips: selectedChips,

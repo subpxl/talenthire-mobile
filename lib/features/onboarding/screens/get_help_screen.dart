@@ -54,7 +54,7 @@ class _GetHelpScreenState extends State<GetHelpScreen> {
               _HelpItem(
                 title: 'How do I complete my creator profile?',
                 body:
-                    'Open Profile, tap Update Profile, and add your photos, talent, city, and social links so agencies can find you.',
+                    'Open Profile, tap Edit Profile, and add your photos, talent, city, and social links so agencies can find you.',
               ),
               _HelpItem(
                 title: 'Is there a verification process for creators?',

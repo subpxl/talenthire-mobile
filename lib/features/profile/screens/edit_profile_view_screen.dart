@@ -9,7 +9,6 @@ import 'package:bombay_casting/core/models/models.dart';
 import 'package:bombay_casting/core/navigation/app_navigation.dart';
 import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
-import 'package:bombay_casting/core/widgets/social_platforms.dart';
 import 'package:bombay_casting/features/profile/screens/edit_content_form.dart';
 import 'package:bombay_casting/features/profile/screens/edit_rates_form.dart';
 import 'package:bombay_casting/features/profile/screens/edit_social_form.dart';
@@ -96,47 +95,7 @@ class EditProfileScreen extends StatelessWidget {
                 children: [
                   _item(profile, 'personal', 'name', 'Name', fallback: user?.name),
                   _item(profile, 'personal', 'email', 'Email', fallback: user?.email),
-                  _item(profile, 'personal', 'gender', 'Gender'),
-                  _item(
-                    profile,
-                    'personal',
-                    'mobile',
-                    'Mobile number',
-                    fallback: user?.mobile,
-                  ),
-                  _item(profile, 'personal', 'whatsapp', 'WhatsApp number'),
-                  _item(profile, 'personal', 'age', 'Age'),
-                  _item(profile, 'personal', 'location', 'Location'),
-                  _item(profile, 'personal', 'language', 'Language'),
-                  _item(
-                    profile,
-                    'personal',
-                    'categories',
-                    'Category',
-                    isLast: true,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            _tappableSection(
-              context: context,
-              icon: Icons.work_outline_rounded,
-              title: 'Work',
-              onTap: () => _open(context, const EditOccupationScreen()),
-              child: Column(
-                children: [
-                  _item(profile, 'work', 'role', 'Role'),
-                  _item(profile, 'work', 'experience', 'Experience'),
-                  _item(profile, 'work', 'monthly_income', 'Monthly income'),
-                  _item(profile, 'work', 'based_in', 'Based in'),
-                  _item(
-                    profile,
-                    'work',
-                    'agency_name',
-                    'Agency / manager',
-                    isLast: true,
-                  ),
+                  _item(profile, 'personal', 'gender', 'Gender', isLast: true),
                 ],
               ),
             ),
@@ -151,6 +110,26 @@ class EditProfileScreen extends StatelessWidget {
             const SizedBox(height: 12),
             _tappableSection(
               context: context,
+              icon: Icons.work_outline_rounded,
+              title: 'Work',
+              onTap: () => _open(context, const EditOccupationScreen()),
+              child: Column(
+                children: [
+                  _item(profile, 'work', 'role', 'Role'),
+                  _item(profile, 'work', 'experience', 'Experience'),
+                  _item(
+                    profile,
+                    'work',
+                    'monthly_income',
+                    'Monthly income',
+                    isLast: true,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            _tappableSection(
+              context: context,
               icon: Icons.payments_outlined,
               title: 'Rates',
               onTap: () => _open(context, const EditRatesFieldsScreen()),
@@ -158,9 +137,7 @@ class EditProfileScreen extends StatelessWidget {
                 children: [
                   _item(profile, 'rates', 'collab_type', 'Collaboration type'),
                   _item(profile, 'rates', 'expected_pay', 'Expected pay'),
-                  _item(profile, 'rates', 'availability', 'Availability'),
-                  _item(profile, 'rates', 'can_travel', 'Can travel'),
-                  _item(profile, 'rates', 'work_mode', 'Work mode', isLast: true),
+                  _item(profile, 'rates', 'availability', 'Availability', isLast: true),
                 ],
               ),
             ),
@@ -174,12 +151,11 @@ class EditProfileScreen extends StatelessWidget {
                 children: [
                   _item(profile, 'content', 'niches', 'Niches'),
                   _item(profile, 'content', 'formats', 'Formats'),
-                  _item(profile, 'content', 'brand_categories', 'Brand categories'),
                   _item(
                     profile,
                     'content',
-                    'content_style',
-                    'Comfortable with',
+                    'brand_categories',
+                    'Brand categories',
                     isLast: true,
                   ),
                 ],
@@ -195,15 +171,11 @@ class EditProfileScreen extends StatelessWidget {
                 children: [
                   _item(profile, 'preferences', 'pay_limit', 'Pay range'),
                   _item(profile, 'preferences', 'location', 'Job location'),
-                  _item(profile, 'preferences', 'collab_types', 'Collaboration type'),
-                  _item(profile, 'preferences', 'platforms', 'Platforms'),
-                  _item(profile, 'preferences', 'niches', 'Niches'),
-                  _item(profile, 'preferences', 'durations', 'Duration'),
                   _item(
                     profile,
                     'preferences',
-                    'work_mode',
-                    'Work mode',
+                    'collab_types',
+                    'Collaboration type',
                     isLast: true,
                   ),
                 ],
@@ -281,63 +253,24 @@ class EditProfileScreen extends StatelessWidget {
             .toList() ??
         const <SocialPlatformMetric>[];
     if (metrics.isEmpty) {
-      return Row(
-        children: [
-          Expanded(
-            child: Text(
-              'Add Instagram, YouTube, and other profiles with one tap.',
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-            ),
-          ),
-          Text(
-            'Add',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: AppColors.primary,
-            ),
-          ),
-        ],
+      return Text(
+        'Add links to your other platforms.',
+        style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
       );
     }
+    final preview = metrics.take(3).toList();
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: [
-            for (final metric in metrics)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SocialPlatformIcon(
-                    info: SocialPlatformInfo.forName(metric.platform),
-                    size: 32,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    metric.handle.isNotEmpty ? metric.handle : metric.platform,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                ],
-              ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        _detailRow(
-          'Followers',
-          profile?.formValue('social', 'followers') ?? '-',
-        ),
-        _detailRow(
-          'Engagement',
-          profile?.formValue('social', 'engagement') ?? '-',
-          isLast: true,
-        ),
+        for (var i = 0; i < preview.length; i++)
+          _detailRow(
+            preview[i].platform,
+            preview[i].url.isNotEmpty
+                ? preview[i].url
+                : (preview[i].handle.isNotEmpty
+                    ? preview[i].handle
+                    : preview[i].platform),
+            isLast: i == preview.length - 1,
+          ),
       ],
     );
   }
@@ -386,9 +319,9 @@ class EditProfileScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                  Text(
-                    AppLocalizations.of(context)!.update,
-                    style: const TextStyle(
+                  const Text(
+                    'Edit',
+                    style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: AppColors.primary,
@@ -424,23 +357,21 @@ class EditProfileScreen extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.only(bottom: isLast ? 0 : 10),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Text(
-              label,
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-            ),
+          Text(
+            label,
+            style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               empty ? 'Not set' : value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.right,
               style: TextStyle(
                 fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: empty ? AppColors.textHint : AppColors.textPrimary,
+                color: Colors.grey.shade600,
               ),
             ),
           ),
