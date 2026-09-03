@@ -10,11 +10,13 @@ class StorageService {
   Future<String> uploadProfilePhoto({
     required String userId,
     required File file,
+    String? fileName,
   }) async {
     return uploadDocument(
       userId: userId,
       file: file,
       folder: 'profile',
+      fileName: fileName,
     );
   }
 
@@ -22,13 +24,14 @@ class StorageService {
     required String userId,
     required File file,
     required String folder,
+    String? fileName,
   }) async {
     final ref = _storage
         .ref()
         .child('users')
         .child(userId)
         .child(folder)
-        .child('${DateTime.now().millisecondsSinceEpoch}.jpg');
+        .child(fileName ?? '${DateTime.now().microsecondsSinceEpoch}.jpg');
     await ref.putFile(file, SettableMetadata(contentType: 'image/jpeg'));
     return ref.getDownloadURL();
   }

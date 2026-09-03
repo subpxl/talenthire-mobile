@@ -20,6 +20,7 @@ class _EditSocialFieldsScreenState extends State<EditSocialFieldsScreen> {
     for (final platform in SocialPlatformInfo.linkFormPlatforms)
       platform.name: TextEditingController(),
   };
+  bool _saving = false;
 
   @override
   void initState() {
@@ -69,6 +70,8 @@ class _EditSocialFieldsScreenState extends State<EditSocialFieldsScreen> {
   }
 
   Future<void> _save() async {
+    if (_saving) return;
+    setState(() => _saving = true);
     final metrics = [
       for (final platform in SocialPlatformInfo.linkFormPlatforms)
         if ((_urlControllers[platform.name]?.text.trim().isNotEmpty ?? false))
@@ -79,21 +82,27 @@ class _EditSocialFieldsScreenState extends State<EditSocialFieldsScreen> {
           ),
     ];
     final primary = metrics.isNotEmpty ? metrics.first : null;
-    await saveProfileSection(
-      context: context,
-      section: 'social',
-      data: {
-        'primary_platform': primary?.platform ?? '',
-        'handle': primary?.handle ?? '',
-        'other_platforms': [
-          for (final metric in metrics.skip(1)) metric.platform,
-        ],
-      },
-      extra: (profile) => profile.copyWith(
-        contact: primary?.url ?? profile.contact,
-        platformMetrics: metrics,
-      ),
-    );
+    try {
+      await saveProfileSection(
+        context: context,
+        section: 'social',
+        data: {
+          'primary_platform': primary?.platform ?? '',
+          'handle': primary?.handle ?? '',
+          'other_platforms': [
+            for (final metric in metrics.skip(1)) metric.platform,
+          ],
+        },
+        extra: (profile) => profile.copyWith(
+          contact: primary?.url ?? profile.contact,
+          platformMetrics: metrics,
+        ),
+        pop: false,
+      );
+      if (mounted) Navigator.maybePop(context);
+    } catch (_) {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -200,7 +209,7 @@ class _EditSocialFieldsScreenState extends State<EditSocialFieldsScreen> {
             width: double.infinity,
             height: 42,
             child: ElevatedButton(
-              onPressed: _save,
+              onPressed: _saving ? null : _save,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 elevation: 0,

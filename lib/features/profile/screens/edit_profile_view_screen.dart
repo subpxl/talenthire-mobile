@@ -9,13 +9,10 @@ import 'package:bombay_casting/core/models/models.dart';
 import 'package:bombay_casting/core/navigation/app_navigation.dart';
 import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
-import 'package:bombay_casting/features/profile/screens/edit_content_form.dart';
-import 'package:bombay_casting/features/profile/screens/edit_rates_form.dart';
 import 'package:bombay_casting/features/profile/screens/edit_social_form.dart';
 import 'package:bombay_casting/features/profile/screens/edit_verification_form.dart';
-import 'package:bombay_casting/features/profile/screens/edit_preferences_form.dart';
-import 'package:bombay_casting/features/profile/screens/edit_occupation_screen.dart';
 import 'package:bombay_casting/features/profile/screens/edit_personal_details_form.dart';
+import 'package:bombay_casting/features/profile/screens/edit_content_creator_form.dart';
 
 class EditProfileScreen extends StatelessWidget {
   const EditProfileScreen({super.key});
@@ -45,145 +42,118 @@ class EditProfileScreen extends StatelessWidget {
         titleSpacing: 0,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 56),
         child: Column(
           children: [
             _sectionCard(
-              child: _UploadPhotoBox(profile: profile),
+              child: ProfilePhotoPicker(profile: profile),
             ),
             const SizedBox(height: 12),
-            _tappableSection(
-              context: context,
-              icon: Icons.verified_outlined,
-              title: 'Verification',
-              onTap: () => _openVerification(context),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _verificationTitle(profile),
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _verificationSubtitle(profile),
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            _tappableSection(
-              context: context,
-              icon: Icons.person_outline_rounded,
-              title: 'Personal',
-              onTap: () => _open(context, const EditPersonalFieldsScreen()),
-              child: Column(
-                children: [
-                  _item(profile, 'personal', 'name', 'Name', fallback: user?.name),
-                  _item(profile, 'personal', 'email', 'Email', fallback: user?.email),
-                  _item(profile, 'personal', 'gender', 'Gender', isLast: true),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            _tappableSection(
-              context: context,
-              icon: Icons.share_outlined,
-              title: 'Social',
-              onTap: () => _open(context, const EditSocialFieldsScreen()),
-              child: _socialPreview(profile),
-            ),
-            const SizedBox(height: 12),
-            _tappableSection(
-              context: context,
-              icon: Icons.work_outline_rounded,
-              title: 'Work',
-              onTap: () => _open(context, const EditOccupationScreen()),
-              child: Column(
-                children: [
-                  _item(profile, 'work', 'role', 'Role'),
-                  _item(profile, 'work', 'experience', 'Experience'),
-                  _item(
-                    profile,
-                    'work',
-                    'monthly_income',
-                    'Monthly income',
-                    isLast: true,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            _tappableSection(
-              context: context,
-              icon: Icons.payments_outlined,
-              title: 'Rates',
-              onTap: () => _open(context, const EditRatesFieldsScreen()),
-              child: Column(
-                children: [
-                  _item(profile, 'rates', 'collab_type', 'Collaboration type'),
-                  _item(profile, 'rates', 'expected_pay', 'Expected pay'),
-                  _item(profile, 'rates', 'availability', 'Availability', isLast: true),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            _tappableSection(
-              context: context,
-              icon: Icons.movie_outlined,
-              title: 'Content',
-              onTap: () => _open(context, const EditContentFieldsScreen()),
-              child: Column(
-                children: [
-                  _item(profile, 'content', 'niches', 'Niches'),
-                  _item(profile, 'content', 'formats', 'Formats'),
-                  _item(
-                    profile,
-                    'content',
-                    'brand_categories',
-                    'Brand categories',
-                    isLast: true,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            _tappableSection(
-              context: context,
-              icon: Icons.tune_rounded,
-              title: 'Job preferences',
-              onTap: () => _open(context, const EditPreferenceScreen()),
-              child: Column(
-                children: [
-                  _item(profile, 'preferences', 'pay_limit', 'Pay range'),
-                  _item(profile, 'preferences', 'location', 'Job location'),
-                  _item(
-                    profile,
-                    'preferences',
-                    'collab_types',
-                    'Collaboration type',
-                    isLast: true,
-                  ),
-                ],
-              ),
-            ),
+            EditProfileSectionList(profile: profile, user: user),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _sectionCard({required Widget child}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: child,
+    );
+  }
+}
+
+class EditProfileSectionList extends StatelessWidget {
+  const EditProfileSectionList({
+    super.key,
+    required this.profile,
+    required this.user,
+  });
+
+  final Profile? profile;
+  final User? user;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _tappableSection(
+          context: context,
+          icon: Icons.verified_outlined,
+          title: 'Verification',
+          onTap: () => _openVerification(context),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _verificationTitle(profile),
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _verificationSubtitle(profile),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        _tappableSection(
+          context: context,
+          icon: Icons.person_outline_rounded,
+          title: 'Personal',
+          onTap: () => _open(context, const EditPersonalFieldsScreen()),
+          child: Column(
+            children: [
+              _item(profile, 'personal', 'name', 'Name', fallback: user?.name),
+              _item(profile, 'personal', 'email', 'Email', fallback: user?.email),
+              _item(profile, 'personal', 'gender', 'Gender', isLast: true),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        _tappableSection(
+          context: context,
+          icon: Icons.share_outlined,
+          title: 'Social',
+          onTap: () => _open(context, const EditSocialFieldsScreen()),
+          child: _socialPreview(profile),
+        ),
+        const SizedBox(height: 12),
+        _tappableSection(
+          context: context,
+          icon: Icons.movie_outlined,
+          title: 'For content creators',
+          onTap: () => _open(context, const EditContentCreatorFormScreen()),
+          child: Column(
+            children: [
+              _item(profile, 'creator', 'collab_types', 'Collab type'),
+              _item(profile, 'creator', 'platforms', 'Platforms'),
+              _item(profile, 'creator', 'niches', 'Niches', isLast: true),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -339,19 +309,6 @@ class EditProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _sectionCard({required Widget child}) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: child,
-    );
-  }
-
   Widget _detailRow(String label, String value, {bool isLast = false}) {
     final empty = value.trim().isEmpty || value.trim() == '-';
     return Padding(
@@ -381,16 +338,16 @@ class EditProfileScreen extends StatelessWidget {
   }
 }
 
-class _UploadPhotoBox extends StatelessWidget {
-  const _UploadPhotoBox({required this.profile});
+class ProfilePhotoPicker extends StatelessWidget {
+  const ProfilePhotoPicker({super.key, required this.profile});
 
   final Profile? profile;
 
-  static const double _cardWidth = 210;
-  static const double _cardHeight = 280;
-
   Future<void> _pick(BuildContext context) async {
-    if ((profile?.galleryPhotos.length ?? 0) >= Profile.maxPhotos) return;
+    final remaining =
+        Profile.maxPhotos - (profile?.galleryPhotos.length ?? 0);
+    if (remaining <= 0) return;
+    FocusManager.instance.primaryFocus?.unfocus();
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
       backgroundColor: Colors.white,
@@ -416,14 +373,49 @@ class _UploadPhotoBox extends StatelessWidget {
       ),
     );
     if (source == null || !context.mounted) return;
-    final picked = await ImagePicker().pickImage(
-      source: source,
-      maxWidth: 2000,
-      imageQuality: 88,
+
+    final picker = ImagePicker();
+    List<XFile> picked;
+    if (source == ImageSource.camera) {
+      final file = await picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 2000,
+        imageQuality: 88,
+      );
+      picked = file == null ? const [] : [file];
+    } else {
+      picked = await picker.pickMultiImage(
+        maxWidth: 2000,
+        imageQuality: 88,
+        limit: remaining,
+        requestFullMetadata: false,
+      );
+    }
+    if (picked.isEmpty || !context.mounted) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    if (picked.length > remaining) {
+      picked = picked.take(remaining).toList();
+    }
+
+    final result = await showModalBottomSheet<_PendingUploadResult>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => _PendingUploadSheet(
+        files: picked,
+        hasExistingMain: profile?.galleryPhotos.isNotEmpty ?? false,
+      ),
     );
-    if (picked == null || !context.mounted) return;
+    if (result == null || result.files.isEmpty || !context.mounted) return;
+
     try {
-      await context.read<AppState>().uploadProfilePhoto(File(picked.path));
+      await context.read<AppState>().uploadProfilePhotos(
+            result.files,
+            mainIndex: result.mainIndex,
+          );
     } catch (_) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -443,75 +435,482 @@ class _UploadPhotoBox extends StatelessWidget {
     }
   }
 
+  void _preview(BuildContext context, List<String> photos, int index) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    final appState = context.read<AppState>();
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            fullscreenDialog: true,
+            builder: (_) => _PhotoPreviewScreen(
+              photos: photos,
+              initialIndex: index,
+              onSetMain: appState.setMainProfilePhoto,
+            ),
+          ),
+        )
+        .whenComplete(() {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        FocusManager.instance.primaryFocus?.unfocus();
+      });
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final uploading = context.watch<AppState>().isUploadingPhoto;
     final photos = profile?.galleryPhotos ?? const <String>[];
     final canAdd = photos.length < Profile.maxPhotos;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 10),
-          child: Row(
-            children: [
-              Text(AppLocalizations.of(context)!.photos,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
+        Row(
+          children: [
+            Text(
+              l10n.photos,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
               ),
-              const Spacer(),
-              Text(
-                '${photos.length}/${Profile.maxPhotos}',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey.shade600,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (photos.isEmpty)
-          _AddPhotoCard(
-            width: double.infinity,
-            height: _cardHeight,
-            uploading: uploading,
-            onTap: uploading ? null : () => _pick(context),
-          )
-        else
-          SizedBox(
-            height: _cardHeight,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: photos.length + (canAdd ? 1 : 0),
-              separatorBuilder: (_, _) => const SizedBox(width: 12),
-              itemBuilder: (context, index) {
-                if (index >= photos.length) {
-                  return _AddPhotoCard(
-                    width: _cardWidth,
-                    height: _cardHeight,
-                    uploading: uploading,
-                    onTap: uploading ? null : () => _pick(context),
-                  );
-                }
-                return _PhotoCard(
-                  url: photos[index],
-                  width: _cardWidth,
-                  height: _cardHeight,
-                  isCover: index == 0,
-                  onRemove: () => _remove(context, photos[index]),
-                );
-              },
             ),
-          ),
+            const Spacer(),
+            Text(
+              '${photos.length}/${Profile.maxPhotos}',
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
         const SizedBox(height: 10),
-        Text(AppLocalizations.of(context)!.addUpTo4PhotosFirstPhotoIsYourMainProfilePicture,
-          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            const gap = 8.0;
+            const slots = Profile.maxPhotos;
+            final width =
+                (constraints.maxWidth - gap * (slots - 1)) / slots;
+            final height = width * 4 / 3;
+            return Row(
+              children: [
+                for (var i = 0; i < slots; i++) ...[
+                  if (i > 0) const SizedBox(width: gap),
+                  SizedBox(
+                    width: width,
+                    height: height,
+                    child: i < photos.length
+                        ? _PhotoCard(
+                            url: photos[i],
+                            width: width,
+                            height: height,
+                            isCover: i == 0,
+                            onPreview: () => _preview(context, photos, i),
+                            onRemove: () => _remove(context, photos[i]),
+                          )
+                        : i == photos.length && canAdd
+                            ? _AddPhotoCard(
+                                width: width,
+                                height: height,
+                                uploading: uploading,
+                                onTap: uploading ? null : () => _pick(context),
+                              )
+                            : _EmptyPhotoSlot(
+                                onTap: canAdd && !uploading
+                                    ? () => _pick(context)
+                                    : null,
+                              ),
+                  ),
+                ],
+              ],
+            );
+          },
         ),
       ],
+    );
+  }
+}
+
+class _PendingUploadResult {
+  const _PendingUploadResult({required this.files, this.mainIndex});
+
+  final List<File> files;
+  final int? mainIndex;
+}
+
+class _PendingUploadSheet extends StatefulWidget {
+  const _PendingUploadSheet({
+    required this.files,
+    required this.hasExistingMain,
+  });
+
+  final List<XFile> files;
+  final bool hasExistingMain;
+
+  @override
+  State<_PendingUploadSheet> createState() => _PendingUploadSheetState();
+}
+
+class _PendingUploadSheetState extends State<_PendingUploadSheet> {
+  late List<XFile> _files;
+  int? _mainIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _files = List<XFile>.of(widget.files);
+    _mainIndex = widget.hasExistingMain ? null : 0;
+  }
+
+  void _removeAt(int index) {
+    setState(() {
+      _files.removeAt(index);
+      if (_files.isEmpty) {
+        _mainIndex = null;
+        return;
+      }
+      if (_mainIndex == null) return;
+      if (_mainIndex == index) {
+        _mainIndex = widget.hasExistingMain ? null : 0;
+      } else if (_mainIndex! > index) {
+        _mainIndex = _mainIndex! - 1;
+      }
+    });
+  }
+
+  void _confirm() {
+    if (_files.isEmpty) {
+      Navigator.pop(context);
+      return;
+    }
+    Navigator.pop(
+      context,
+      _PendingUploadResult(
+        files: _files.map((file) => File(file.path)).toList(),
+        mainIndex: _mainIndex,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    l10n.previewPhotos,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${_files.length}',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (_files.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 28),
+                child: Center(
+                  child: Text(
+                    l10n.addPhoto,
+                    style: TextStyle(color: Colors.grey.shade600),
+                  ),
+                ),
+              )
+            else
+              SizedBox(
+                height: 220,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _files.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 12),
+                  itemBuilder: (context, index) {
+                    final isMain = _mainIndex == index;
+                    return GestureDetector(
+                      onTap: () => setState(() => _mainIndex = index),
+                      child: SizedBox(
+                        width: 156,
+                        child: Stack(
+                          children: [
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: isMain
+                                      ? AppColors.primary
+                                      : Colors.transparent,
+                                  width: 3,
+                                ),
+                              ),
+                              padding: const EdgeInsets.all(2),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(13),
+                                child: Image.file(
+                                  File(_files[index].path),
+                                  width: 152,
+                                  height: 216,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                            ),
+                            if (isMain)
+                              Positioned(
+                                left: 10,
+                                bottom: 10,
+                                child: _MainBadge(label: l10n.main),
+                              ),
+                            Positioned(
+                              top: 8,
+                              right: 8,
+                              child: _CircleIconButton(
+                                icon: Icons.close,
+                                onTap: () => _removeAt(index),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            const SizedBox(height: 10),
+            Text(
+              l10n.tapToSetAsMain,
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                onPressed: _files.isEmpty ? null : _confirm,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: Colors.grey.shade300,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Text(l10n.uploadPhotos),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PhotoPreviewScreen extends StatefulWidget {
+  const _PhotoPreviewScreen({
+    required this.photos,
+    required this.initialIndex,
+    required this.onSetMain,
+  });
+
+  final List<String> photos;
+  final int initialIndex;
+  final Future<void> Function(String url) onSetMain;
+
+  @override
+  State<_PhotoPreviewScreen> createState() => _PhotoPreviewScreenState();
+}
+
+class _PhotoPreviewScreenState extends State<_PhotoPreviewScreen> {
+  late final PageController _controller;
+  late List<String> _photos;
+  late int _index;
+  bool _settingMain = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _photos = List<String>.of(widget.photos);
+    _index = widget.initialIndex.clamp(0, _photos.length - 1);
+    _controller = PageController(initialPage: _index);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _setMain() async {
+    if (_photos.isEmpty || _index == 0 || _settingMain) return;
+    final url = _photos[_index];
+    setState(() => _settingMain = true);
+    try {
+      await widget.onSetMain(url);
+      if (!mounted) return;
+      setState(() {
+        _photos = [url, ..._photos.where((item) => item != url)];
+        _index = 0;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_controller.hasClients) _controller.jumpToPage(0);
+      });
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context)!.couldNotSetMainPhoto)),
+      );
+    } finally {
+      if (mounted) setState(() => _settingMain = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final isMain = _index == 0;
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, _) {
+        FocusManager.instance.primaryFocus?.unfocus();
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: () {
+              FocusManager.instance.primaryFocus?.unfocus();
+              Navigator.maybePop(context);
+            },
+          ),
+          title: Text(
+            '${_index + 1}/${_photos.length}',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          ),
+        ),
+        body: Column(
+          children: [
+            Expanded(
+              child: PageView.builder(
+                controller: _controller,
+                itemCount: _photos.length,
+                onPageChanged: (index) => setState(() => _index = index),
+                itemBuilder: (context, index) {
+                  return InteractiveViewer(
+                    minScale: 1,
+                    maxScale: 4,
+                    panEnabled: false,
+                    child: Center(
+                      child: CachedNetworkImage(
+                        imageUrl: _photos[index],
+                        fit: BoxFit.contain,
+                        placeholder: (_, _) => const Center(
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        ),
+                        errorWidget: (_, _, _) => const Icon(
+                          Icons.broken_image_outlined,
+                          color: Colors.white70,
+                          size: 48,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: isMain
+                    ? Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.white54),
+                          ),
+                          child: Text(
+                            l10n.main,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      )
+                    : SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: ElevatedButton(
+                          onPressed: _settingMain ? null : _setMain,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: _settingMain
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Text(l10n.setAsMain),
+                        ),
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -522,6 +921,7 @@ class _PhotoCard extends StatelessWidget {
     required this.width,
     required this.height,
     required this.isCover,
+    required this.onPreview,
     required this.onRemove,
   });
 
@@ -529,75 +929,54 @@ class _PhotoCard extends StatelessWidget {
   final double width;
   final double height;
   final bool isCover;
+  final VoidCallback onPreview;
   final VoidCallback onRemove;
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return SizedBox(
       width: width,
       height: height,
       child: Stack(
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: CachedNetworkImage(
-              imageUrl: url,
-              width: width,
-              height: height,
-              fit: BoxFit.cover,
-              placeholder: (_, _) => Container(
-                color: const Color(0xFFF8F9FA),
-                child: const Center(
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              ),
-              errorWidget: (_, _, _) => Container(
-                color: const Color(0xFFF8F9FA),
-                child: const Icon(Icons.broken_image_outlined),
-              ),
-            ),
-          ),
-          if (isCover)
-            Positioned(
-              left: 10,
-              bottom: 10,
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.65),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(AppLocalizations.of(context)!.main,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: onPreview,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: CachedNetworkImage(
+                  imageUrl: url,
+                  width: width,
+                  height: height,
+                  fit: BoxFit.cover,
+                  placeholder: (_, _) => const ColoredBox(
+                    color: Color(0xFFF4F4F5),
+                    child: Center(
+                      child: SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  ),
+                  errorWidget: (_, _, _) => const ColoredBox(
+                    color: Color(0xFFF4F4F5),
+                    child: Icon(Icons.broken_image_outlined, size: 20),
                   ),
                 ),
               ),
             ),
+          ),
           Positioned(
-            top: 8,
-            right: 8,
-            child: GestureDetector(
-              onTap: onRemove,
-              child: Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.18),
-                      blurRadius: 6,
-                    ),
-                  ],
-                ),
-                child: const Icon(Icons.close, size: 16, color: Colors.black87),
-              ),
-            ),
+            left: 5,
+            bottom: 5,
+            child: isCover ? _MainBadge(label: l10n.main) : const SizedBox.shrink(),
+          ),
+          Positioned(
+            top: 5,
+            right: 5,
+            child: _CircleIconButton(icon: Icons.close, onTap: onRemove),
           ),
         ],
       ),
@@ -620,45 +999,160 @@ class _AddPhotoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isFullWidth = width == double.infinity;
+    return Material(
+      color: AppColors.primaryLight,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          width: width,
+          height: height,
+          child: uploading
+              ? const Center(
+                  child: SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              : Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.add,
+                        color: AppColors.primary,
+                        size: 18,
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyPhotoSlot extends StatelessWidget {
+  const _EmptyPhotoSlot({this.onTap});
+
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.expand(
+      child: Material(
+        color: const Color(0xFFF7F7F8),
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: CustomPaint(
+            painter: _DashedRRectPainter(color: AppColors.border),
+            child: const Center(
+              child: Icon(
+                Icons.photo_outlined,
+                size: 18,
+                color: AppColors.textHint,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DashedRRectPainter extends CustomPainter {
+  const _DashedRRectPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+    final rrect = RRect.fromRectAndRadius(
+      Offset.zero & size,
+      const Radius.circular(12),
+    );
+    const dash = 4.0;
+    const gap = 3.0;
+    final path = Path()..addRRect(rrect);
+    for (final metric in path.computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        final next = (distance + dash).clamp(0, metric.length).toDouble();
+        canvas.drawPath(metric.extractPath(distance, next), paint);
+        distance += dash + gap;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedRRectPainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+
+class _MainBadge extends StatelessWidget {
+  const _MainBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
+  }
+}
+
+class _CircleIconButton extends StatelessWidget {
+  const _CircleIconButton({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: isFullWidth ? double.infinity : width,
-        height: height,
+        width: 22,
+        height: 22,
         decoration: BoxDecoration(
-          color: const Color(0xFFF8F9FA),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey.shade300),
+          color: Colors.white,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.16),
+              blurRadius: 4,
+            ),
+          ],
         ),
-        child: uploading
-            ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-            : Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: const BoxDecoration(
-                      color: Colors.black,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.add, color: Colors.white, size: 26),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(AppLocalizations.of(context)!.addPhoto,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(AppLocalizations.of(context)!.looksBetterInPortrait,
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                  ),
-                ],
-              ),
+        child: Icon(icon, size: 13, color: Colors.black87),
       ),
     );
   }

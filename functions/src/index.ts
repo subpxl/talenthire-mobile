@@ -1,18 +1,21 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import {
+  AGENCY_PREMIUM_AMOUNT,
+  buildAgencyPaymentOrderPayload,
   buildCancellationOrderPayload,
   buildPremiumSubscriptionPayload,
   CANCELLATION_CHARGE_AMOUNT,
   cancelCashfreeSubscription,
   cashfreeRequest,
   CashfreeSubscriptionResponse,
-  createCashfreeOrder,
+  createCashfreeOrder as createCashfreePgOrder,
   extractUserIdFromPgWebhook,
   extractUserIdFromWebhook,
   fetchCashfreeOrder,
   getCashfreeConfig,
   getWebhookVerificationSecret,
+  isAgencyPaymentPurpose,
   isCancellationChargeSuccessWebhook,
   isCancellationOrderIdForUser,
   isAuthorizationSuccessWebhook,
@@ -26,6 +29,7 @@ import {
   normalizeIndianPhone,
   readWebhookRawBody,
   verifyWebhookSignature,
+  type AgencyPaymentPurpose,
   type CashfreePgWebhookPayload,
   type CashfreeWebhookPayload,
 } from './cashfree';
@@ -37,7 +41,9 @@ const RTDB_INSTANCE = 'talenthire-d86a1-default-rtdb';
 /** All payment-related functions run in Mumbai for lowest latency to Cashfree India. */
 const FUNCTION_REGION = 'asia-south1';
 
-const PREMIUM_TRIAL_DAYS = 1;
+const PREMIUM_TRIAL_DAYS = 3;
+/** Prepaid monthly access after a successful ₹299 charge. */
+const BILLING_PERIOD_DAYS = 30;
 const PAY_TO_CANCEL_MESSAGE =
   'Pay ₹299 in PhonePe to cancel your subscription.';
 
@@ -67,6 +73,57 @@ function parseIsoDate(value: string | undefined | null): Date | null {
   if (!value) return null;
   const ms = Date.parse(value);
   return Number.isNaN(ms) ? null : new Date(ms);
+}
+
+function parseFlexibleDate(value: unknown): Date | null {
+  if (value == null) return null;
+  if (value instanceof Date) return value;
+  if (value instanceof admin.firestore.Timestamp) return value.toDate();
+  if (typeof value === 'object' && value && 'toDate' in value) {
+    try {
+      return (value as admin.firestore.Timestamp).toDate();
+    } catch {
+      return null;
+    }
+  }
+  if (typeof value === 'string') return parseIsoDate(value);
+  return null;
+}
+
+function addDays(from: Date, days: number): Date {
+  return new Date(from.getTime() + days * 24 * 60 * 60 * 1000);
+}
+
+/**
+ * Current prepaid period end: last ₹299 charge + 30 days, or first_charge_at
+ * walked forward in 30-day steps. Null during trial (first charge still upcoming).
+ */
+function currentPrepaidPeriodEnd(local: LocalSubscriptionRecord): Date | null {
+  if (local.cancel_at_period_end === true) {
+    return parseFlexibleDate(local.period_end_at);
+  }
+
+  const lastCharged = parseFlexibleDate(local.last_charged_at);
+  if (lastCharged) {
+    return addDays(lastCharged, BILLING_PERIOD_DAYS);
+  }
+
+  const firstCharge = parseFlexibleDate(local.first_charge_at);
+  if (!firstCharge || firstCharge.getTime() > Date.now()) {
+    return null;
+  }
+
+  let periodEnd = addDays(firstCharge, BILLING_PERIOD_DAYS);
+  while (periodEnd.getTime() <= Date.now()) {
+    periodEnd = addDays(periodEnd, BILLING_PERIOD_DAYS);
+  }
+  return periodEnd;
+}
+
+function hasPaidMonthlyCharge(local: LocalSubscriptionRecord): boolean {
+  if (parseFlexibleDate(local.last_charged_at) != null) return true;
+  const firstCharge = parseFlexibleDate(local.first_charge_at);
+  return firstCharge != null && firstCharge.getTime() <= Date.now();
 }
 
 /**
@@ -157,6 +214,10 @@ interface LocalSubscriptionRecord {
   subscription_id?: string;
   user_id?: string;
   subscription_status?: string;
+  first_charge_at?: string;
+  last_charged_at?: admin.firestore.Timestamp | string;
+  period_end_at?: admin.firestore.Timestamp | string;
+  cancel_at_period_end?: boolean;
   cancellation_order_id?: string;
   cancellation_order_status?: string;
   cancellation_payment_session_id?: string;
@@ -194,14 +255,41 @@ async function loadOwnedSubscription(
   return {local, subscriptionId};
 }
 
+async function expirePremiumUnlessPrepaidCancel(userId: string): Promise<void> {
+  const stored = await db.collection('subscriptions').doc(userId).get();
+  const data = (stored.data() ?? {}) as LocalSubscriptionRecord;
+  if (data.cancel_at_period_end === true) {
+    const periodEnd = parseFlexibleDate(data.period_end_at);
+    if (periodEnd && periodEnd.getTime() > Date.now()) {
+      return;
+    }
+  }
+
+  const profileDoc = await db.collection('profiles').doc(userId).get();
+  if (profileDoc.data()?.subscription_status === 'premium') {
+    await setUserSubscriptionStatus(userId, 'expired');
+  }
+}
+
+async function expirePrepaidIfPeriodEnded(userId: string): Promise<void> {
+  const stored = await db.collection('subscriptions').doc(userId).get();
+  const data = (stored.data() ?? {}) as LocalSubscriptionRecord;
+  if (data.cancel_at_period_end !== true) return;
+  const periodEnd = parseFlexibleDate(data.period_end_at);
+  if (!periodEnd || periodEnd.getTime() > Date.now()) return;
+  await expirePremiumUnlessPrepaidCancel(userId);
+}
+
 async function applySubscriptionCancellation({
   userId,
   subscriptionId,
   remoteStatus,
+  keepAccessUntil,
 }: {
   userId: string;
   subscriptionId: string;
   remoteStatus: string;
+  keepAccessUntil?: Date | null;
 }): Promise<string> {
   let status = remoteStatus;
   const config = getCashfreeConfig();
@@ -238,18 +326,30 @@ async function applySubscriptionCancellation({
     ? status
     : 'CANCELLED';
 
+  const keepUntil =
+    keepAccessUntil && keepAccessUntil.getTime() > Date.now()
+      ? keepAccessUntil
+      : null;
+
   await db.collection('subscriptions').doc(userId).set(
     {
       subscription_status: finalStatus,
       cancelled_at: admin.firestore.FieldValue.serverTimestamp(),
       updated_at: admin.firestore.FieldValue.serverTimestamp(),
+      ...(keepUntil
+        ? {
+            cancel_at_period_end: true,
+            period_end_at: admin.firestore.Timestamp.fromDate(keepUntil),
+          }
+        : {
+            cancel_at_period_end: false,
+          }),
     },
     {merge: true},
   );
 
-  const profileDoc = await db.collection('profiles').doc(userId).get();
-  if (profileDoc.data()?.subscription_status === 'premium') {
-    await setUserSubscriptionStatus(userId, 'expired');
+  if (!keepUntil) {
+    await expirePremiumUnlessPrepaidCancel(userId);
   }
 
   return finalStatus;
@@ -532,10 +632,10 @@ async function resolveExistingSubscriptionSession(
 /**
  * Creates a Cashfree UPI Autopay subscription:
  * - ₹1 authorization now (when user completes UPI mandate)
- * - ₹299/month starting PREMIUM_TRIAL_DAYS after subscription is created at Pay tap
+ * - ₹299/month starting PREMIUM_TRIAL_DAYS after the ₹1 authorization
  *
- * Subscription is created only when the user taps Pay (not on screen open) so
- * first_charge_at stays ~3 days after the ₹1 authorization.
+ * Cancelling in this trial window (₹1 paid, ₹299 not yet charged) requires a
+ * ₹299 PhonePe charge. After the monthly Autopay, cancel is free.
  */
 export const createPremiumSubscription = functions.region(FUNCTION_REGION).https.onCall(
   async (_data, context) => {
@@ -638,6 +738,7 @@ export const verifyPremiumSubscription = functions.region(FUNCTION_REGION).https
     }
 
     const userId = context.auth.uid;
+    await expirePrepaidIfPeriodEnded(userId);
     const localDoc = await db.collection('subscriptions').doc(userId).get();
     if (!localDoc.exists) {
       return {status: 'missing', isPremium: false};
@@ -720,6 +821,8 @@ export const verifyPremiumSubscription = functions.region(FUNCTION_REGION).https
 /**
  * Creates a ₹299 Cashfree order and returns a PhonePe UPI session.
  * Subscription is not cancelled until the charge is paid.
+ * Prepaid current period (₹299 already paid, still within 30 days): cancel
+ * Autopay with no extra charge and keep Premium until period end.
  */
 export const createCancellationCharge = functions.region(FUNCTION_REGION).https.onCall(
   async (_data, context) => {
@@ -731,6 +834,7 @@ export const createCancellationCharge = functions.region(FUNCTION_REGION).https.
     }
 
     const userId = context.auth.uid;
+    await expirePrepaidIfPeriodEnded(userId);
     const {local, subscriptionId} = await loadOwnedSubscription(userId);
     const config = getCashfreeConfig();
 
@@ -747,19 +851,56 @@ export const createCancellationCharge = functions.region(FUNCTION_REGION).https.
     }
 
     if (isTerminalSubscriptionStatus(remoteStatus)) {
+      await expirePrepaidIfPeriodEnded(userId);
+      const storedPeriodEnd = parseFlexibleDate(local.period_end_at);
+      const keepAccess =
+        local.cancel_at_period_end === true &&
+        storedPeriodEnd != null &&
+        storedPeriodEnd.getTime() > Date.now();
+      if (!keepAccess) {
+        await applySubscriptionCancellation({
+          userId,
+          subscriptionId,
+          remoteStatus,
+        });
+      }
+      return {
+        alreadyCancelled: true,
+        chargeWaived: keepAccess,
+        status: remoteStatus,
+        isPremium: keepAccess,
+        orderId: local.cancellation_order_id ?? '',
+        paymentSessionId: '',
+        environment: config.environment,
+        amount: keepAccess ? 0 : CANCELLATION_CHARGE_AMOUNT,
+        periodEndAt: keepAccess && storedPeriodEnd
+          ? storedPeriodEnd.toISOString()
+          : '',
+      };
+    }
+
+    if (hasPaidMonthlyCharge(local)) {
+      const prepaidUntil = currentPrepaidPeriodEnd(local);
+      const keepUntil =
+        prepaidUntil && prepaidUntil.getTime() > Date.now()
+          ? prepaidUntil
+          : null;
       const finalStatus = await applySubscriptionCancellation({
         userId,
         subscriptionId,
         remoteStatus,
+        keepAccessUntil: keepUntil,
       });
       return {
         alreadyCancelled: true,
+        chargeWaived: true,
         status: finalStatus,
-        isPremium: false,
-        orderId: local.cancellation_order_id ?? '',
+        isPremium: keepUntil != null,
+        orderId: '',
         paymentSessionId: '',
         environment: config.environment,
-        amount: CANCELLATION_CHARGE_AMOUNT,
+        amount: 0,
+        periodEndAt: keepUntil ? keepUntil.toISOString() : '',
       };
     }
 
@@ -774,12 +915,14 @@ export const createCancellationCharge = functions.region(FUNCTION_REGION).https.
           });
           return {
             alreadyCancelled: true,
+            chargeWaived: false,
             status: result.status,
             isPremium: false,
             orderId: existingOrderId,
             paymentSessionId: '',
             environment: config.environment,
             amount: CANCELLATION_CHARGE_AMOUNT,
+            periodEndAt: '',
           };
         }
 
@@ -800,10 +943,12 @@ export const createCancellationCharge = functions.region(FUNCTION_REGION).https.
 
           return {
             alreadyCancelled: false,
+            chargeWaived: false,
             orderId: existingOrder.order_id,
             paymentSessionId: existingOrder.payment_session_id,
             environment: config.environment,
             amount: CANCELLATION_CHARGE_AMOUNT,
+            periodEndAt: '',
           };
         }
       } catch (error) {
@@ -817,7 +962,7 @@ export const createCancellationCharge = functions.region(FUNCTION_REGION).https.
 
     const customer = await loadCustomerDetails(userId);
     const orderId = cancellationOrderId(userId);
-    const created = await createCashfreeOrder(
+    const created = await createCashfreePgOrder(
       config,
       buildCancellationOrderPayload({
         orderId,
@@ -849,10 +994,12 @@ export const createCancellationCharge = functions.region(FUNCTION_REGION).https.
 
     return {
       alreadyCancelled: false,
+      chargeWaived: false,
       orderId: created.order_id,
       paymentSessionId: created.payment_session_id,
       environment: config.environment,
       amount: CANCELLATION_CHARGE_AMOUNT,
+      periodEndAt: '',
     };
   },
 );
@@ -898,6 +1045,7 @@ export const cancelPremiumSubscription = functions.region(FUNCTION_REGION).https
     }
 
     const userId = context.auth.uid;
+    await expirePrepaidIfPeriodEnded(userId);
     const {local, subscriptionId} = await loadOwnedSubscription(userId);
     const config = getCashfreeConfig();
     let remoteStatus = local.subscription_status ?? '';
@@ -914,12 +1062,40 @@ export const cancelPremiumSubscription = functions.region(FUNCTION_REGION).https
     }
 
     if (isTerminalSubscriptionStatus(remoteStatus)) {
+      await expirePrepaidIfPeriodEnded(userId);
+      const storedPeriodEnd = parseFlexibleDate(local.period_end_at);
+      const keepAccess =
+        local.cancel_at_period_end === true &&
+        storedPeriodEnd != null &&
+        storedPeriodEnd.getTime() > Date.now();
+      if (!keepAccess) {
+        const finalStatus = await applySubscriptionCancellation({
+          userId,
+          subscriptionId,
+          remoteStatus,
+        });
+        return {status: finalStatus, isPremium: false};
+      }
+      return {status: remoteStatus, isPremium: true, chargeWaived: true};
+    }
+
+    if (hasPaidMonthlyCharge(local)) {
+      const prepaidUntil = currentPrepaidPeriodEnd(local);
+      const keepUntil =
+        prepaidUntil && prepaidUntil.getTime() > Date.now()
+          ? prepaidUntil
+          : null;
       const finalStatus = await applySubscriptionCancellation({
         userId,
         subscriptionId,
         remoteStatus,
+        keepAccessUntil: keepUntil,
       });
-      return {status: finalStatus, isPremium: false};
+      return {
+        status: finalStatus,
+        isPremium: keepUntil != null,
+        chargeWaived: true,
+      };
     }
 
     const orderId = local.cancellation_order_id;
@@ -997,9 +1173,9 @@ async function handleCashfreeHttpWebhook(
     functions.logger.info('Cashfree webhook received', {type: payload.type});
 
     if (isPaymentWebhookType(payload.type)) {
-      await handleCancellationChargePayment(
-        payload as unknown as CashfreePgWebhookPayload,
-      );
+      const pgPayload = payload as unknown as CashfreePgWebhookPayload;
+      await handleCancellationChargePayment(pgPayload);
+      await handleAgencyPaymentWebhook(pgPayload);
       res.status(200).send('OK');
       return;
     }
@@ -1064,6 +1240,14 @@ async function handleCashfreeHttpWebhook(
                 first_charge_at: addDaysIso(PREMIUM_TRIAL_DAYS),
               }
             : {}),
+          ...(payload.type === 'SUBSCRIPTION_CHARGED'
+            ? {
+                last_charged_at: admin.firestore.FieldValue.serverTimestamp(),
+                period_end_at: admin.firestore.Timestamp.fromDate(
+                  addDays(new Date(), BILLING_PERIOD_DAYS),
+                ),
+              }
+            : {}),
         },
         {merge: true},
       );
@@ -1071,12 +1255,36 @@ async function handleCashfreeHttpWebhook(
       if (isPremiumActivationWebhook(payload)) {
         await setUserSubscriptionStatus(userId, 'premium');
       } else if (isPremiumDeactivationWebhook(payload)) {
-        await setUserSubscriptionStatus(userId, 'expired');
+        await expirePremiumUnlessPrepaidCancel(userId);
+      } else {
+        await expirePrepaidIfPeriodEnded(userId);
       }
     }
 
     res.status(200).send('OK');
 }
+
+/**
+ * Drops Premium after a prepaid cancel once the paid 30-day period ends.
+ */
+export const expireEndedPremiumSubscriptions = functions
+  .region(FUNCTION_REGION)
+  .pubsub.schedule('every 6 hours')
+  .timeZone('Asia/Kolkata')
+  .onRun(async () => {
+    const now = admin.firestore.Timestamp.now();
+    const snap = await db
+      .collection('subscriptions')
+      .where('cancel_at_period_end', '==', true)
+      .where('period_end_at', '<=', now)
+      .limit(200)
+      .get();
+
+    await Promise.all(
+      snap.docs.map((doc) => expirePrepaidIfPeriodEnded(doc.id)),
+    );
+    return null;
+  });
 
 /**
  * Sends a push notification to the recipient when a chat message is created.
@@ -1112,6 +1320,18 @@ export const onNewMessage = functions
     if (fcmTokens.length === 0) return null;
 
     const body = text.length > 100 ? `${text.substring(0, 100)}...` : text;
+
+    await db.collection('notifications').add({
+      userId: recipientId,
+      type: 'new_message',
+      title: senderName,
+      body,
+      conversationId,
+      senderId,
+      read: false,
+      created_at: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
     await Promise.all(
       fcmTokens.map(async (token) => {
         try {
@@ -1152,3 +1372,304 @@ export const onNewMessage = functions
 
     return null;
   });
+
+/** Agency portal Cashfree callables — same region as the React webapp client. */
+const AGENCY_PG_REGION = 'us-central1';
+
+async function loadAgencyPayerDetails(userId: string): Promise<{
+  name: string;
+  email: string;
+  phone: string;
+}> {
+  const userDoc = await db.collection('users').doc(userId).get();
+  const user = userDoc.data() ?? {};
+  const name =
+    (user.agencyName as string | undefined)?.trim() ||
+    (user.companyName as string | undefined)?.trim() ||
+    (user.name as string | undefined)?.trim() ||
+    'Agency';
+  const email = (user.email as string | undefined)?.trim() || '';
+  const phone =
+    normalizeIndianPhone((user.contactNumber as string | undefined) ?? '') ||
+    normalizeIndianPhone((user.mobile as string | undefined) ?? '') ||
+    '9999999999';
+  if (!email) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      'Add an email to your agency account before paying.',
+    );
+  }
+  return {name, email, phone};
+}
+
+function agencyOrderId(purpose: AgencyPaymentPurpose, userId: string): string {
+  const prefix = purpose === 'agency_premium' ? 'agp' : 'wlt';
+  return `${prefix}_${userId}_${Date.now()}`;
+}
+
+async function fulfillAgencyPayment(opts: {
+  userId: string;
+  orderId: string;
+  amount: number;
+  purpose: AgencyPaymentPurpose;
+  paymentId?: string;
+}): Promise<void> {
+  const paymentRef = db.collection('payments').doc(opts.orderId);
+  const userRef = db.collection('users').doc(opts.userId);
+
+  await db.runTransaction(async (tx) => {
+    const paymentSnap = await tx.get(paymentRef);
+    if (paymentSnap.data()?.status === 'completed') {
+      return;
+    }
+
+    const userSnap = await tx.get(userRef);
+    const user = userSnap.data() ?? {};
+    const updates: Record<string, unknown> = {
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+    let expiresAt: string | null = null;
+
+    if (opts.purpose === 'wallet_topup') {
+      updates.wallet_balance = admin.firestore.FieldValue.increment(opts.amount);
+    } else {
+      const currentExpiry = parseFlexibleDate(user.subscription_expires_at);
+      const from =
+        currentExpiry && currentExpiry.getTime() > Date.now()
+          ? currentExpiry
+          : new Date();
+      const next = new Date(from.getTime());
+      next.setFullYear(next.getFullYear() + 1);
+      expiresAt = next.toISOString();
+      updates.subscription_status = 'premium';
+      updates.subscription_expires_at = expiresAt;
+    }
+
+    tx.set(userRef, updates, {merge: true});
+    tx.set(
+      paymentRef,
+      {
+        userId: opts.userId,
+        orderId: opts.orderId,
+        amount: opts.amount,
+        purpose: opts.purpose,
+        status: 'completed',
+        gateway: 'cashfree',
+        cashfreePaymentId: opts.paymentId ?? null,
+        paidAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt:
+          paymentSnap.data()?.createdAt ??
+          admin.firestore.FieldValue.serverTimestamp(),
+      },
+      {merge: true},
+    );
+    tx.set(db.collection('transactions').doc(), {
+      userId: opts.userId,
+      amount: opts.amount,
+      currency: 'INR',
+      status: 'completed',
+      type: opts.purpose,
+      purpose: opts.purpose,
+      cashfreeOrderId: opts.orderId,
+      cashfreePaymentId: opts.paymentId ?? null,
+      gateway: 'cashfree',
+      paidAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      expiresAt,
+    });
+  });
+}
+
+async function handleAgencyPaymentWebhook(
+  payload: CashfreePgWebhookPayload,
+): Promise<void> {
+  const paymentStatus = payload.data?.payment?.payment_status ?? '';
+  if (paymentStatus && paymentStatus.toUpperCase() !== 'SUCCESS') {
+    return;
+  }
+
+  const orderId = payload.data?.order?.order_id;
+  if (!orderId) return;
+
+  const tags = payload.data?.order?.order_tags ?? {};
+  const purpose = tags.purpose;
+  if (!isAgencyPaymentPurpose(purpose)) return;
+
+  const userId =
+    (typeof tags.user_id === 'string' && tags.user_id) ||
+    extractUserIdFromPgWebhook(payload);
+  if (!userId) {
+    functions.logger.warn('agency payment webhook: user not found', {orderId});
+    return;
+  }
+
+  const amount = Number(
+    payload.data?.order?.order_amount ??
+      payload.data?.payment?.payment_amount ??
+      0,
+  );
+
+  try {
+    await fulfillAgencyPayment({
+      userId,
+      orderId,
+      amount: purpose === 'agency_premium' ? AGENCY_PREMIUM_AMOUNT : amount,
+      purpose,
+    });
+  } catch (error) {
+    functions.logger.error('agency payment webhook: fulfill failed', {
+      userId,
+      orderId,
+      error,
+    });
+  }
+}
+
+export const createCashfreeOrder = functions
+  .region(AGENCY_PG_REGION)
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError(
+        'unauthenticated',
+        'Sign in to continue payment.',
+      );
+    }
+
+    const userId = String((data as {userId?: string})?.userId ?? '');
+    const purpose = String((data as {purpose?: string})?.purpose ?? '');
+    const returnUrl = String((data as {returnUrl?: string})?.returnUrl ?? '');
+    const amountRaw = Number((data as {amount?: number})?.amount ?? 0);
+
+    if (userId !== context.auth.uid) {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'You can only pay for your own agency account.',
+      );
+    }
+    if (!isAgencyPaymentPurpose(purpose)) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'Unsupported payment purpose.',
+      );
+    }
+    if (!returnUrl.startsWith('http')) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'A valid return URL is required.',
+      );
+    }
+
+    const amount =
+      purpose === 'agency_premium' ? AGENCY_PREMIUM_AMOUNT : amountRaw;
+    if (!Number.isFinite(amount) || amount < 1) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'Enter a valid amount.',
+      );
+    }
+
+    const config = getCashfreeConfig();
+    const customer = await loadAgencyPayerDetails(userId);
+    const orderId = agencyOrderId(purpose, userId);
+    const created = await createCashfreePgOrder(
+      config,
+      buildAgencyPaymentOrderPayload({
+        orderId,
+        amount,
+        purpose,
+        customerId: userId,
+        customerName: customer.name,
+        customerEmail: customer.email,
+        customerPhone: customer.phone,
+        returnUrl,
+        notifyUrl: pgWebhookNotifyUrl(),
+      }),
+    );
+
+    if (!created.payment_session_id) {
+      throw new functions.https.HttpsError(
+        'unavailable',
+        'Could not start Cashfree checkout. Try again.',
+      );
+    }
+
+    await db.collection('payments').doc(created.order_id).set({
+      userId,
+      orderId: created.order_id,
+      amount,
+      purpose,
+      status: 'pending',
+      gateway: 'cashfree',
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return {
+      paymentSessionId: created.payment_session_id,
+      orderId: created.order_id,
+      environment: config.environment,
+    };
+  });
+
+export const verifyCashfreePayment = functions
+  .region(AGENCY_PG_REGION)
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError(
+        'unauthenticated',
+        'Sign in to confirm payment.',
+      );
+    }
+
+    const orderId = String((data as {orderId?: string})?.orderId ?? '');
+    const requestedUserId = String((data as {userId?: string})?.userId ?? '');
+    if (!orderId) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'Missing order id.',
+      );
+    }
+
+    const userId = context.auth.uid;
+    if (requestedUserId && requestedUserId !== userId) {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'You can only confirm your own payments.',
+      );
+    }
+
+    const paymentSnap = await db.collection('payments').doc(orderId).get();
+    const stored = paymentSnap.data();
+    if (stored?.userId && stored.userId !== userId) {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'You can only confirm your own payments.',
+      );
+    }
+
+    const config = getCashfreeConfig();
+    const order = await fetchCashfreeOrder(config, orderId);
+    if (!isPaidOrderStatus(order.order_status)) {
+      return {success: false, status: order.order_status};
+    }
+
+    const purposeRaw = stored?.purpose ?? order.order_tags?.purpose;
+    if (!isAgencyPaymentPurpose(purposeRaw)) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'This order is not an agency payment.',
+      );
+    }
+
+    await fulfillAgencyPayment({
+      userId,
+      orderId,
+      amount:
+        purposeRaw === 'agency_premium'
+          ? AGENCY_PREMIUM_AMOUNT
+          : Number(stored?.amount ?? order.order_amount ?? 0),
+      purpose: purposeRaw,
+    });
+
+    return {success: true, status: order.order_status, purpose: purposeRaw};
+  });
+

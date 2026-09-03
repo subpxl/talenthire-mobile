@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:bombay_casting/core/models/models.dart';
 import 'package:bombay_casting/features/creators/models/creator_profile.dart';
+import 'package:bombay_casting/features/jobs/models/agency_profile.dart';
 import 'package:bombay_casting/features/jobs/models/job_listing.dart';
 import 'package:bombay_casting/features/jobs/providers/job_feed_provider.dart';
 import 'package:bombay_casting/features/jobs/services/job_cache_service.dart';
@@ -58,6 +59,96 @@ class JobState extends ChangeNotifier {
       savedCreators.any((creator) => creator.id == creatorId);
 
   Job? jobById(String jobId) => jobFeed.byId(jobId);
+
+  Future<Job?> fetchJobById(String id) async {
+    if (id.isEmpty) return null;
+    final cached = jobById(id);
+    if (cached != null) return cached;
+    final doc = await _firestore.collection('jobs').doc(id).get();
+    if (!doc.exists) return null;
+    final job = Job.fromJson({
+      ...Map<String, dynamic>.from(doc.data() ?? const {}),
+      'id': doc.id,
+    });
+    jobFeed.index(job);
+    return job;
+  }
+
+  Future<CreatorProfile?> fetchCreatorById(String id) async {
+    if (id.isEmpty) return null;
+    for (final creator in [...creators, ...savedCreators]) {
+      if (creator.id == id) return creator;
+    }
+
+    final userDoc = await _firestore.collection('users').doc(id).get();
+    if (!userDoc.exists) return null;
+    final profileDoc = await _firestore.collection('profiles').doc(id).get();
+    if (!profileDoc.exists) return null;
+    final user = User.fromJson({
+      ...Map<String, dynamic>.from(userDoc.data() ?? const {}),
+      'id': userDoc.id,
+    });
+    final profile = Profile.fromJson({
+      ...Map<String, dynamic>.from(profileDoc.data() ?? const {}),
+      'user_id': profileDoc.id,
+    });
+    return CreatorProfile.fromRecords(
+      user: user,
+      profile: profile,
+      fallbackIndex: 1,
+    );
+  }
+
+  Future<AgencyProfile?> fetchAgencyById(String id) async {
+    if (id.isEmpty) return null;
+    final fromLoaded = jobs.where(
+      (job) => job.createdBy == id,
+    );
+    if (fromLoaded.isNotEmpty) {
+      return AgencyProfile.fromJob(fromLoaded.first, allJobs: jobs);
+    }
+
+    QuerySnapshot<Map<String, dynamic>>? snap;
+    try {
+      snap = await _firestore
+          .collection('jobs')
+          .where('created_by', isEqualTo: id)
+          .limit(20)
+          .get();
+    } catch (_) {}
+    if (snap == null || snap.docs.isEmpty) {
+      try {
+        snap = await _firestore
+            .collection('jobs')
+            .where('agencyId', isEqualTo: id)
+            .limit(20)
+            .get();
+      } catch (_) {}
+    }
+    final fetched = [
+      if (snap != null)
+        for (final doc in snap.docs)
+          Job.fromJson({
+            ...Map<String, dynamic>.from(doc.data()),
+            'id': doc.id,
+          }),
+    ];
+    for (final job in fetched) {
+      jobFeed.index(job);
+    }
+    if (fetched.isNotEmpty) {
+      return AgencyProfile.fromJob(fetched.first, allJobs: [...jobs, ...fetched]);
+    }
+
+    final userDoc = await _firestore.collection('users').doc(id).get();
+    if (!userDoc.exists) return null;
+    final data = userDoc.data() ?? const <String, dynamic>{};
+    return AgencyProfile(
+      id: id,
+      name: (data['name'] ?? 'Agency').toString(),
+      createdBy: id,
+    );
+  }
 
   void setJobFilter(HomeJobFilter filter) => jobFeed.setFilter(filter);
 
@@ -314,33 +405,65 @@ class JobState extends ChangeNotifier {
         userSnap = await _firestore.collection('users').limit(80).get();
       }
       final profileIds = [
-        for (final doc in userSnap.docs)
-          if (doc.id != currentUserId) doc.id,
+        for (final doc in userSnap.docs) doc.id,
       ];
+      if (currentUserId != null &&
+          currentUserId.isNotEmpty &&
+          !profileIds.contains(currentUserId)) {
+        profileIds.add(currentUserId);
+      }
       final profilesById = await _profilesByIds(profileIds);
       final loaded = <CreatorProfile>[];
       var fallbackIndex = 1;
-      for (final doc in userSnap.docs) {
-        if (doc.id == currentUserId) continue;
-        final otherProfile = profilesById[doc.id];
-        if (otherProfile == null) continue;
-        final data = Map<String, dynamic>.from(doc.data());
-        data['id'] = data['id'] ?? doc.id;
+      var includedCurrentUser = false;
+
+      CreatorProfile? creatorFrom({
+        required Map<String, dynamic> data,
+        required String id,
+      }) {
+        final otherProfile = profilesById[id];
+        if (otherProfile == null) return null;
+        data['id'] = data['id'] ?? id;
         final otherUser = User.fromJson(data);
-        if (otherUser.name.trim().isEmpty &&
+        final isCurrentUser = id == currentUserId;
+        if (!isCurrentUser &&
+            otherUser.name.trim().isEmpty &&
             otherProfile.galleryPhotos.isEmpty &&
             otherProfile.city.isEmpty) {
-          continue;
+          return null;
         }
-        loaded.add(
-          CreatorProfile.fromRecords(
-            user: otherUser,
-            profile: otherProfile,
-            fallbackIndex: fallbackIndex,
-          ),
+        final creator = CreatorProfile.fromRecords(
+          user: otherUser,
+          profile: otherProfile,
+          fallbackIndex: fallbackIndex,
         );
         fallbackIndex += 4;
+        return creator;
+      }
+
+      for (final doc in userSnap.docs) {
+        final creator = creatorFrom(data: Map<String, dynamic>.from(doc.data()), id: doc.id);
+        if (creator == null) continue;
+        if (doc.id == currentUserId) includedCurrentUser = true;
+        loaded.add(creator);
         if (loaded.length >= 40) break;
+      }
+
+      if (currentUserId != null &&
+          currentUserId.isNotEmpty &&
+          !includedCurrentUser) {
+        final already = loaded.any((item) => item.id == currentUserId);
+        if (!already) {
+          final selfDoc =
+              await _firestore.collection('users').doc(currentUserId).get();
+          if (selfDoc.exists) {
+            final creator = creatorFrom(
+              data: Map<String, dynamic>.from(selfDoc.data()!),
+              id: selfDoc.id,
+            );
+            if (creator != null) loaded.insert(0, creator);
+          }
+        }
       }
       loaded.sort((a, b) {
         final aTime = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);

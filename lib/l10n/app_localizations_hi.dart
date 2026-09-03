@@ -97,6 +97,12 @@ class AppLocalizationsHi extends AppLocalizations {
   String get reportJob => 'जॉब की रिपोर्ट करें';
 
   @override
+  String get agencyReported => 'Agency reported';
+
+  @override
+  String get reportAgency => 'Report agency';
+
+  @override
   String get thisJobIsNoLongerAvailable => 'यह जॉब अब उपलब्ध नहीं है';
 
   @override
@@ -143,6 +149,30 @@ class AppLocalizationsHi extends AppLocalizations {
   String get report => 'रिपोर्ट';
 
   @override
+  String get reportReasonSpam => 'Spam or scam';
+
+  @override
+  String get reportReasonInappropriate => 'Inappropriate content';
+
+  @override
+  String get reportReasonOther => 'Other';
+
+  @override
+  String get reportOtherHint => 'Please describe the issue';
+
+  @override
+  String get reportSubmit => 'Submit';
+
+  @override
+  String get reportCancel => 'Cancel';
+
+  @override
+  String get reportSelectReason => 'Please select a reason';
+
+  @override
+  String get reportOtherRequired => 'Please describe the issue';
+
+  @override
   String get agenciesMessageYouAfterYouApply =>
       'आवेदन करने के बाद एजेंसियां आपको मैसेज करती हैं';
 
@@ -180,7 +210,7 @@ class AppLocalizationsHi extends AppLocalizations {
       'भुगतान अभी उपलब्ध नहीं हैं। आप वापस जा सकते हैं और ऐप का उपयोग करना जारी रख सकते हैं।';
 
   @override
-  String get for1DayThen299month => '1 दिन के लिए, फिर ₹299/महीना';
+  String get for1DayThen299month => '3 दिनों के लिए, फिर ₹299/महीना';
 
   @override
   String get phonepe => 'PhonePe';
@@ -281,10 +311,29 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get addUpTo4PhotosFirstPhotoIsYourMainProfilePicture =>
-      '4 तक फोटो जोड़ें। पहला फोटो आपकी मुख्य प्रोफ़ाइल तस्वीर है।';
+      '4 तक फोटो जोड़ें। प्रीव्यू के लिए टैप करें, या किसी भी फोटो को मुख्य प्रदर्शन छवि बनाएं।';
 
   @override
   String get main => 'मुख्य';
+
+  @override
+  String get setAsMain => 'मुख्य बनाएं';
+
+  @override
+  String get couldNotSetMainPhoto => 'मुख्य फोटो सेट नहीं किया जा सका';
+
+  @override
+  String get previewPhotos => 'फोटो प्रीव्यू';
+
+  @override
+  String get uploadPhotos => 'अपलोड करें';
+
+  @override
+  String get addPhotos => 'फोटो जोड़ें';
+
+  @override
+  String get tapToSetAsMain =>
+      'मुख्य प्रदर्शन छवि बनाने के लिए फोटो पर टैप करें';
 
   @override
   String get addPhoto => 'फोटो जोड़ें';
@@ -334,7 +383,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get navCreators => 'क्रिएटर्स';
 
   @override
-  String get navJobs => 'UGC';
+  String get navJobs => 'Jobs';
 
   @override
   String get navMessages => 'संदेश';
@@ -371,6 +420,25 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get saved => 'सहेजा गया';
+
+  @override
+  String get appliedJobs => 'Applied';
+
+  @override
+  String get noAppliedJobsYet =>
+      'No applied jobs yet. Apply to a job to track your progress here.';
+
+  @override
+  String get applicationStageApplied => 'Applied';
+
+  @override
+  String get applicationStageOpened => 'Opened';
+
+  @override
+  String get applicationStageShortlisted => 'Shortlisted';
+
+  @override
+  String get applicationStageCancelled => 'Cancelled';
 
   @override
   String get all => 'सभी';

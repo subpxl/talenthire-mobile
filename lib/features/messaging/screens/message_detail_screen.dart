@@ -1,8 +1,11 @@
 import 'package:bombay_casting/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/features/messaging/models/conversation.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/core/widgets/placeholder_avatar.dart';
+import 'package:bombay_casting/core/widgets/report_dialog.dart';
 
 class MessageDetailScreen extends StatefulWidget {
   const MessageDetailScreen({
@@ -17,7 +20,6 @@ class MessageDetailScreen extends StatefulWidget {
 }
 
 class _MessageDetailScreenState extends State<MessageDetailScreen> {
-  late final List<ChatMessage> _messages;
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
 
@@ -26,7 +28,9 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _messages = List<ChatMessage>.from(conversation.messages);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AppState>().messaging?.openThread(conversation);
+    });
   }
 
   @override
@@ -36,19 +40,11 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
     super.dispose();
   }
 
-  void _sendMessage() {
+  Future<void> _sendMessage() async {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
-    setState(() {
-      _messages.add(
-        ChatMessage(
-          text: text,
-          isMine: true,
-          time: 'Now',
-        ),
-      );
-    });
     _controller.clear();
+    await context.read<AppState>().messaging?.sendMessage(text);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
       _scrollController.animateTo(
@@ -61,7 +57,25 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    final messaging = context.watch<AppState>().messaging;
+    final messages = messaging?.activeMessages ?? conversation.messages;
+    final isSending = messaging?.isSending ?? false;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients || messages.isEmpty) return;
+      final maxExtent = _scrollController.position.maxScrollExtent;
+      if (_scrollController.offset >= maxExtent - 80) {
+        _scrollController.jumpTo(maxExtent);
+      }
+    });
+
+    return PopScope(
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          context.read<AppState>().messaging?.closeThread();
+        }
+      },
+      child: Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         leading: IconButton(
@@ -107,15 +121,23 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
         actions: [
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
-            onSelected: (value) {
+            onSelected: (value) async {
               if (value == 'report') {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(AppLocalizations.of(context)!.conversationReported)),
+                final l10n = AppLocalizations.of(context)!;
+                final result = await showReportDialog(
+                  context,
+                  title: l10n.report,
                 );
+                if (result != null && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(l10n.conversationReported)),
+                  );
+                }
               }
             },
             itemBuilder: (context) => [
-              PopupMenuItem(value: 'report',
+              PopupMenuItem(
+                value: 'report',
                 child: Text(AppLocalizations.of(context)!.report),
               ),
             ],
@@ -125,27 +147,37 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
       body: Column(
         children: [
           Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.screenH,
-                AppSpacing.md,
-                AppSpacing.screenH,
-                AppSpacing.md,
-              ),
-              itemCount: _messages.length,
-              itemBuilder: (context, index) {
-                return _MessageBubble(message: _messages[index]);
-              },
-            ),
+            child: messages.isEmpty
+                ? Center(
+                    child: Text(
+                      'No messages yet. Say hello!',
+                      style: context.bodyMedium.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    controller: _scrollController,
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.screenH,
+                      AppSpacing.md,
+                      AppSpacing.screenH,
+                      AppSpacing.md,
+                    ),
+                    itemCount: messages.length,
+                    itemBuilder: (context, index) {
+                      return _MessageBubble(message: messages[index]);
+                    },
+                  ),
           ),
           _ComposerBar(
             controller: _controller,
-            onSend: _sendMessage,
+            onSend: isSending ? null : _sendMessage,
           ),
         ],
       ),
+    ),
     );
   }
 }
@@ -213,7 +245,7 @@ class _ComposerBar extends StatelessWidget {
   });
 
   final TextEditingController controller;
-  final VoidCallback onSend;
+  final VoidCallback? onSend;
 
   @override
   Widget build(BuildContext context) {
@@ -239,6 +271,7 @@ class _ComposerBar extends StatelessWidget {
                   textCapitalization: TextCapitalization.sentences,
                   minLines: 1,
                   maxLines: 4,
+                  enabled: onSend != null,
                   decoration: const InputDecoration(
                     hintText: 'Type a message',
                     isDense: true,
@@ -247,7 +280,7 @@ class _ComposerBar extends StatelessWidget {
                       vertical: 10,
                     ),
                   ),
-                  onSubmitted: (_) => onSend(),
+                  onSubmitted: onSend == null ? null : (_) => onSend!(),
                 ),
               ),
               const SizedBox(width: 4),
@@ -255,7 +288,13 @@ class _ComposerBar extends StatelessWidget {
                 tooltip: 'Send',
                 onPressed: onSend,
                 color: AppColors.primary,
-                icon: const Icon(Icons.send),
+                icon: onSend == null
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.send),
               ),
             ],
           ),

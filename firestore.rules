@@ -51,21 +51,62 @@ service cloud.firestore {
         && request.auth.uid in conversationParticipants(convId);
     }
 
+    function isAgency() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'agency';
+    }
+
+    function applicationJobId(data) {
+      return data.get('job_id', data.get('jobId', ''));
+    }
+
+    function agencyOwnsJob(jobId) {
+      return isAgency()
+        && jobId is string
+        && jobId.size() > 0
+        && jobId.size() <= 128
+        && exists(/databases/$(database)/documents/jobs/$(jobId))
+        && (
+          get(/databases/$(database)/documents/jobs/$(jobId)).data.get('agencyId', '')
+            == request.auth.uid
+          || get(/databases/$(database)/documents/jobs/$(jobId)).data.get('created_by', '')
+            == request.auth.uid
+        );
+    }
+
     // ── users ──────────────────────────────────────────────────────────────
     match /users/{userId} {
       allow read: if isSignedIn();
 
-      // Clients may only create their own influencer account.
-      // role/admin can be granted only by Admin SDK / console.
-      allow create: if isOwner(userId)
-        && request.resource.data.id == userId
-        && request.resource.data.role == 'influencer'
-        && request.resource.data.get('is_active', true) == true
-        && stringField(request.resource.data, 'name', 80)
-        && stringField(request.resource.data, 'email', 254)
-        && optionalString(request.resource.data, 'mobile', 20);
+      // Influencer self-registration, or agency portal self-registration.
+      allow create: if isOwner(userId) && (
+        (
+          request.resource.data.role == 'influencer'
+          && request.resource.data.id == userId
+          && request.resource.data.get('is_active', true) == true
+          && stringField(request.resource.data, 'name', 80)
+          && stringField(request.resource.data, 'email', 254)
+          && optionalString(request.resource.data, 'mobile', 20)
+        )
+        || (
+          request.resource.data.role == 'agency'
+          && request.resource.data.uid == userId
+          && request.resource.data.ownerId == userId
+          && stringField(request.resource.data, 'email', 254)
+          && stringField(request.resource.data, 'agencyName', 120)
+          && stringField(request.resource.data, 'profileDetails', 2000)
+        )
+      );
 
       allow update: if isAdmin() || (
+        isOwner(userId)
+        && resource.data.role == 'agency'
+        && request.resource.data.role == 'agency'
+        && request.resource.data.uid == userId
+        && request.resource.data.ownerId == resource.data.ownerId
+        && !changedKeys().hasAny(['role', 'uid', 'ownerId'])
+      ) || (
         isOwner(userId)
         && request.resource.data.id == userId
         && !changedKeys().hasAny(['role', 'is_active', 'id', 'created_at'])
@@ -126,6 +167,10 @@ service cloud.firestore {
       allow read, write: if isOwner(userId);
     }
 
+    match /users/{userId}/saved_talent/{talentId} {
+      allow read, write: if isOwner(userId);
+    }
+
     // ── conversations ──────────────────────────────────────────────────────
     match /conversations/{convId} {
       function isParticipant() {
@@ -172,17 +217,26 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // ── jobs (Admin SDK / console only — not client-writable) ──────────────
+    // ── jobs ───────────────────────────────────────────────────────────────
     match /jobs/{jobId} {
       allow read: if isSignedIn();
-      allow write: if false;
+      allow create: if isAgency()
+        && request.resource.data.agencyId == request.auth.uid
+        && request.resource.data.created_by == request.auth.uid
+        && stringField(request.resource.data, 'title', 200);
+      allow update: if isAdmin() || (
+        isAgency()
+        && resource.data.agencyId == request.auth.uid
+        && request.resource.data.agencyId == request.auth.uid
+      );
+      allow delete: if false;
     }
 
     // ── applications ───────────────────────────────────────────────────────
     match /applications/{appId} {
       allow read: if isAdmin() || (
         isSignedIn() && resource.data.user_id == request.auth.uid
-      );
+      ) || agencyOwnsJob(applicationJobId(resource.data));
 
       // Only the signed-in premium owner can create their own application.
       allow create: if isPremium()
@@ -194,10 +248,12 @@ service cloud.firestore {
         && stringField(request.resource.data, 'job_title', 200)
         && optionalString(request.resource.data, 'company', 120);
 
-      // Status changes are admin-only. Clients cannot rewrite applications.
-      allow update: if isAdmin()
+      allow update: if isAdmin() || (
+        isAgency()
+        && agencyOwnsJob(applicationJobId(resource.data))
+        && applicationJobId(request.resource.data) == applicationJobId(resource.data)
         && request.resource.data.user_id == resource.data.user_id
-        && request.resource.data.job_id == resource.data.job_id;
+      );
 
       allow delete: if false;
     }

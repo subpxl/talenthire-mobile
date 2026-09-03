@@ -1,12 +1,9 @@
 import 'package:bombay_casting/l10n/app_localizations.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:bombay_casting/core/navigation/app_navigation.dart';
 import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/features/profile/screens/account_settings_screen.dart';
-import 'package:bombay_casting/features/onboarding/screens/get_help_screen.dart';
-import 'package:bombay_casting/features/onboarding/screens/select_language_screen.dart';
 import 'package:bombay_casting/features/profile/screens/edit_profile_view_screen.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/core/widgets/app_screen_layout.dart';
@@ -21,6 +18,9 @@ class UserProfileScreen extends StatefulWidget {
 class _UserProfileScreenState extends State<UserProfileScreen> {
   @override
   Widget build(BuildContext context) {
+    final appState = context.watch<AppState>();
+    final profile = appState.profile;
+    final user = appState.user;
     return AppScreenLayout(
       title: AppLocalizations.of(context)!.navProfile,
       body: AppScrollBody(
@@ -28,24 +28,51 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.all(AppSpacing.screenH),
-              child: _buildProfileHeader(context),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.screenH,
+                AppSpacing.sm,
+                AppSpacing.screenH,
+                0,
+              ),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ProfilePhotoPicker(profile: profile),
+                    const SizedBox(height: 16),
+                    const Divider(height: 1, color: AppColors.divider),
+                    const SizedBox(height: 14),
+                    _buildProfileHeader(context),
+                  ],
+                ),
+              ),
             ),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.screenH,
+                AppSpacing.md,
+                AppSpacing.screenH,
+                0,
+              ),
               child: _buildPremiumCard(context),
             ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.screenH,
+                AppSpacing.md,
+                AppSpacing.screenH,
+                0,
+              ),
+              child: EditProfileSectionList(profile: profile, user: user),
+            ),
             const SizedBox(height: AppSpacing.sm),
-            AppSettingsTile(
-              icon: Icons.chat_outlined,
-              title: AppLocalizations.of(context)!.getHelp,
-              onTap: () => AppNavigation.push(context, const GetHelpScreen()),
-            ),
-            AppSettingsTile(
-              icon: Icons.translate,
-              title: AppLocalizations.of(context)!.changeLanguage,
-              onTap: () => AppNavigation.push(context, const LanguageScreen()),
-            ),
             AppSettingsTile(
               icon: Icons.settings_outlined,
               title: AppLocalizations.of(context)!.accountSettings,
@@ -63,88 +90,69 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     final user = appState.user;
     final profile = appState.profile;
     final name = (user?.name ?? '').trim().isEmpty ? 'Your profile' : user!.name;
-    final phone = (user?.mobile ?? '').trim().isEmpty
-        ? (user?.email ?? '')
-        : user!.mobile;
-    final details = [
-      if (profile?.age != null) '${profile!.age} years',
-      if ((profile?.talent ?? '').isNotEmpty) profile!.talent,
-      if (profile != null && profile.niches.isNotEmpty)
-        profile.niches.take(2).join(', '),
-      if (profile != null &&
-          profile.niches.isEmpty &&
-          profile.languages.isNotEmpty)
-        profile.languages.join(', '),
-    ].where((item) => item.isNotEmpty).join(', ');
-    final location = [
-      profile?.city ?? '',
-      profile?.state ?? '',
-    ].where((item) => item.isNotEmpty).join(', ');
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Stack(
-          children: [
-            CircleAvatar(
-              radius: 40,
-              backgroundColor: AppColors.divider,
-              backgroundImage: (profile?.profileImage ?? '').isNotEmpty
-                  ? CachedNetworkImageProvider(profile!.profileImage)
-                  : null,
-              child: (profile?.profileImage ?? '').isEmpty
-                  ? Icon(Icons.image_outlined, size: 36, color: AppColors.textHint)
-                  : null,
+    final email = (user?.email ?? '').trim();
+    final talent = (profile?.talent ?? '').trim();
+    final influencerLabel = talent.isEmpty
+        ? 'Influencer'
+        : '${talent[0].toUpperCase()}${talent.substring(1)}';
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            name,
+            textAlign: TextAlign.left,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              height: 1.2,
+              color: AppColors.textPrimary,
             ),
-            Positioned(
-              right: 2,
-              top: 2,
-              child: Container(
-                padding: const EdgeInsets.all(2),
-                decoration: const BoxDecoration(
-                  color: AppColors.textPrimary,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.add, size: 12, color: Colors.white),
+          ),
+          if (email.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              email,
+              textAlign: TextAlign.left,
+              style: context.bodyMedium.copyWith(
+                color: AppColors.textSecondary,
               ),
             ),
           ],
-        ),
-        const SizedBox(width: AppSpacing.md),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+          const SizedBox(height: 10),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: AppColors.primaryLight,
+              borderRadius: BorderRadius.circular(AppRadius.pill),
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.18)),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Flexible(
-                    child: Text(
-                      name,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
-                      ),
+                  const Icon(
+                    Icons.campaign_outlined,
+                    size: 15,
+                    color: AppColors.primary,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    influencerLabel,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primary,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 2),
-              if (phone.isNotEmpty) Text(phone, style: context.bodyMedium),
-              if (details.isNotEmpty) Text(details, style: context.caption),
-              if (location.isNotEmpty) Text(location, style: context.caption),
-              const SizedBox(height: AppSpacing.sm + 4),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: () =>
-                      AppNavigation.push(context, const EditProfileScreen()),
-                  child: Text(AppLocalizations.of(context)!.editProfile),
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -152,12 +160,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     final isPremium = context.watch<AppState>().isPremiumUser;
     return Material(
       color: AppColors.bannerStart,
-      borderRadius: BorderRadius.circular(AppRadius.sm),
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: isPremium
             ? null
             : () => AppNavigation.openPremiumScreen(context),
-        borderRadius: BorderRadius.circular(AppRadius.sm),
+        borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.md,
@@ -165,7 +173,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           ),
           child: Row(
             children: [
-              const Icon(Icons.workspace_premium_outlined, color: AppColors.primary, size: 22),
+              const Icon(
+                Icons.workspace_premium_outlined,
+                color: AppColors.primary,
+                size: 22,
+              ),
               const SizedBox(width: AppSpacing.sm + 4),
               Expanded(
                 child: Text(
@@ -180,7 +192,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 ),
               ),
               Text(
-                isPremium ? AppLocalizations.of(context)!.active : AppLocalizations.of(context)!.join,
+                isPremium
+                    ? AppLocalizations.of(context)!.active
+                    : AppLocalizations.of(context)!.join,
                 style: context.caption.copyWith(
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.5,
@@ -194,5 +208,3 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
   }
 }
-
-

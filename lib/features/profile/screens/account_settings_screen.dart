@@ -1,12 +1,10 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:bombay_casting/app/app_state.dart';
-import 'package:bombay_casting/core/models/model_helpers.dart';
-import 'package:bombay_casting/core/services/payment_service.dart';
+import 'package:bombay_casting/core/navigation/app_navigation.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
+import 'package:bombay_casting/features/onboarding/screens/get_help_screen.dart';
+import 'package:bombay_casting/features/onboarding/screens/select_language_screen.dart';
 import 'package:bombay_casting/l10n/app_localizations.dart';
 
 class AccountSettingsScreen extends StatefulWidget {
@@ -17,22 +15,10 @@ class AccountSettingsScreen extends StatefulWidget {
 }
 
 class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
-  final PaymentService _paymentService = PaymentService();
   bool _isLoggingOut = false;
-  bool _isCancelling = false;
-
-  static const _terminalStatuses = {
-    'CUSTOMER_CANCELLED',
-    'CANCELLED',
-    'EXPIRED',
-    'LINK_EXPIRED',
-    'COMPLETED',
-  };
 
   @override
   Widget build(BuildContext context) {
-    final uid = context.watch<AppState>().user?.id;
-
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -97,287 +83,83 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           ),
           const SizedBox(height: AppSpacing.md),
           _SettingsCard(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.md,
-                AppSpacing.md,
-                AppSpacing.md,
-                14,
-              ),
-              child: uid == null
-                  ? _emptySubscriptionSection(context)
-                  : StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                      stream: FirebaseFirestore.instance
-                          .collection('subscriptions')
-                          .doc(uid)
-                          .snapshots(),
-                      builder: (context, snapshot) {
-                        final data = snapshot.data?.data();
-                        return _subscriptionSection(context, data);
-                      },
-                    ),
+            child: Column(
+              children: [
+                _SettingsLinkTile(
+                  icon: Icons.chat_outlined,
+                  title: AppLocalizations.of(context)!.getHelp,
+                  onTap: () => AppNavigation.push(
+                    context,
+                    const GetHelpScreen(),
+                  ),
+                ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                _SettingsLinkTile(
+                  icon: Icons.translate,
+                  title: AppLocalizations.of(context)!.changeLanguage,
+                  onTap: () => AppNavigation.push(
+                    context,
+                    const LanguageScreen(),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: ElevatedButton(
-              onPressed: _isLoggingOut ? null : _logout,
-              child: _isLoggingOut
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : Text(AppLocalizations.of(context)!.logout),
+          const Padding(
+            padding: EdgeInsets.only(left: 4, bottom: 8),
+            child: Text(
+              'Manage account',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.2,
+                color: AppColors.textSecondary,
+              ),
             ),
           ),
-          const SizedBox(height: AppSpacing.sm),
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: TextButton(
-              onPressed: () => _confirmDeleteAccount(context),
-              child: Text(AppLocalizations.of(context)!.deleteAccount,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.primary,
+          _SettingsCard(
+            child: Column(
+              children: [
+                _SettingsLinkTile(
+                  icon: Icons.pause_circle_outline,
+                  title: 'Deactivate account',
+                  onTap: () => _confirmDeactivateAccount(context),
                 ),
-              ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                _SettingsLinkTile(
+                  icon: Icons.delete_outline,
+                  title: AppLocalizations.of(context)!.deleteAccount,
+                  onTap: () => _confirmDeleteAccount(context),
+                ),
+              ],
             ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Center(
+            child: _isLoggingOut
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.primary,
+                    ),
+                  )
+                : TextButton(
+                    onPressed: _logout,
+                    child: Text(
+                      AppLocalizations.of(context)!.logout,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _emptySubscriptionSection(BuildContext context) {
-    return _subscriptionSection(context, null);
-  }
-
-  Widget _subscriptionSection(
-    BuildContext context,
-    Map<String, dynamic>? data,
-  ) {
-    final l10n = AppLocalizations.of(context)!;
-    final isPremium = context.watch<AppState>().isPremiumUser;
-    final transactions = _transactionsFromSubscription(data);
-    final canCancel = _canCancel(
-      status: data?['subscription_status']?.toString(),
-      isPremium: isPremium,
-      hasSubscription: data != null,
-    );
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(l10n.subscriptions,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(l10n.recentTransactions, style: context.caption),
-        const SizedBox(height: AppSpacing.md),
-        if (transactions.isEmpty)
-          Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.md),
-            child: Text(l10n.noTransactionsYet, style: context.caption),
-          )
-        else
-          ...transactions.map((item) => _TransactionTile(item: item)),
-        if (canCancel) ...[
-          const SizedBox(height: AppSpacing.sm),
-          SizedBox(
-            width: double.infinity,
-            height: 46,
-            child: OutlinedButton(
-              onPressed: _isCancelling ? null : _confirmCancelSubscription,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.primary,
-                side: const BorderSide(color: AppColors.primary),
-              ),
-              child: _isCancelling
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(l10n.cancelSubscription),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  bool _canCancel({
-    required String? status,
-    required bool isPremium,
-    required bool hasSubscription,
-  }) {
-    if (!hasSubscription && !isPremium) return false;
-    if (isPremium) return true;
-    final normalized = (status ?? '').toUpperCase();
-    if (normalized.isEmpty) return false;
-    return !_terminalStatuses.contains(normalized);
-  }
-
-  List<_TransactionItem> _transactionsFromSubscription(
-    Map<String, dynamic>? data,
-  ) {
-    if (data == null) return const [];
-
-    final status = (data['subscription_status'] ?? '').toString();
-    final createdAt = parseFlexibleDate(data['created_at']);
-    final storedFirstChargeAt = parseFlexibleDate(data['first_charge_at']);
-    final firstChargeAt = storedFirstChargeAt;
-    final authAmount = data['authorization_amount'] ?? 1;
-    final recurringAmount = data['recurring_amount'] ?? 299;
-    final cancellationStatus =
-        (data['cancellation_order_status'] ?? '').toString().toUpperCase();
-    final cancellationPaidAt = parseFlexibleDate(data['cancellation_paid_at']);
-    final cancellationAmount = data['cancellation_amount'] ?? 299;
-    final now = DateTime.now();
-    final monthlyUpcoming =
-        firstChargeAt != null && firstChargeAt.isAfter(now);
-
-    final items = <_TransactionItem>[
-      _TransactionItem(
-        title: 'Premium Trial',
-        amount: '₹$authAmount',
-        date: createdAt == null ? '' : DateFormat('d MMM yyyy').format(createdAt),
-        status: _displayStatus(status, upcoming: false),
-        isCancelled: _terminalStatuses.contains(status.toUpperCase()),
-      ),
-      _TransactionItem(
-        title: 'Premium Monthly',
-        amount: '₹$recurringAmount',
-        date: firstChargeAt == null
-            ? ''
-            : DateFormat('d MMM yyyy').format(firstChargeAt),
-        status: _displayStatus(status, upcoming: monthlyUpcoming),
-        isCancelled: _terminalStatuses.contains(status.toUpperCase()),
-      ),
-    ];
-
-    if (cancellationStatus == 'PAID') {
-      items.add(
-        _TransactionItem(
-          title: 'Cancellation charge',
-          amount: '₹$cancellationAmount',
-          date: cancellationPaidAt == null
-              ? ''
-              : DateFormat('d MMM yyyy').format(cancellationPaidAt),
-          status: 'Paid',
-        ),
-      );
-    }
-
-    return items;
-  }
-
-  String _displayStatus(String status, {required bool upcoming}) {
-    final normalized = status.toUpperCase();
-    if (_terminalStatuses.contains(normalized)) return 'Cancelled';
-    if (upcoming) return 'Upcoming';
-    if (normalized == 'ACTIVE') return 'Paid';
-    if (normalized.isEmpty) return 'Pending';
-    return 'Pending';
-  }
-
-  Future<void> _confirmCancelSubscription() async {
-    final l10n = AppLocalizations.of(context)!;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => _ConfirmDialog(
-        title: l10n.cancelPremiumTitle,
-        message: l10n.cancelPremiumMessage,
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-    await _cancelSubscription();
-  }
-
-  Future<void> _cancelSubscription() async {
-    setState(() => _isCancelling = true);
-    final l10n = AppLocalizations.of(context)!;
-    try {
-      final session = await _paymentService.createCancellationCharge();
-      if (!mounted) return;
-
-      if (session.alreadyCancelled) {
-        await context.read<AppState>().refreshProfile();
-        if (!mounted) return;
-        _showMessage(l10n.subscriptionCancelled);
-        return;
-      }
-
-      var paymentResult = PremiumPaymentResult.failure;
-      try {
-        paymentResult = await _paymentService.launchUpiOneTimePayment(
-          session: session,
-          upiApp: UpiAppOption.phonePe,
-          onFailure: (message) {
-            if (!mounted) return;
-            _showMessage(
-              message.isEmpty ? l10n.couldNotOpenPhonePe : message,
-            );
-          },
-        );
-      } catch (_) {
-        if (!mounted) return;
-        _showMessage(l10n.couldNotOpenPhonePe);
-        return;
-      }
-
-      if (!mounted) return;
-
-      if (paymentResult == PremiumPaymentResult.failure) {
-        _showMessage(l10n.cancellationChargeIncomplete);
-        return;
-      }
-
-      await _paymentService.completeCancellationAfterCharge(
-        orderId: session.orderId,
-      );
-      if (!mounted) return;
-      await context.read<AppState>().refreshProfile();
-      if (!mounted) return;
-      _showMessage(l10n.subscriptionCancelled);
-    } on FirebaseFunctionsException catch (error) {
-      if (!mounted) return;
-      if (error.code == 'failed-precondition') {
-        final message = error.message ?? '';
-        if (message.contains('PhonePe') || message.contains('₹299')) {
-          _showMessage(l10n.cancellationChargeIncomplete);
-        } else {
-          _showMessage(l10n.noActiveSubscription);
-        }
-      } else {
-        _showMessage(error.message ?? l10n.couldNotCancelSubscription);
-      }
-    } catch (_) {
-      if (!mounted) return;
-      _showMessage(l10n.couldNotCancelSubscription);
-    } finally {
-      if (mounted) {
-        setState(() => _isCancelling = false);
-      }
-    }
-  }
-
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
     );
   }
 
@@ -388,10 +170,20 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     setState(() => _isLoggingOut = false);
   }
 
+  Future<void> _confirmDeactivateAccount(BuildContext context) async {
+    await showDialog<bool>(
+      context: context,
+      builder: (context) => const AccountConfirmDialog(
+        title: 'Deactivate account?',
+        message: 'You can come back later by logging in again.',
+      ),
+    );
+  }
+
   Future<void> _confirmDeleteAccount(BuildContext context) async {
     final first = await showDialog<bool>(
       context: context,
-      builder: (context) => const _ConfirmDialog(
+      builder: (context) => const AccountConfirmDialog(
         title: 'Are you sure?',
       ),
     );
@@ -399,7 +191,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
 
     await showDialog<bool>(
       context: context,
-      builder: (context) => const _ConfirmDialog(
+      builder: (context) => const AccountConfirmDialog(
         title: 'Are you definitely sure?',
         message: 'Nothing can be recovered.',
       ),
@@ -425,96 +217,42 @@ class _SettingsCard extends StatelessWidget {
   }
 }
 
-class _TransactionItem {
-  const _TransactionItem({
+class _SettingsLinkTile extends StatelessWidget {
+  const _SettingsLinkTile({
+    required this.icon,
     required this.title,
-    required this.amount,
-    required this.date,
-    required this.status,
-    this.isCancelled = false,
+    required this.onTap,
   });
 
+  final IconData icon;
   final String title;
-  final String amount;
-  final String date;
-  final String status;
-  final bool isCancelled;
-}
-
-class _TransactionTile extends StatelessWidget {
-  const _TransactionTile({required this.item});
-
-  final _TransactionItem item;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.md),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: const BoxDecoration(
-              color: AppColors.primaryLight,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.currency_rupee,
-              size: 18,
-              color: AppColors.primary,
-            ),
-          ),
-          const SizedBox(width: AppSpacing.sm + 4),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.title,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                if (item.date.isNotEmpty) Text(item.date, style: context.caption),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                item.amount,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                item.status,
-                style: context.caption.copyWith(
-                  color: item.isCancelled
-                      ? AppColors.textSecondary
-                      : AppColors.accentGreen,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ],
+    return ListTile(
+      leading: Icon(icon, size: 22),
+      title: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w500,
+          color: AppColors.textPrimary,
+        ),
       ),
+      trailing: Icon(
+        Icons.chevron_right,
+        color: AppColors.textHint,
+        size: 20,
+      ),
+      onTap: onTap,
     );
   }
 }
 
-class _ConfirmDialog extends StatelessWidget {
-  const _ConfirmDialog({
+class AccountConfirmDialog extends StatelessWidget {
+  const AccountConfirmDialog({
+    super.key,
     required this.title,
     this.message,
   });

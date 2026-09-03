@@ -14,7 +14,7 @@ class AppTabBar extends StatelessWidget {
     required this.tabs,
     required this.selectedIndex,
     required this.onChanged,
-    this.spacing = 24,
+    this.spacing = 0,
   });
 
   final List<AppTabItem> tabs;
@@ -24,18 +24,24 @@ class AppTabBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        for (var i = 0; i < tabs.length; i++) ...[
-          if (i > 0) SizedBox(width: spacing),
-          _TabChip(
-            label: tabs[i].label,
-            isSelected: selectedIndex == i,
-            indicatorWidth: tabs[i].indicatorWidth,
-            onTap: () => onChanged(i),
-          ),
+    return SizedBox(
+      height: 48,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < tabs.length; i++) ...[
+            if (i > 0) SizedBox(width: spacing),
+            _TabChip(
+              label: tabs[i].label,
+              isSelected: selectedIndex == i,
+              indicatorWidth: tabs[i].indicatorWidth,
+              padLeft: i > 0,
+              onTap: () => onChanged(i),
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 }
@@ -45,50 +51,60 @@ class _TabChip extends StatelessWidget {
     required this.label,
     required this.isSelected,
     required this.onTap,
+    required this.padLeft,
     this.indicatorWidth,
   });
 
   final String label;
   final bool isSelected;
   final VoidCallback onTap;
+  final bool padLeft;
   final double? indicatorWidth;
 
   @override
   Widget build(BuildContext context) {
     final width = indicatorWidth ?? (label.length * 9.0).clamp(24.0, 56.0);
 
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: AppDurations.innerTab,
-        curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            AnimatedDefaultTextStyle(
-              duration: AppDurations.innerTab,
-              style: TextStyle(
-                color: isSelected ? AppColors.textPrimary : AppColors.textHint,
-                fontSize: 16,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-              ),
-              child: Text(label),
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      label: label,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 56, minHeight: 48),
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(padLeft ? 12 : 0, 8, 12, 8),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AnimatedDefaultTextStyle(
+                  duration: AppDurations.innerTab,
+                  style: TextStyle(
+                    color:
+                        isSelected ? AppColors.textPrimary : AppColors.textHint,
+                    fontSize: 16,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    height: 1.2,
+                  ),
+                  child: Text(label),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                AnimatedContainer(
+                  duration: AppDurations.innerTab,
+                  curve: Curves.easeOutCubic,
+                  height: 2,
+                  width: isSelected ? width : 0,
+                  decoration: BoxDecoration(
+                    color: isSelected ? AppColors.primary : Colors.transparent,
+                    borderRadius: BorderRadius.circular(1),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: AppSpacing.xs),
-            AnimatedContainer(
-              duration: AppDurations.innerTab,
-              curve: Curves.easeOutCubic,
-              height: 2,
-              width: isSelected ? width : 0,
-              decoration: BoxDecoration(
-                color: isSelected ? AppColors.primary : Colors.transparent,
-                borderRadius: BorderRadius.circular(1),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

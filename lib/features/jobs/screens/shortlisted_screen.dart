@@ -10,6 +10,7 @@ import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/core/widgets/app_screen_layout.dart';
 import 'package:bombay_casting/core/widgets/placeholder_avatar.dart';
 import 'package:bombay_casting/core/widgets/promo_banner.dart';
+import 'package:bombay_casting/features/jobs/widgets/profile_completion_banner.dart';
 
 class ShortlistTabContent extends StatelessWidget {
   const ShortlistTabContent({super.key});
@@ -19,11 +20,19 @@ class ShortlistTabContent extends StatelessWidget {
     final appState = context.watch<AppState>();
     final savedJobs = appState.savedJobs;
     final isPremium = appState.isPremiumUser;
+    final completionPercent = appState.profile?.completionPercentage ?? 20;
+    final profileBanner = completionPercent < 100
+        ? [
+            ProfileCompletionBanner(percentage: completionPercent),
+            const SizedBox(height: AppSpacing.md),
+          ]
+        : const <Widget>[];
     if (savedJobs.isEmpty) {
       return AppScrollBody(
         onRefresh: () => context.read<AppState>().refreshSavedJobs(),
         child: Column(
           children: [
+            ...profileBanner,
             if (!isPremium)
               PromoBanner(
                 title: 'Your saved jobs',
@@ -44,6 +53,7 @@ class ShortlistTabContent extends StatelessWidget {
     return AppRefreshScrollBody(
       onRefresh: () => context.read<AppState>().refreshSavedJobs(),
       header: [
+        ...profileBanner,
         if (!isPremium)
           PromoBanner(
             title: 'Your saved jobs',

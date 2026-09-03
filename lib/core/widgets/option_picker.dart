@@ -116,6 +116,7 @@ Future<void> saveProfileSection({
   required String section,
   required Map<String, dynamic> data,
   Profile Function(Profile current)? extra,
+  bool pop = true,
 }) async {
   final appState = context.read<AppState>();
   final profile = appState.profile;
@@ -123,7 +124,7 @@ Future<void> saveProfileSection({
   var updated = profile.mergeFormSection(section, data);
   if (extra != null) updated = extra(updated);
   await appState.updateProfile(updated);
-  if (context.mounted) Navigator.pop(context);
+  if (pop && context.mounted) Navigator.pop(context);
 }
 
 class ProfileOptions {
@@ -254,18 +255,66 @@ class ProfileOptions {
   ];
 
   static const niches = [
+    'Cooking',
+    'Food',
     'Fashion',
     'Beauty',
+    'Skincare',
     'Lifestyle',
-    'Food',
     'Travel',
     'Fitness',
+    'Health',
     'Tech',
+    'Gadgets',
     'Gaming',
     'Education',
     'Finance',
     'Parenting',
     'Comedy',
+    'Music',
+    'Dance',
+    'Home & Decor',
+    'Pets',
+    'Automobile',
+    'Sports',
+    'Art',
+    'Books',
+    'Sustainability',
+  ];
+
+  static const contentTypes = [
+    'Reviews',
+    'Unboxing',
+    'Tutorial',
+    'Informative',
+    'Blogs',
+    'Storytelling',
+    'Podcast',
+  ];
+
+  static const creatorCollabTypes = [
+    'Paid',
+    'Barter',
+    'Affiliate',
+  ];
+
+  static const creatorPlatforms = [
+    'Instagram',
+    'YouTube',
+    'Facebook',
+  ];
+
+  static const creatorContentFormats = [
+    'Reels/Shorts',
+    'Stories',
+    'Posts',
+  ];
+
+  static const creatorWorkModes = [
+    'On-site',
+    'Online',
+    'Hybrid',
+    'Remote',
   ];
 
   static const contentFormats = [

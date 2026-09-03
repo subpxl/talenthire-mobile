@@ -83,7 +83,7 @@ class _EditPersonalFieldsScreenState extends State<EditPersonalFieldsScreen> {
       _selectedCategories
         ..clear()
         ..addAll(_categoriesFrom(personal['categories'], profile.talent));
-      _aboutController.text = profile.bio;
+      _aboutController.text = _firstValue(personal['about'], profile.bio);
     });
   }
 
@@ -212,6 +212,7 @@ class _EditPersonalFieldsScreenState extends State<EditPersonalFieldsScreen> {
         'location': _selectedLocation,
         'language': _selectedLanguages.toList(),
         'categories': _selectedCategories.toList(),
+        'about': _aboutController.text.trim(),
       },
       extra: (profile) => profile.copyWith(
         bio: _aboutController.text.trim(),
@@ -267,6 +268,12 @@ class _EditPersonalFieldsScreenState extends State<EditPersonalFieldsScreen> {
                       label: 'Email',
                       value: _emailController.text,
                       labelAsPlaceholder: true,
+                    ),
+                    AppTextField(
+                      label: 'About me',
+                      controller: _aboutController,
+                      hint: 'Type...',
+                      maxLines: 6,
                     ),
                     AppChipField(
                       label: 'Gender',
@@ -349,12 +356,6 @@ class _EditPersonalFieldsScreenState extends State<EditPersonalFieldsScreen> {
                             );
                         });
                       },
-                    ),
-                    AppTextField(
-                      label: 'About me',
-                      controller: _aboutController,
-                      hint: 'Type...',
-                      maxLines: 6,
                     ),
                   ],
                 ),

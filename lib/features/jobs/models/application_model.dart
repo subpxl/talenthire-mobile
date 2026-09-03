@@ -2,6 +2,7 @@ import 'package:bombay_casting/core/models/model_helpers.dart';
 
 enum ApplicationStatus {
   applied,
+  opened,
   shortlisted,
   interview,
   selected,

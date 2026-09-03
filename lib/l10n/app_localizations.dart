@@ -278,6 +278,18 @@ abstract class AppLocalizations {
   /// **'Report job'**
   String get reportJob;
 
+  /// No description provided for @agencyReported.
+  ///
+  /// In en, this message translates to:
+  /// **'Agency reported'**
+  String get agencyReported;
+
+  /// No description provided for @reportAgency.
+  ///
+  /// In en, this message translates to:
+  /// **'Report agency'**
+  String get reportAgency;
+
   /// No description provided for @thisJobIsNoLongerAvailable.
   ///
   /// In en, this message translates to:
@@ -362,6 +374,54 @@ abstract class AppLocalizations {
   /// **'Report'**
   String get report;
 
+  /// No description provided for @reportReasonSpam.
+  ///
+  /// In en, this message translates to:
+  /// **'Spam or scam'**
+  String get reportReasonSpam;
+
+  /// No description provided for @reportReasonInappropriate.
+  ///
+  /// In en, this message translates to:
+  /// **'Inappropriate content'**
+  String get reportReasonInappropriate;
+
+  /// No description provided for @reportReasonOther.
+  ///
+  /// In en, this message translates to:
+  /// **'Other'**
+  String get reportReasonOther;
+
+  /// No description provided for @reportOtherHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Please describe the issue'**
+  String get reportOtherHint;
+
+  /// No description provided for @reportSubmit.
+  ///
+  /// In en, this message translates to:
+  /// **'Submit'**
+  String get reportSubmit;
+
+  /// No description provided for @reportCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get reportCancel;
+
+  /// No description provided for @reportSelectReason.
+  ///
+  /// In en, this message translates to:
+  /// **'Please select a reason'**
+  String get reportSelectReason;
+
+  /// No description provided for @reportOtherRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Please describe the issue'**
+  String get reportOtherRequired;
+
   /// No description provided for @agenciesMessageYouAfterYouApply.
   ///
   /// In en, this message translates to:
@@ -431,7 +491,7 @@ abstract class AppLocalizations {
   /// No description provided for @for1DayThen299month.
   ///
   /// In en, this message translates to:
-  /// **'For 1 day, then ₹299/Month'**
+  /// **'For 3 days, then ₹299/Month'**
   String get for1DayThen299month;
 
   /// No description provided for @phonepe.
@@ -623,7 +683,7 @@ abstract class AppLocalizations {
   /// No description provided for @addUpTo4PhotosFirstPhotoIsYourMainProfilePicture.
   ///
   /// In en, this message translates to:
-  /// **'Add up to 4 photos. First photo is your main profile picture.'**
+  /// **'Add up to 4 photos. Tap a photo to preview, or set any photo as your main display image.'**
   String get addUpTo4PhotosFirstPhotoIsYourMainProfilePicture;
 
   /// No description provided for @main.
@@ -631,6 +691,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Main'**
   String get main;
+
+  /// No description provided for @setAsMain.
+  ///
+  /// In en, this message translates to:
+  /// **'Set as main'**
+  String get setAsMain;
+
+  /// No description provided for @couldNotSetMainPhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not set main photo'**
+  String get couldNotSetMainPhoto;
+
+  /// No description provided for @previewPhotos.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview photos'**
+  String get previewPhotos;
+
+  /// No description provided for @uploadPhotos.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload'**
+  String get uploadPhotos;
+
+  /// No description provided for @addPhotos.
+  ///
+  /// In en, this message translates to:
+  /// **'Add photos'**
+  String get addPhotos;
+
+  /// No description provided for @tapToSetAsMain.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap a photo to set it as your main display image'**
+  String get tapToSetAsMain;
 
   /// No description provided for @addPhoto.
   ///
@@ -725,7 +821,7 @@ abstract class AppLocalizations {
   /// No description provided for @navJobs.
   ///
   /// In en, this message translates to:
-  /// **'UGC'**
+  /// **'Jobs'**
   String get navJobs;
 
   /// No description provided for @navMessages.
@@ -799,6 +895,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Saved'**
   String get saved;
+
+  /// No description provided for @appliedJobs.
+  ///
+  /// In en, this message translates to:
+  /// **'Applied'**
+  String get appliedJobs;
+
+  /// No description provided for @noAppliedJobsYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No applied jobs yet. Apply to a job to track your progress here.'**
+  String get noAppliedJobsYet;
+
+  /// No description provided for @applicationStageApplied.
+  ///
+  /// In en, this message translates to:
+  /// **'Applied'**
+  String get applicationStageApplied;
+
+  /// No description provided for @applicationStageOpened.
+  ///
+  /// In en, this message translates to:
+  /// **'Opened'**
+  String get applicationStageOpened;
+
+  /// No description provided for @applicationStageShortlisted.
+  ///
+  /// In en, this message translates to:
+  /// **'Shortlisted'**
+  String get applicationStageShortlisted;
+
+  /// No description provided for @applicationStageCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancelled'**
+  String get applicationStageCancelled;
 
   /// No description provided for @all.
   ///

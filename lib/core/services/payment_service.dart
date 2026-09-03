@@ -109,6 +109,8 @@ class CancellationChargeSession {
     required this.environment,
     required this.amount,
     required this.alreadyCancelled,
+    this.chargeWaived = false,
+    this.periodEndAt = '',
   });
 
   final String orderId;
@@ -116,6 +118,8 @@ class CancellationChargeSession {
   final String environment;
   final int amount;
   final bool alreadyCancelled;
+  final bool chargeWaived;
+  final String periodEndAt;
 
   factory CancellationChargeSession.fromMap(Map<String, dynamic> data) {
     return CancellationChargeSession(
@@ -124,6 +128,8 @@ class CancellationChargeSession {
       environment: data['environment'] as String? ?? 'sandbox',
       amount: (data['amount'] as num?)?.toInt() ?? 299,
       alreadyCancelled: data['alreadyCancelled'] == true,
+      chargeWaived: data['chargeWaived'] == true,
+      periodEndAt: data['periodEndAt'] as String? ?? '',
     );
   }
 }
@@ -163,7 +169,8 @@ class PaymentService {
     return PremiumVerificationResult.fromMap(result.data);
   }
 
-  /// Starts a ₹299 PhonePe UPI charge. Does not cancel until the charge is paid.
+  /// Starts a ₹299 PhonePe UPI charge, or cancels immediately with no extra
+  /// charge when the current 30-day period is already prepaid.
   Future<CancellationChargeSession> createCancellationCharge() async {
     final callable = _functions.httpsCallable('createCancellationCharge');
     final result = await callable.call<Map<String, dynamic>>({});
@@ -181,9 +188,8 @@ class PaymentService {
     return PremiumVerificationResult.fromMap(result.data);
   }
 
-  /// Cancels the signed-in user's Cashfree Autopay mandate and ends Premium.
-  /// Requires a paid ₹299 cancellation charge unless the subscription is
-  /// already in a terminal state.
+  /// Cancels Autopay. ₹299 is required only during trial; a prepaid period
+  /// cancels with no extra charge.
   Future<PremiumVerificationResult> cancelPremiumSubscription() async {
     final callable = _functions.httpsCallable('cancelPremiumSubscription');
     final result = await callable.call<Map<String, dynamic>>({});

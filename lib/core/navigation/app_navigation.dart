@@ -6,6 +6,8 @@ import 'package:bombay_casting/features/premium/screens/premium_screen.dart';
 import 'package:bombay_casting/features/creators/models/creator_profile.dart';
 import 'package:bombay_casting/features/creators/screens/creator_profile_screen.dart';
 import 'package:bombay_casting/features/messaging/models/conversation.dart';
+import 'package:bombay_casting/features/jobs/models/agency_profile.dart';
+import 'package:bombay_casting/features/jobs/screens/agency_detail_screen.dart';
 import 'package:bombay_casting/features/jobs/screens/job_detail_screen.dart';
 import 'package:bombay_casting/features/messaging/screens/message_detail_screen.dart';
 
@@ -25,6 +27,12 @@ class AppNavigation {
     if (isSubscribed(context)) return true;
     openPremiumScreen(context);
     return false;
+  }
+
+  static void openAgencyDetail(BuildContext context, AgencyProfile agency) {
+    Navigator.of(context).push(
+      AppPageRoute(page: AgencyDetailScreen(agency: agency)),
+    );
   }
 
   static void openJobDetail(BuildContext context, JobDetailData profile) {

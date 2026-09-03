@@ -1,19 +1,24 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:app_links/app_links.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:bombay_casting/core/deep_links/deep_link_target.dart';
 import 'package:bombay_casting/core/models/models.dart';
 import 'package:bombay_casting/core/services/auth_service.dart';
+import 'package:bombay_casting/core/services/push_notification_service.dart';
 import 'package:bombay_casting/core/services/storage_service.dart';
 import 'package:bombay_casting/core/widgets/option_picker.dart';
 import 'package:bombay_casting/features/auth/providers/auth_provider.dart';
 import 'package:bombay_casting/features/creators/models/creator_profile.dart';
+import 'package:bombay_casting/features/jobs/models/agency_profile.dart';
 import 'package:bombay_casting/features/jobs/models/job_listing.dart';
 import 'package:bombay_casting/features/jobs/providers/job_feed_provider.dart';
 import 'package:bombay_casting/features/jobs/providers/job_state.dart';
 import 'package:bombay_casting/features/jobs/services/job_cache_service.dart';
+import 'package:bombay_casting/features/messaging/providers/messaging_provider.dart';
 import 'package:bombay_casting/features/profile/providers/profile_provider.dart';
 
 class AppState extends ChangeNotifier {
@@ -26,9 +31,15 @@ class AppState extends ChangeNotifier {
     );
     _loadLocale();
     _listenCategories();
+    _listenDeepLinks();
   }
 
   StreamSubscription? _categoriesSub;
+  StreamSubscription<String?>? _pushTapSub;
+  MessagingProvider? _messaging;
+
+  MessagingProvider? get messaging => _messaging;
+  int get unreadMessageCount => _messaging?.unreadTotal ?? 0;
 
   void _listenCategories() {
     _categoriesSub = FirebaseFirestore.instance
@@ -51,6 +62,28 @@ class AppState extends ChangeNotifier {
         }
       }
     }, onError: (_) {});
+  }
+
+  void _listenDeepLinks() {
+    _deepLinkSub = _appLinks.uriLinkStream.listen(_queueDeepLink);
+    unawaited(
+      _appLinks.getInitialLink().then((uri) {
+        if (uri != null) _queueDeepLink(uri);
+      }),
+    );
+  }
+
+  void _queueDeepLink(Uri uri) {
+    final target = DeepLinkTarget.tryParse(uri);
+    if (target == null || target == pendingDeepLink) return;
+    pendingDeepLink = target;
+    notifyListeners();
+  }
+
+  void clearPendingDeepLink() {
+    if (pendingDeepLink == null) return;
+    pendingDeepLink = null;
+    notifyListeners();
   }
 
   Locale? _appLocale;
@@ -76,6 +109,9 @@ class AppState extends ChangeNotifier {
   late final AuthProvider _auth;
   late final ProfileProvider _profile;
   late final JobState _jobs;
+  final AppLinks _appLinks = AppLinks();
+  StreamSubscription<Uri>? _deepLinkSub;
+  DeepLinkTarget? pendingDeepLink;
 
   AuthService get authService => _auth.authService;
   StorageService get storageService => _profile.storageService;
@@ -99,7 +135,32 @@ class AppState extends ChangeNotifier {
   List<Application> get applications => _jobs.applications;
   List<Job> get savedJobs => _jobs.savedJobs;
   List<CreatorProfile> get savedCreators => _jobs.savedCreators;
-  List<CreatorProfile> get creators => _jobs.creators;
+  List<CreatorProfile> get creators {
+    final loaded = _jobs.creators;
+    final currentUser = user;
+    final currentProfile = profile;
+    if (currentUser == null || currentProfile == null) return loaded;
+
+    final self = CreatorProfile.fromRecords(
+      user: currentUser,
+      profile: currentProfile,
+      fallbackIndex: 1,
+    );
+    if (loaded.isEmpty) return [self];
+
+    final result = <CreatorProfile>[];
+    var included = false;
+    for (final creator in loaded) {
+      if (creator.id == currentUser.id) {
+        result.add(self);
+        included = true;
+      } else {
+        result.add(creator);
+      }
+    }
+    if (!included) result.insert(0, self);
+    return result;
+  }
   bool get isUploadingPhoto => _profile.isUploadingPhoto;
   bool get isLoadingCreators => _jobs.isLoadingCreators;
   List<Job> get jobs => _jobs.jobs;
@@ -112,6 +173,19 @@ class AppState extends ChangeNotifier {
 
   int homeInnerTabIndex = 0;
   int creatorsInnerTabIndex = 0;
+  int? requestedMainShellTab;
+
+  void openJobsTabWithFilter(HomeJobFilter filter) {
+    setJobFilter(filter);
+    requestedMainShellTab = 2;
+    notifyListeners();
+  }
+
+  void clearRequestedMainShellTab() {
+    if (requestedMainShellTab == null) return;
+    requestedMainShellTab = null;
+    notifyListeners();
+  }
 
   void setHomeInnerTab(int index) {
     if (homeInnerTabIndex == index) return;
@@ -134,6 +208,11 @@ class AppState extends ChangeNotifier {
     if (index == 1 && creatorsInnerTabIndex != 0) {
       creatorsInnerTabIndex = 0;
       changed = true;
+    }
+    final keepPresetSearch = index == 2 && requestedMainShellTab == 2;
+    if (!keepPresetSearch && jobFilter.searchQuery.isNotEmpty) {
+      setJobFilter(jobFilter.copyWith(searchQuery: ''));
+      return;
     }
     if (changed) notifyListeners();
   }
@@ -216,6 +295,22 @@ class AppState extends ChangeNotifier {
     await _profile.uploadProfilePhoto(userId: uid, file: file);
   }
 
+  Future<void> uploadProfilePhotos(
+    List<File> files, {
+    int? mainIndex,
+  }) async {
+    final uid = user?.id;
+    if (uid == null) return;
+    await _profile.uploadProfilePhotos(
+      userId: uid,
+      files: files,
+      mainIndex: mainIndex,
+    );
+  }
+
+  Future<void> setMainProfilePhoto(String url) =>
+      _profile.setMainProfilePhoto(url, userId: user?.id);
+
   Future<String?> uploadVerificationDocument(File file) async {
     final uid = user?.id;
     if (uid == null) return null;
@@ -234,7 +329,23 @@ class AppState extends ChangeNotifier {
   Future<void> loadCreators({bool forceRefresh = false}) =>
       _jobs.loadCreators(currentUserId: user?.id, forceRefresh: forceRefresh);
 
+  Future<Job?> fetchJobById(String id) => _jobs.fetchJobById(id);
+
+  Future<CreatorProfile?> fetchCreatorById(String id) =>
+      _jobs.fetchCreatorById(id);
+
+  Future<AgencyProfile?> fetchAgencyById(String id) =>
+      _jobs.fetchAgencyById(id);
+
   Future<void> logout() async {
+    final uid = user?.id;
+    if (uid != null) {
+      await PushNotificationService.instance.unregisterToken(uid);
+    }
+    _pushTapSub?.cancel();
+    _pushTapSub = null;
+    _messaging?.dispose();
+    _messaging = null;
     await _auth.logout();
     _profile.reset();
     _jobs.reset();
@@ -259,11 +370,36 @@ class AppState extends ChangeNotifier {
       bootstrap.uid,
       isNewUser: bootstrap.isNewUser,
     );
+    _startMessaging(bootstrap.uid);
+  }
+
+  void _startMessaging(String uid) {
+    _pushTapSub?.cancel();
+    _messaging?.dispose();
+    final displayName = user?.name.trim().isNotEmpty == true ? user!.name : 'User';
+    _messaging = MessagingProvider(
+      userId: uid,
+      userName: displayName,
+      onChange: notifyListeners,
+    );
+    _messaging!.start();
+    unawaited(PushNotificationService.instance.registerToken(uid));
+    _pushTapSub = PushNotificationService.instance.onConversationTap.listen(
+      (conversationId) {
+        if (conversationId == null || conversationId.isEmpty) return;
+        _messaging?.queueConversationOpen(conversationId);
+        requestedMainShellTab = 3;
+        notifyListeners();
+      },
+    );
   }
 
   @override
   void dispose() {
     _categoriesSub?.cancel();
+    _deepLinkSub?.cancel();
+    _pushTapSub?.cancel();
+    _messaging?.dispose();
     super.dispose();
   }
 }

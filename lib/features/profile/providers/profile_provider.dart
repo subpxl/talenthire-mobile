@@ -77,29 +77,90 @@ class ProfileProvider extends ChangeNotifier {
   Future<void> uploadProfilePhoto({
     required String userId,
     required File file,
+  }) {
+    return uploadProfilePhotos(userId: userId, files: [file]);
+  }
+
+  Future<void> uploadProfilePhotos({
+    required String userId,
+    required List<File> files,
+    int? mainIndex,
   }) async {
-    if (profile == null) return;
+    if (profile == null || files.isEmpty) return;
     final current = profile!.galleryPhotos;
-    if (current.length >= Profile.maxPhotos) return;
+    final remaining = Profile.maxPhotos - current.length;
+    if (remaining <= 0) return;
+    final toUpload = files.take(remaining).toList();
     isUploadingPhoto = true;
     _notify();
+    final newUrls = <String>[];
     try {
-      final url = await storageService.uploadProfilePhoto(
-        userId: userId,
-        file: file,
-      );
-      final photos = [...current.where((item) => item != url), url];
-      await updateProfile(
-        profile!.copyWith(profileImage: photos.first, photos: photos),
+      for (var i = 0; i < toUpload.length; i++) {
+        final url = await storageService.uploadProfilePhoto(
+          userId: userId,
+          file: toUpload[i],
+          fileName: '${DateTime.now().microsecondsSinceEpoch}_$i.jpg',
+        );
+        newUrls.add(url);
+      }
+      await _saveGallery(
+        current: current,
+        newUrls: newUrls,
+        mainIndex: mainIndex,
         userId: userId,
       );
     } catch (error) {
       debugPrint('Error uploading profile photo: $error');
+      if (newUrls.isNotEmpty) {
+        try {
+          await _saveGallery(
+            current: current,
+            newUrls: newUrls,
+            mainIndex: mainIndex,
+            userId: userId,
+          );
+        } catch (saveError) {
+          debugPrint('Error saving uploaded photos: $saveError');
+        }
+      }
       rethrow;
     } finally {
       isUploadingPhoto = false;
       _notify();
     }
+  }
+
+  Future<void> _saveGallery({
+    required List<String> current,
+    required List<String> newUrls,
+    required int? mainIndex,
+    required String userId,
+  }) async {
+    var photos = [
+      ...current,
+      ...newUrls.where((url) => !current.contains(url)),
+    ];
+    if (mainIndex != null && mainIndex >= 0 && mainIndex < newUrls.length) {
+      final mainUrl = newUrls[mainIndex];
+      photos = [mainUrl, ...photos.where((url) => url != mainUrl)];
+    }
+    photos = photos.take(Profile.maxPhotos).toList();
+    if (photos.isEmpty) return;
+    await updateProfile(
+      profile!.copyWith(profileImage: photos.first, photos: photos),
+      userId: userId,
+    );
+  }
+
+  Future<void> setMainProfilePhoto(String url, {String? userId}) async {
+    if (profile == null || url.isEmpty) return;
+    final photos = profile!.galleryPhotos;
+    if (!photos.contains(url) || photos.first == url) return;
+    final reordered = [url, ...photos.where((item) => item != url)];
+    await updateProfile(
+      profile!.copyWith(profileImage: url, photos: reordered),
+      userId: userId,
+    );
   }
 
   Future<String?> uploadVerificationDocument({

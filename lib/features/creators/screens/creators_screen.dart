@@ -87,9 +87,9 @@ class _CreatorsScreenState extends State<CreatorsScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.screenH,
-            AppSpacing.screenV,
+            4,
             AppSpacing.screenH,
-            0,
+            4,
           ),
           child: AppTabBar(
             tabs: _tabs,

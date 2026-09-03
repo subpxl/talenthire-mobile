@@ -399,6 +399,7 @@ export interface CashfreeOrderResponse {
   order_currency?: string;
   order_status: string;
   payment_session_id?: string;
+  order_tags?: Record<string, string> | null;
 }
 
 export function buildCancellationOrderPayload(
@@ -427,9 +428,58 @@ export function buildCancellationOrderPayload(
   };
 }
 
+export type AgencyPaymentPurpose = 'agency_premium' | 'wallet_topup';
+
+export const AGENCY_PREMIUM_AMOUNT = 500;
+
+export function buildAgencyPaymentOrderPayload(input: {
+  orderId: string;
+  amount: number;
+  purpose: AgencyPaymentPurpose;
+  customerId: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  returnUrl: string;
+  notifyUrl?: string;
+}) {
+  const note =
+    input.purpose === 'agency_premium'
+      ? 'Agency Premium — ₹500/year'
+      : `Wallet top-up — ₹${input.amount}`;
+  return {
+    order_id: input.orderId,
+    order_amount: input.amount,
+    order_currency: 'INR',
+    customer_details: {
+      customer_id: input.customerId,
+      customer_name: input.customerName,
+      customer_email: input.customerEmail,
+      customer_phone: input.customerPhone,
+    },
+    order_meta: {
+      return_url: input.returnUrl,
+      ...(input.notifyUrl ? {notify_url: input.notifyUrl} : {}),
+    },
+    order_note: note,
+    order_tags: {
+      user_id: input.customerId,
+      purpose: input.purpose,
+    },
+  };
+}
+
+export function isAgencyPaymentPurpose(
+  value: string | undefined | null,
+): value is AgencyPaymentPurpose {
+  return value === 'agency_premium' || value === 'wallet_topup';
+}
+
 export async function createCashfreeOrder(
   config: CashfreeConfig,
-  payload: ReturnType<typeof buildCancellationOrderPayload>,
+  payload:
+    | ReturnType<typeof buildCancellationOrderPayload>
+    | ReturnType<typeof buildAgencyPaymentOrderPayload>,
 ): Promise<CashfreeOrderResponse> {
   return cashfreeRequest<CashfreeOrderResponse>({
     config,

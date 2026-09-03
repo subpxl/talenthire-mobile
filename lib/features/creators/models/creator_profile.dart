@@ -34,6 +34,7 @@ class CreatorProfile {
     this.aboutInfo = const [],
     this.workInfo = const [],
     this.platformMetrics = const [],
+    this.bio = '',
     this.createdAt,
     this.savedAt,
   });
@@ -48,6 +49,7 @@ class CreatorProfile {
   final List<MapEntry<String, String>> aboutInfo;
   final List<MapEntry<String, String>> workInfo;
   final List<SocialPlatformMetric> platformMetrics;
+  final String bio;
   final DateTime? createdAt;
   final DateTime? savedAt;
 
@@ -65,6 +67,7 @@ class CreatorProfile {
       name,
       title,
       location,
+      bio,
       for (final entry in aboutInfo) '${entry.key} ${entry.value}',
       for (final entry in workInfo) '${entry.key} ${entry.value}',
     ].join(' ').toLowerCase();
@@ -89,9 +92,33 @@ class CreatorProfile {
       profile.city,
       profile.state,
     ].where((item) => item.isNotEmpty).join(', ');
-    final title = profile.formValue('work', 'role', '').trim().isNotEmpty
-        ? profile.formValue('work', 'role')
-        : (profile.talent.isNotEmpty ? profile.talent : 'Creator');
+    final role = _filledValue(profile.formValue('work', 'role', ''));
+    final talent = profile.talent.trim();
+    final title = role.isNotEmpty
+        ? role
+        : (talent.isNotEmpty && talent.toLowerCase() != 'influencer'
+            ? talent
+            : '');
+    final gender = _filledValue(
+      profile.gender.isNotEmpty
+          ? profile.gender
+          : profile.formValue('personal', 'gender', ''),
+    );
+    final ageText = profile.age != null
+        ? '${profile.age}'
+        : _filledValue(profile.formValue('personal', 'age', ''));
+    final languages = profile.languages.isNotEmpty
+        ? profile.languages.join(', ')
+        : _filledValue(profile.formValue('personal', 'language', ''));
+    final niches = profile.niches.isNotEmpty
+        ? profile.niches.take(3).join(', ')
+        : _filledValue(profile.formValue('content', 'niches', ''));
+    final lookingFor = _filledValue(
+      profile.formValue('personal', 'looking_for', ''),
+    );
+    final bio = _filledValue(profile.bio).isNotEmpty
+        ? profile.bio.trim()
+        : _filledValue(profile.formValue('personal', 'about', ''));
     final gallery = profile.galleryPhotos;
     final photos = List<CreatorPhoto>.generate(
       gallery.isEmpty ? 1 : gallery.length.clamp(1, Profile.maxPhotos),
@@ -106,32 +133,20 @@ class CreatorProfile {
       id: user.id.isNotEmpty ? user.id : profile.userId,
       name: user.name.trim().isEmpty ? 'Creator' : user.name.trim(),
       title: title,
-      location: location.isEmpty ? 'India' : location,
+      location: location,
       photos: photos,
       isVerified: profile.isVerified || profile.isPremium,
       isPremium: profile.isPremium,
+      bio: bio,
       aboutInfo: [
-        if (profile.gender.isNotEmpty) MapEntry('Gender', profile.gender),
-        if (profile.age != null) MapEntry('Age', '${profile.age}'),
-        if (profile.languages.isNotEmpty)
-          MapEntry('Languages', profile.languages.join(', ')),
-        MapEntry(
-          'Content language',
-          profile.formValue('personal', 'language', 'Hindi'),
-        ),
+        if (gender.isNotEmpty) MapEntry('Gender', gender),
+        if (ageText.isNotEmpty) MapEntry('Age', ageText),
+        if (languages.isNotEmpty) MapEntry('Languages', languages),
       ],
       workInfo: [
-        MapEntry('Role', title),
-        if (profile.niches.isNotEmpty)
-          MapEntry('Niches', profile.niches.take(3).join(', ')),
-        MapEntry(
-          'Experience',
-          profile.formValue('work', 'experience', 'Growing (1-3 yrs)'),
-        ),
-        MapEntry(
-          'Open to',
-          profile.formValue('personal', 'looking_for', 'Brand deals'),
-        ),
+        if (title.isNotEmpty) MapEntry('Role', title),
+        if (niches.isNotEmpty) MapEntry('Niches', niches),
+        if (lookingFor.isNotEmpty) MapEntry('Open to', lookingFor),
       ],
       platformMetrics: profile.platformMetrics,
       createdAt: user.createdAt,
@@ -170,6 +185,7 @@ class CreatorProfile {
       aboutInfo: _entriesFromJson(json['about_info']),
       workInfo: _entriesFromJson(json['work_info']),
       platformMetrics: metrics,
+      bio: (json['bio'] ?? json['about'] ?? '').toString(),
       createdAt: parseFlexibleDate(json['created_at']),
       savedAt: parseFlexibleDate(json['saved_at']),
     );
@@ -187,9 +203,16 @@ class CreatorProfile {
         'work_info': _entriesToJson(workInfo),
         'platform_metrics':
             platformMetrics.map((metric) => metric.toJson()).toList(),
+        if (bio.isNotEmpty) 'bio': bio,
         if (createdAt != null) 'created_at': createdAt!.toIso8601String(),
         if (savedAt != null) 'saved_at': savedAt!.toIso8601String(),
       };
+}
+
+String _filledValue(String value) {
+  final text = value.trim();
+  if (text.isEmpty || text == '-') return '';
+  return text;
 }
 
 List<Map<String, String>> _entriesToJson(List<MapEntry<String, String>> entries) {

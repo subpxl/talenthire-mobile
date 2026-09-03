@@ -97,6 +97,12 @@ class AppLocalizationsTa extends AppLocalizations {
   String get reportJob => 'Report job';
 
   @override
+  String get agencyReported => 'Agency reported';
+
+  @override
+  String get reportAgency => 'Report agency';
+
+  @override
   String get thisJobIsNoLongerAvailable => 'This job is no longer available';
 
   @override
@@ -141,6 +147,30 @@ class AppLocalizationsTa extends AppLocalizations {
   String get report => 'Report';
 
   @override
+  String get reportReasonSpam => 'Spam or scam';
+
+  @override
+  String get reportReasonInappropriate => 'Inappropriate content';
+
+  @override
+  String get reportReasonOther => 'Other';
+
+  @override
+  String get reportOtherHint => 'Please describe the issue';
+
+  @override
+  String get reportSubmit => 'Submit';
+
+  @override
+  String get reportCancel => 'Cancel';
+
+  @override
+  String get reportSelectReason => 'Please select a reason';
+
+  @override
+  String get reportOtherRequired => 'Please describe the issue';
+
+  @override
   String get agenciesMessageYouAfterYouApply =>
       'Agencies message you after you apply';
 
@@ -178,7 +208,7 @@ class AppLocalizationsTa extends AppLocalizations {
       'Payments are not available yet. You can go back and keep using the app.';
 
   @override
-  String get for1DayThen299month => 'For 1 day, then ₹299/Month';
+  String get for1DayThen299month => 'For 3 days, then ₹299/Month';
 
   @override
   String get phonepe => 'PhonePe';
@@ -278,10 +308,29 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get addUpTo4PhotosFirstPhotoIsYourMainProfilePicture =>
-      'Add up to 4 photos. First photo is your main profile picture.';
+      'Add up to 4 photos. Tap a photo to preview, or set any photo as your main display image.';
 
   @override
   String get main => 'Main';
+
+  @override
+  String get setAsMain => 'Set as main';
+
+  @override
+  String get couldNotSetMainPhoto => 'Could not set main photo';
+
+  @override
+  String get previewPhotos => 'Preview photos';
+
+  @override
+  String get uploadPhotos => 'Upload';
+
+  @override
+  String get addPhotos => 'Add photos';
+
+  @override
+  String get tapToSetAsMain =>
+      'Tap a photo to set it as your main display image';
 
   @override
   String get addPhoto => 'Add photo';
@@ -331,7 +380,7 @@ class AppLocalizationsTa extends AppLocalizations {
   String get navCreators => 'கிரியேட்டர்கள்';
 
   @override
-  String get navJobs => 'UGC';
+  String get navJobs => 'Jobs';
 
   @override
   String get navMessages => 'செய்திகள்';
@@ -368,6 +417,25 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get saved => 'சேமிக்கப்பட்டது';
+
+  @override
+  String get appliedJobs => 'Applied';
+
+  @override
+  String get noAppliedJobsYet =>
+      'No applied jobs yet. Apply to a job to track your progress here.';
+
+  @override
+  String get applicationStageApplied => 'Applied';
+
+  @override
+  String get applicationStageOpened => 'Opened';
+
+  @override
+  String get applicationStageShortlisted => 'Shortlisted';
+
+  @override
+  String get applicationStageCancelled => 'Cancelled';
 
   @override
   String get all => 'அனைத்தும்';

@@ -1,13 +1,18 @@
 import 'package:bombay_casting/l10n/app_localizations.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/core/models/models.dart';
 import 'package:bombay_casting/features/creators/models/creator_profile.dart';
+import 'package:bombay_casting/core/deep_links/deep_link_target.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/core/widgets/app_screen_layout.dart';
 import 'package:bombay_casting/core/widgets/placeholder_avatar.dart';
+import 'package:bombay_casting/core/widgets/report_dialog.dart';
+import 'package:bombay_casting/core/widgets/share_link_button.dart';
+import 'package:bombay_casting/core/widgets/social_platforms.dart';
 
 class CreatorProfileScreen extends StatefulWidget {
   const CreatorProfileScreen({
@@ -67,17 +72,24 @@ class _CreatorProfileScreenState extends State<CreatorProfileScreen> {
         ),
         centerTitle: true,
         actions: [
+          ShareLinkButton(
+            url: DeepLinkTarget.creatorUrl(creator.id),
+            message: 'Check out ${creator.name} on Bombay Casting Company',
+          ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
-            onSelected: (value) {
+            onSelected: (value) async {
               if (value == 'report') {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      AppLocalizations.of(context)!.creatorReported,
-                    ),
-                  ),
+                final l10n = AppLocalizations.of(context)!;
+                final result = await showReportDialog(
+                  context,
+                  title: l10n.reportProfile,
                 );
+                if (result != null && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(l10n.creatorReported)),
+                  );
+                }
               }
             },
             itemBuilder: (context) => [
@@ -97,7 +109,11 @@ class _CreatorProfileScreenState extends State<CreatorProfileScreen> {
             const SizedBox(height: AppSpacing.md),
             _buildHeader(context),
             const SizedBox(height: AppSpacing.lg),
-            _InfoSection(title: 'About', items: creator.aboutInfo),
+            _InfoSection(
+              title: 'About',
+              body: creator.bio,
+              items: creator.aboutInfo,
+            ),
             const SizedBox(height: AppSpacing.md),
             _InfoSection(title: 'Work', items: creator.workInfo),
             if (creator.platformMetrics.where((m) => m.url.isNotEmpty || m.handle.isNotEmpty).isNotEmpty) ...[
@@ -110,31 +126,46 @@ class _CreatorProfileScreenState extends State<CreatorProfileScreen> {
     );
   }
 
+  void _openZoom(int index) {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.black,
+        pageBuilder: (_, _, _) => _PhotoZoomScreen(
+          photos: photos,
+          initialIndex: index,
+        ),
+      ),
+    );
+  }
+
   Widget _buildPhotoSwitcher() {
     return Column(
       children: [
         ClipRRect(
           borderRadius: BorderRadius.circular(AppRadius.md),
           child: AspectRatio(
-            aspectRatio: 0.85,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                PageView.builder(
-                  controller: _pageController,
-                  itemCount: photos.length,
-                  onPageChanged: (index) => setState(() => _photoIndex = index),
-                  itemBuilder: (context, index) {
-                    final photo = photos[index];
-                    return PlaceholderProfileImage(
+            aspectRatio: 3 / 4,
+            child: ColoredBox(
+              color: const Color(0xFFF0F0F0),
+              child: PageView.builder(
+                controller: _pageController,
+                itemCount: photos.length,
+                onPageChanged: (index) => setState(() => _photoIndex = index),
+                itemBuilder: (context, index) {
+                  final photo = photos[index];
+                  return GestureDetector(
+                    onTap: () => _openZoom(index),
+                    child: PlaceholderProfileImage(
                       fill: true,
+                      fit: BoxFit.contain,
                       borderRadius: 0,
                       imageIndex: photo.imageIndex,
                       imageUrl: photo.url,
-                    );
-                  },
-                ),
-              ],
+                    ),
+                  );
+                },
+              ),
             ),
           ),
         ),
@@ -160,7 +191,8 @@ class _CreatorProfileScreenState extends State<CreatorProfileScreen> {
                       ),
                       padding: const EdgeInsets.all(2),
                       child: PlaceholderProfileImage(
-                        aspectRatio: 210 / 280,
+                        aspectRatio: 3 / 4,
+                        fit: BoxFit.contain,
                         borderRadius: AppRadius.sm - 2,
                         imageIndex: photos[i].imageIndex,
                         imageUrl: photos[i].url,
@@ -214,30 +246,59 @@ class _CreatorProfileScreenState extends State<CreatorProfileScreen> {
           ],
         ),
         const SizedBox(height: AppSpacing.xs),
-        const SizedBox(height: 2),
-        Text(creator.title, style: context.bodyMedium),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            Icon(Icons.location_on, size: 14, color: Colors.grey.shade600),
-            const SizedBox(width: 4),
-            Text(creator.location, style: context.bodyMedium),
-          ],
-        ),
+        if (creator.title.trim().isNotEmpty) ...[
+          const SizedBox(height: 2),
+          Text(creator.title, style: context.bodyMedium),
+        ],
+        if (creator.location.trim().isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Icon(Icons.location_on, size: 14, color: Colors.grey.shade600),
+              const SizedBox(width: 4),
+              Text(creator.location, style: context.bodyMedium),
+            ],
+          ),
+        ],
       ],
     );
   }
 }
 
 class _InfoSection extends StatelessWidget {
-  const _InfoSection({required this.title, required this.items});
+  const _InfoSection({
+    required this.title,
+    this.items = const [],
+    this.body = '',
+  });
 
   final String title;
   final List<MapEntry<String, String>> items;
+  final String body;
+
+  static const _hiddenKeys = {
+    'experience',
+    'content language',
+  };
+
+  List<MapEntry<String, String>> get _visibleItems {
+    return [
+      for (final item in items)
+        if (_isVisible(item)) item,
+    ];
+  }
+
+  bool _isVisible(MapEntry<String, String> item) {
+    if (_hiddenKeys.contains(item.key.trim().toLowerCase())) return false;
+    final value = item.value.trim();
+    return value.isNotEmpty && value != '-';
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (items.isEmpty) return const SizedBox.shrink();
+    final visible = _visibleItems;
+    final about = body.trim();
+    if (visible.isEmpty && about.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -250,10 +311,33 @@ class _InfoSection extends StatelessWidget {
             border: Border.all(color: AppColors.border),
           ),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              for (var i = 0; i < items.length; i++) ...[
-                if (i > 0)
-                  const Divider(height: 1, indent: AppSpacing.md, endIndent: AppSpacing.md),
+              if (about.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.md,
+                    14,
+                    AppSpacing.md,
+                    14,
+                  ),
+                  child: Text(
+                    about,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      height: 1.45,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+              for (var i = 0; i < visible.length; i++) ...[
+                if (i > 0 || about.isNotEmpty)
+                  const Divider(
+                    height: 1,
+                    indent: AppSpacing.md,
+                    endIndent: AppSpacing.md,
+                  ),
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.md,
@@ -265,7 +349,7 @@ class _InfoSection extends StatelessWidget {
                       Expanded(
                         flex: 2,
                         child: Text(
-                          items[i].key,
+                          visible[i].key,
                           style: const TextStyle(
                             fontSize: 13,
                             color: AppColors.textHint,
@@ -275,7 +359,7 @@ class _InfoSection extends StatelessWidget {
                       Expanded(
                         flex: 3,
                         child: Text(
-                          items[i].value,
+                          visible[i].value,
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
@@ -299,15 +383,6 @@ class _SocialLinksSection extends StatelessWidget {
   const _SocialLinksSection({required this.metrics});
 
   final List<SocialPlatformMetric> metrics;
-
-  IconData _getPlatformIcon(String platform) {
-    final p = platform.toLowerCase();
-    if (p.contains('instagram')) return Icons.camera_alt;
-    if (p.contains('facebook')) return Icons.facebook;
-    if (p.contains('youtube')) return Icons.ondemand_video;
-    if (p.contains('twitter') || p.contains('x')) return Icons.alternate_email;
-    return Icons.link;
-  }
 
   void _launchUrl(String url) async {
     if (url.isEmpty) return;
@@ -334,19 +409,116 @@ class _SocialLinksSection extends StatelessWidget {
       children: [
         const AppSectionTitle('Social Profiles'),
         Wrap(
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.sm,
-          children: activeMetrics.map((m) {
-            return ActionChip(
-              avatar: Icon(_getPlatformIcon(m.platform), size: 16, color: AppColors.primary),
-              label: Text(m.handle.isNotEmpty ? m.handle : m.platform),
-              side: const BorderSide(color: AppColors.border),
-              backgroundColor: AppColors.surface,
-              onPressed: () => _launchUrl(m.url),
+          spacing: AppSpacing.md,
+          runSpacing: AppSpacing.md,
+          children: activeMetrics.map((metric) {
+            final info = SocialPlatformInfo.forName(metric.platform);
+            final target =
+                metric.url.isNotEmpty ? metric.url : metric.handle;
+            return Tooltip(
+              message: metric.platform,
+              child: SocialPlatformIcon(
+                info: info,
+                size: 44,
+                onTap: () => _launchUrl(target),
+              ),
             );
           }).toList(),
         ),
       ],
+    );
+  }
+}
+
+class _PhotoZoomScreen extends StatefulWidget {
+  const _PhotoZoomScreen({
+    required this.photos,
+    required this.initialIndex,
+  });
+
+  final List<CreatorPhoto> photos;
+  final int initialIndex;
+
+  @override
+  State<_PhotoZoomScreen> createState() => _PhotoZoomScreenState();
+}
+
+class _PhotoZoomScreenState extends State<_PhotoZoomScreen> {
+  late final PageController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = PageController(
+      initialPage: widget.initialIndex.clamp(0, widget.photos.length - 1),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          PageView.builder(
+            controller: _controller,
+            itemCount: widget.photos.length,
+            itemBuilder: (context, index) {
+              final photo = widget.photos[index];
+              return InteractiveViewer(
+                minScale: 1,
+                maxScale: 4,
+                child: Center(
+                  child: photo.url.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: photo.url,
+                          fit: BoxFit.contain,
+                          placeholder: (_, _) => const Center(
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          ),
+                          errorWidget: (_, _, _) => PlaceholderProfileImage(
+                            fill: true,
+                            fit: BoxFit.contain,
+                            borderRadius: 0,
+                            imageIndex: photo.imageIndex,
+                            imageUrl: '',
+                          ),
+                        )
+                      : PlaceholderProfileImage(
+                          fill: true,
+                          fit: BoxFit.contain,
+                          borderRadius: 0,
+                          imageIndex: photo.imageIndex,
+                          imageUrl: '',
+                        ),
+                ),
+              );
+            },
+          ),
+          Positioned(
+            top: MediaQuery.paddingOf(context).top + 8,
+            right: 8,
+            child: IconButton(
+              tooltip: 'Close',
+              onPressed: () => Navigator.maybePop(context),
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.black.withValues(alpha: 0.55),
+                foregroundColor: Colors.white,
+              ),
+              icon: const Icon(Icons.close, size: 22),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

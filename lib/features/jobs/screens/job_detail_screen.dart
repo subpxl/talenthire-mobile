@@ -1,13 +1,17 @@
 import 'package:bombay_casting/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:bombay_casting/features/jobs/models/agency_profile.dart';
 import 'package:bombay_casting/features/jobs/models/job_listing.dart';
 import 'package:bombay_casting/core/models/models.dart';
 import 'package:bombay_casting/core/navigation/app_navigation.dart';
 import 'package:bombay_casting/app/app_state.dart';
+import 'package:bombay_casting/core/deep_links/deep_link_target.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/core/widgets/app_screen_layout.dart';
 import 'package:bombay_casting/core/widgets/placeholder_avatar.dart';
+import 'package:bombay_casting/core/widgets/report_dialog.dart';
+import 'package:bombay_casting/core/widgets/share_link_button.dart';
 
 class JobDetailScreen extends StatelessWidget {
   const JobDetailScreen({
@@ -35,13 +39,24 @@ class JobDetailScreen extends StatelessWidget {
         ),
         centerTitle: true,
         actions: [
+          ShareLinkButton(
+            url: DeepLinkTarget.jobUrl(profile.jobId),
+            message: 'Check out this job on Bombay Casting Company',
+          ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
-            onSelected: (value) {
+            onSelected: (value) async {
               if (value == 'report') {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(AppLocalizations.of(context)!.jobReported)),
+                final l10n = AppLocalizations.of(context)!;
+                final result = await showReportDialog(
+                  context,
+                  title: l10n.reportJob,
                 );
+                if (result != null && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(l10n.jobReported)),
+                  );
+                }
               }
             },
             itemBuilder: (context) => [
@@ -231,6 +246,7 @@ class JobDetailScreen extends StatelessWidget {
   }
 
   Widget _buildHeader(BuildContext context) {
+    final company = profile.company.trim();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -252,7 +268,46 @@ class JobDetailScreen extends StatelessWidget {
             ],
           ],
         ),
-
+        if (company.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          GestureDetector(
+            onTap: () {
+              final appState = context.read<AppState>();
+              final job = appState.jobById(profile.jobId);
+              AppNavigation.openAgencyDetail(
+                context,
+                job != null
+                    ? AgencyProfile.fromJob(job, allJobs: appState.jobs)
+                    : AgencyProfile.fromCompany(
+                        company: company,
+                        allJobs: appState.jobs,
+                        createdBy: profile.createdBy,
+                        location: profile.location,
+                        imageUrl: profile.imageUrl,
+                        imageIndex: profile.imageIndex,
+                        isVerified: profile.isVerified,
+                      ),
+              );
+            },
+            child: Text.rich(
+              TextSpan(
+                text: 'by ',
+                style: context.bodyMedium,
+                children: [
+                  TextSpan(
+                    text: company,
+                    style: const TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w600,
+                      decoration: TextDecoration.underline,
+                      decorationColor: AppColors.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
         if (profile.postedLabel != null)
           Padding(
             padding: const EdgeInsets.only(top: AppSpacing.xs),
@@ -282,6 +337,8 @@ class JobDetailData {
   final String offerType;
   final String budget;
   final List<String> tags;
+  final String company;
+  final String createdBy;
 
   const JobDetailData({
     required this.name,
@@ -300,13 +357,24 @@ class JobDetailData {
     this.offerType = '',
     this.budget = '',
     this.tags = const [],
+    this.company = '',
+    this.createdBy = '',
   });
 
   factory JobDetailData.fromJob(Job job, {int index = 0}) {
-    return JobDetailData.fromJobListing(JobListing.fromJob(job, index));
+    final listing = JobListing.fromJob(job, index);
+    return JobDetailData.fromJobListing(
+      listing,
+      company: job.company,
+      createdBy: job.createdBy,
+    );
   }
 
-  factory JobDetailData.fromJobListing(JobListing job) {
+  factory JobDetailData.fromJobListing(
+    JobListing job, {
+    String? company,
+    String? createdBy,
+  }) {
     return JobDetailData(
       name: job.title,
       details: job.details,
@@ -324,6 +392,8 @@ class JobDetailData {
       offerType: job.collabType,
       budget: job.pay.toLowerCase().contains('not specified') ? 'Undisclosed' : job.pay,
       tags: job.tags,
+      company: company ?? job.company,
+      createdBy: createdBy ?? '',
     );
   }
 

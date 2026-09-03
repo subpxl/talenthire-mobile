@@ -1,6 +1,7 @@
 import 'package:bombay_casting/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:bombay_casting/core/utils/legal_links.dart';
+import 'package:bombay_casting/features/profile/screens/payment_and_subscription_screen.dart';
 
 class GetHelpScreen extends StatefulWidget {
   const GetHelpScreen({super.key});
@@ -13,6 +14,7 @@ class _GetHelpScreenState extends State<GetHelpScreen> {
   bool _isProfileExpanded = false;
   bool _isJobsExpanded = false;
   bool _isPaymentExpanded = false;
+  bool _isSubscriptionExpanded = false;
   bool _isPoliciesExpanded = false;
 
   static const _titleStyle = TextStyle(
@@ -137,6 +139,41 @@ class _GetHelpScreenState extends State<GetHelpScreen> {
                     'Refund eligibility depends on the plan and timing of the request. Read the full policy on our website.',
                 linkLabel: 'Open Refunds & Cancellation',
                 onLinkTap: () => openLegalPage(context, LegalLinks.refunds),
+              ),
+            ],
+          ),
+          const Divider(height: 1, thickness: 0.5, color: Colors.black12),
+          ExpansionTile(
+            title: const Text(
+              'Payment and subscription',
+              style: _titleStyle,
+            ),
+            trailing: _chevron(_isSubscriptionExpanded),
+            onExpansionChanged: (expanded) {
+              setState(() => _isSubscriptionExpanded = expanded);
+            },
+            children: [
+              ListTile(
+                title: Text(
+                  AppLocalizations.of(context)!.cancelSubscription,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+                trailing: Icon(
+                  Icons.chevron_right,
+                  size: 20,
+                  color: Colors.grey.shade500,
+                ),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const PaymentAndSubscriptionScreen(),
+                    ),
+                  );
+                },
               ),
             ],
           ),
