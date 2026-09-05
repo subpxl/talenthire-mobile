@@ -1,12 +1,15 @@
 import 'package:bombay_casting/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:bombay_casting/core/deep_links/deep_link_target.dart';
 import 'package:bombay_casting/core/navigation/app_navigation.dart';
 import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/features/profile/screens/account_settings_screen.dart';
 import 'package:bombay_casting/features/profile/screens/edit_profile_view_screen.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/core/widgets/app_screen_layout.dart';
+import 'package:bombay_casting/core/widgets/share_link_button.dart';
+import 'package:bombay_casting/core/widgets/verified_tick.dart';
 
 class UserProfileScreen extends StatefulWidget {
   const UserProfileScreen({super.key});
@@ -21,8 +24,20 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     final appState = context.watch<AppState>();
     final profile = appState.profile;
     final user = appState.user;
+    final uid = user?.id.trim();
+    final name = (user?.name ?? '').trim();
+    final shareMessage = name.isEmpty
+        ? 'Check out my profile on Bombay Casting Company'
+        : 'Check out $name on Bombay Casting Company';
     return AppScreenLayout(
       title: AppLocalizations.of(context)!.navProfile,
+      actions: [
+        if (uid != null && uid.isNotEmpty)
+          ShareLinkButton(
+            url: DeepLinkTarget.creatorUrl(uid),
+            message: shareMessage,
+          ),
+      ],
       body: AppScrollBody(
         padding: EdgeInsets.zero,
         child: Column(
@@ -101,15 +116,27 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            name,
-            textAlign: TextAlign.left,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              height: 1.2,
-              color: AppColors.textPrimary,
-            ),
+          Row(
+            children: [
+              Flexible(
+                child: Text(
+                  name,
+                  textAlign: TextAlign.left,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    height: 1.2,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              if (profile?.isVerified == true || profile?.isPremium == true) ...[
+                const SizedBox(width: 6),
+                const VerifiedTick(size: 20),
+              ],
+            ],
           ),
           if (email.isNotEmpty) ...[
             const SizedBox(height: 4),

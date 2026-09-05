@@ -7,6 +7,7 @@ import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/core/widgets/app_screen_layout.dart';
 import 'package:bombay_casting/core/widgets/profile_list_tile.dart';
 import 'package:bombay_casting/core/widgets/promo_banner.dart';
+import 'package:bombay_casting/core/widgets/unread_count_badge.dart';
 import 'package:bombay_casting/features/messaging/models/conversation.dart';
 
 class MessageListScreen extends StatelessWidget {
@@ -20,6 +21,7 @@ class MessageListScreen extends StatelessWidget {
     final isPremium = appState.isPremiumUser;
     final conversations = messaging?.conversations ?? const <ConversationThread>[];
     final isLoading = messaging?.isLoading ?? true;
+    final welcome = welcomeConversation(l10n);
 
     return AppScreenLayout(
       title: l10n.navMessages,
@@ -47,37 +49,52 @@ class MessageListScreen extends StatelessWidget {
                   child: CircularProgressIndicator(color: AppColors.primary),
                 ),
               )
-            else if (conversations.isEmpty)
-              Padding(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                child: Text(
-                  'No messages yet. When an agency contacts you, conversations will appear here.',
-                  textAlign: TextAlign.center,
-                  style: context.bodyMedium.copyWith(color: AppColors.textSecondary),
-                ),
-              )
-            else
-              ...conversations.map((thread) {
-                return ProfileListTile(
-                  name: thread.name,
-                  subtitle: thread.lastMessage.isEmpty
-                      ? 'Start a conversation'
-                      : thread.lastMessage,
-                  meta: thread.time,
-                  avatarColor: thread.avatarColor,
-                  showVerified: thread.isVerified,
-                  trailing: thread.unreadCount > 0
-                      ? _UnreadBadge(count: thread.unreadCount)
-                      : null,
-                  onTap: () async {
-                    final provider = appState.messaging;
-                    if (provider == null) return;
-                    await provider.openThread(thread);
-                    if (!context.mounted) return;
-                    AppNavigation.openMessageDetail(context, thread);
-                  },
-                );
-              }),
+            else ...[
+              ProfileListTile(
+                name: welcome.name,
+                subtitle: welcome.lastMessage,
+                meta: welcome.time,
+                avatarColor: welcome.avatarColor,
+                showVerified: welcome.isVerified,
+                trailing: welcome.unreadCount > 0
+                    ? UnreadCountBadge(count: welcome.unreadCount)
+                    : null,
+                onTap: () => AppNavigation.openMessageDetail(context, welcome),
+              ),
+              if (conversations.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  child: Text(
+                    l10n.agenciesMessageYouAfterYouApply,
+                    textAlign: TextAlign.center,
+                    style: context.bodyMedium.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                )
+              else
+                ...conversations.map((thread) {
+                  return ProfileListTile(
+                    name: thread.name,
+                    subtitle: thread.lastMessage.isEmpty
+                        ? l10n.startAConversation
+                        : thread.lastMessage,
+                    meta: thread.time,
+                    avatarColor: thread.avatarColor,
+                    showVerified: thread.isVerified,
+                    trailing: thread.unreadCount > 0
+                        ? UnreadCountBadge(count: thread.unreadCount)
+                        : null,
+                    onTap: () async {
+                      final provider = appState.messaging;
+                      if (provider == null) return;
+                      await provider.openThread(thread);
+                      if (!context.mounted) return;
+                      AppNavigation.openMessageDetail(context, thread);
+                    },
+                  );
+                }),
+            ],
           ],
         ),
       ),
@@ -85,28 +102,3 @@ class MessageListScreen extends StatelessWidget {
   }
 }
 
-class _UnreadBadge extends StatelessWidget {
-  const _UnreadBadge({required this.count});
-
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    final label = count > 99 ? '99+' : '$count';
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-}

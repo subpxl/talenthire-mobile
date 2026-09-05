@@ -13,12 +13,16 @@ class VersionGate extends StatefulWidget {
 
 class _VersionGateState extends State<VersionGate> with WidgetsBindingObserver {
   StoreUpdateInfo? _info;
+  bool _minTimeElapsed = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _checkForUpdate();
+    Future<void>.delayed(const Duration(milliseconds: 1400), () {
+      if (mounted) setState(() => _minTimeElapsed = true);
+    });
   }
 
   @override
@@ -43,7 +47,7 @@ class _VersionGateState extends State<VersionGate> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final info = _info;
-    if (info == null) {
+    if (info == null || !_minTimeElapsed) {
       return const MaterialApp(
         debugShowCheckedModeBanner: false,
         home: SplashScreen(),

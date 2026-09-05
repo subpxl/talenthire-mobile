@@ -353,13 +353,13 @@ abstract class AppLocalizations {
   /// No description provided for @tapBookmarkOnAJobToSaveIt.
   ///
   /// In en, this message translates to:
-  /// **'Tap bookmark on a job to save it'**
+  /// **'Tap the heart on a job to save it'**
   String get tapBookmarkOnAJobToSaveIt;
 
   /// No description provided for @tapBookmarkOnACreatorToSaveIt.
   ///
   /// In en, this message translates to:
-  /// **'Tap bookmark on a creator to save it'**
+  /// **'Tap the heart on a creator to save it'**
   String get tapBookmarkOnACreatorToSaveIt;
 
   /// No description provided for @conversationReported.
@@ -869,7 +869,7 @@ abstract class AppLocalizations {
   /// No description provided for @applyNow.
   ///
   /// In en, this message translates to:
-  /// **'Apply now'**
+  /// **'Apply Now'**
   String get applyNow;
 
   /// No description provided for @chatWithAgencies.
@@ -907,6 +907,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No applied jobs yet. Apply to a job to track your progress here.'**
   String get noAppliedJobsYet;
+
+  /// No description provided for @noMessagesYetSayHello.
+  ///
+  /// In en, this message translates to:
+  /// **'No messages yet. Say hello!'**
+  String get noMessagesYetSayHello;
+
+  /// No description provided for @startAConversation.
+  ///
+  /// In en, this message translates to:
+  /// **'Start a conversation'**
+  String get startAConversation;
+
+  /// No description provided for @noJobsPostedYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No jobs posted yet.'**
+  String get noJobsPostedYet;
+
+  /// No description provided for @yourSavedJobs.
+  ///
+  /// In en, this message translates to:
+  /// **'Your saved jobs'**
+  String get yourSavedJobs;
+
+  /// No description provided for @savedJobsPromoSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply to jobs and land your next collab'**
+  String get savedJobsPromoSubtitle;
+
+  /// No description provided for @yourSavedCreators.
+  ///
+  /// In en, this message translates to:
+  /// **'Your saved creators'**
+  String get yourSavedCreators;
+
+  /// No description provided for @savedCreatorsPromoSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Save profiles you want to revisit'**
+  String get savedCreatorsPromoSubtitle;
 
   /// No description provided for @applicationStageApplied.
   ///

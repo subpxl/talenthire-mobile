@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/core/services/payment_service.dart';
+import 'package:bombay_casting/core/widgets/app_success_toast.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
 
 class PaymentInProgressScreen extends StatefulWidget {
@@ -162,9 +163,7 @@ class _PaymentInProgressScreenState extends State<PaymentInProgressScreen> {
     await Future<void>.delayed(const Duration(milliseconds: 900));
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Success')),
-    );
+    showAppSuccessToast(context, 'Success');
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 

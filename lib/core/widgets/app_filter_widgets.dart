@@ -1,3 +1,4 @@
+import 'package:bombay_casting/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
 
@@ -77,6 +78,7 @@ class AppPillChip extends StatelessWidget {
     this.showCheckmark = false,
     this.icon,
     this.fontWeight,
+    this.solidYellow = false,
   });
 
   final String label;
@@ -86,13 +88,14 @@ class AppPillChip extends StatelessWidget {
   final bool showCheckmark;
   final IconData? icon;
   final FontWeight? fontWeight;
+  final bool solidYellow;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
@@ -109,7 +112,7 @@ class AppPillChip extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 11,
                 color: isSelected ? activeColor : Colors.grey.shade700,
                 fontWeight: fontWeight ??
                     (isSelected ? FontWeight.w600 : FontWeight.w500),
@@ -117,12 +120,12 @@ class AppPillChip extends StatelessWidget {
             ),
             if (showCheckmark && isSelected) ...[
               const SizedBox(width: 4),
-              Icon(Icons.check, size: 12, color: activeColor),
+              Icon(Icons.check, size: 11, color: activeColor),
             ] else if (icon != null) ...[
-              const SizedBox(width: 4),
+              const SizedBox(width: 3),
               Icon(
                 icon,
-                size: 12,
+                size: 11,
                 color: isSelected ? activeColor : Colors.grey.shade600,
               ),
             ],
@@ -139,12 +142,10 @@ class AppFormSectionTitle extends StatelessWidget {
     this.title, {
     super.key,
     this.optional = false,
-    this.optionalText = 'Optional',
   });
 
   final String title;
   final bool optional;
-  final String optionalText;
 
   @override
   Widget build(BuildContext context) {
@@ -154,7 +155,7 @@ class AppFormSectionTitle extends StatelessWidget {
           Text(title, style: AppFormStyle.labelStyle),
           const Spacer(),
           Text(
-            optionalText,
+            AppLocalizations.of(context)!.optional,
             style: const TextStyle(fontSize: 12, color: Colors.grey),
           ),
         ],
@@ -169,7 +170,7 @@ class AppSliderBadge extends StatelessWidget {
   const AppSliderBadge(
     this.text, {
     super.key,
-    this.color = const Color(0xFFDC1C38),
+    this.color = AppColors.primary,
   });
 
   final String text;

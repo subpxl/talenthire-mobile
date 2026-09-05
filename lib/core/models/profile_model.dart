@@ -101,37 +101,44 @@ class Profile {
 
   int get completionPercentage {
     var score = 0;
+
+    // Profile photo (20)
     if (profileImage.trim().isNotEmpty) score += 20;
 
+    // Personal details (40)
     final personal = formSection('personal');
-    final hasGender = gender.isNotEmpty || (personal['gender']?.toString().isNotEmpty ?? false);
-    final hasAge = age != null || (personal['age']?.toString().isNotEmpty ?? false);
-    final hasLocation = city.isNotEmpty || state.isNotEmpty || (personal['location']?.toString().isNotEmpty ?? false);
-    final hasLang = languages.isNotEmpty || (personal['language'] != null || personal['languages'] != null);
-    if (hasGender) score += 5;
-    if (hasAge) score += 5;
-    if (hasLocation) score += 5;
-    if (hasLang) score += 5;
+    final hasGender =
+        gender.isNotEmpty || _hasText(personal['gender']);
+    final hasAge = age != null || _hasText(personal['age']);
+    final hasLocation = city.isNotEmpty ||
+        state.isNotEmpty ||
+        _hasText(personal['location']);
+    final hasLang = languages.isNotEmpty ||
+        _hasList(personal['language']) ||
+        _hasList(personal['languages']);
+    final hasAbout =
+        bio.trim().isNotEmpty || _hasText(personal['about']);
+    if (hasGender) score += 8;
+    if (hasAge) score += 8;
+    if (hasLocation) score += 8;
+    if (hasLang) score += 8;
+    if (hasAbout) score += 8;
 
-    if (bio.trim().isNotEmpty || (personal['about']?.toString().trim().isNotEmpty ?? false)) {
-      score += 10;
+    // Social links (20)
+    final social = formSection('social');
+    if (platformMetrics.isNotEmpty ||
+        contact.trim().isNotEmpty ||
+        _hasText(social['handle'])) {
+      score += 20;
     }
 
-    final work = formSection('work');
-    if (work.isNotEmpty || talent.isNotEmpty) score += 15;
+    // Content creator form (20)
+    final creator = formSection('creator');
+    if (_hasList(creator['collab_types'])) score += 7;
+    if (_hasList(creator['platforms'])) score += 7;
+    if (_hasList(creator['niches']) || niches.isNotEmpty) score += 6;
 
-    final content = formSection('content');
-    if (niches.isNotEmpty || content.isNotEmpty) score += 15;
-
-    final social = formSection('social');
-    if (platformMetrics.isNotEmpty || contact.isNotEmpty || social.isNotEmpty) score += 10;
-
-    final rates = formSection('rates');
-    final prefs = formSection('preferences');
-    if (rates.isNotEmpty || prefs.isNotEmpty) score += 10;
-
-    if (score > 100) score = 100;
-    return score;
+    return score.clamp(0, 100);
   }
 
   static const maxPhotos = 4;
@@ -275,4 +282,14 @@ class Profile {
       },
     );
   }
+}
+
+bool _hasText(dynamic value) => value?.toString().trim().isNotEmpty ?? false;
+
+bool _hasList(dynamic value) {
+  if (value is List) {
+    return value.any((item) => item.toString().trim().isNotEmpty);
+  }
+  if (value is String) return value.trim().isNotEmpty;
+  return false;
 }

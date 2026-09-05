@@ -8,8 +8,13 @@ extension AppStringsExt on BuildContext {
   String get appName => _l10n?.bombayCastingCompany ?? 'Bombay Casting Company';
   String get createCreatorAccount => _l10n?.createAnAccount ?? 'Create your creator account';
   String get signInToFindCollabs => 'Sign in to find collaborations';
+  String get loginHeadline => 'Find your next collab';
+  String get loginSubtitle => 'Sign in to browse jobs and apply to brands';
   String get continueWithGoogle => _l10n?.continueWithGoogle ?? 'Continue with Google';
+  String get loginWithGoogle => 'Login with Google';
   String get continueWithEmail => _l10n?.continueWithEmail ?? 'Continue with Email';
+  String get loginWithEmailPassword => 'Login with email & password';
+  String get loginWithEmail => 'Login with Email';
   String get or => _l10n?.or ?? 'or';
   String get creatorNameLabel => 'Creator name';
   String get enterYourName => 'Enter your name';

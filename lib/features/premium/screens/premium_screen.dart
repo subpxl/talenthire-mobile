@@ -5,7 +5,9 @@ import 'package:provider/provider.dart';
 import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/core/navigation/app_navigation.dart';
 import 'package:bombay_casting/core/services/payment_service.dart';
+import 'package:bombay_casting/core/widgets/app_success_toast.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
+import 'package:bombay_casting/core/widgets/app_primary_button.dart';
 import 'package:bombay_casting/core/widgets/google_pay_logo.dart';
 import 'package:bombay_casting/core/widgets/paytm_logo.dart';
 import 'package:bombay_casting/core/widgets/phonepe_logo.dart';
@@ -13,7 +15,9 @@ import 'package:bombay_casting/core/widgets/placeholder_avatar.dart';
 import 'package:bombay_casting/features/premium/screens/payment_in_progress_screen.dart';
 
 class PremiumPage extends StatefulWidget {
-  const PremiumPage({super.key});
+  const PremiumPage({super.key, this.showApplyTomorrow = false});
+
+  final bool showApplyTomorrow;
 
   @override
   State<PremiumPage> createState() => _PremiumPageState();
@@ -72,7 +76,7 @@ class _PremiumPageState extends State<PremiumPage> {
         // local state catches up, then show a friendly message.
         await context.read<AppState>().refreshProfile();
         if (!mounted) return;
-        _showMessage('You are already a Premium member!');
+        _showMessage('You are already a Premium member!', type: AppToastType.success);
       } else {
         _showMessage(error.message ?? 'Could not start payment.');
       }
@@ -86,11 +90,8 @@ class _PremiumPageState extends State<PremiumPage> {
     }
   }
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+  void _showMessage(String message, {AppToastType type = AppToastType.error}) {
+    showAppToast(context, message, type: type);
   }
 
   @override
@@ -138,6 +139,21 @@ class _PremiumPageState extends State<PremiumPage> {
                       ),
                     ),
                     const SizedBox(height: 12),
+                    if (widget.showApplyTomorrow) ...[
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 28),
+                        child: Text(
+                          'Subscribe to apply. Pay ₹1 now, or apply tomorrow.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 14,
+                            height: 1.35,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                     Text(
                       AppLocalizations.of(context)!.for1DayThen299month,
                       style: const TextStyle(
@@ -430,19 +446,24 @@ class _PremiumPageState extends State<PremiumPage> {
             ),
           ),
           const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _isProcessing ? null : _startUpiAutopay,
-              child: _isProcessing
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Pay now ₹1'),
-            ),
+          AppPrimaryButton(
+            label: AppLocalizations.of(context)!.payNow1,
+            onPressed: _startUpiAutopay,
+            loading: _isProcessing,
           ),
+          if (widget.showApplyTomorrow) ...[
+            const SizedBox(height: 6),
+            TextButton(
+              onPressed: _isProcessing ? null : () => Navigator.maybePop(context),
+              child: const Text(
+                'Apply tomorrow',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

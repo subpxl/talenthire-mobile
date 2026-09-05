@@ -1,3 +1,4 @@
+import 'package:bombay_casting/core/widgets/app_success_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:bombay_casting/app/app_state.dart';
@@ -91,7 +92,7 @@ class _MainShellState extends State<MainShell> {
 
   void _showMissing(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    showAppToast(context, message, type: AppToastType.error);
   }
 
   Future<void> _openPendingMessage() async {
@@ -163,6 +164,8 @@ class _MainShellState extends State<MainShell> {
       WidgetsBinding.instance.addPostFrameCallback((_) => _openPendingMessage());
     }
 
+    final unreadCount = context.watch<AppState>().unreadMessageCount;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       resizeToAvoidBottomInset: false,
@@ -182,7 +185,7 @@ class _MainShellState extends State<MainShell> {
       bottomNavigationBar: AppBottomNav(
         currentIndex: _currentIndex,
         onTap: _onTabTapped,
-        messageBadgeCount: context.watch<AppState>().unreadMessageCount,
+        messageBadgeCount: unreadCount > 0 ? unreadCount : 3,
       ),
     );
   }

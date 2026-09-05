@@ -5,6 +5,7 @@ import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/core/widgets/placeholder_avatar.dart';
 import 'package:bombay_casting/features/jobs/models/job_listing.dart';
 import 'package:bombay_casting/features/jobs/screens/job_detail_screen.dart';
+import 'package:bombay_casting/features/jobs/widgets/job_highlights_row.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -30,50 +31,104 @@ class JobCard extends StatelessWidget {
                 ? JobDetailData.fromJob(firebaseJob)
                 : JobDetailData.fromJobListing(job),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Stack(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                    child: PlaceholderProfileImage(
-                      aspectRatio: 0.9,
-                      imageIndex: job.imageIndex,
-                      imageUrl: job.imageUrl,
-                    ),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(AppRadius.md),
                   ),
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: IconButton(
-                      tooltip: saved ? 'Remove saved job' : 'Save job',
-                      onPressed: firebaseJob == null
-                          ? null
-                          : () => context.read<AppState>().toggleSavedJob(
-                              firebaseJob,
-                            ),
-                      icon: Icon(
-                        saved ? Icons.favorite : Icons.favorite_border,
-                        color: saved ? AppColors.primary : Colors.white,
-                      ),
-                    ),
+                  child: PlaceholderProfileImage(
+                    aspectRatio: 0.9,
+                    borderRadius: 0,
+                    imageIndex: job.imageIndex,
+                    imageUrl: job.imageUrl,
                   ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                job.title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
                 ),
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(job.details, style: context.bodyMedium),
-              Text(job.location, style: context.bodyMedium),
-            ],
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 8, 14),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              job.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                height: 1.25,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: saved ? 'Remove saved job' : 'Save job',
+                            visualDensity: VisualDensity.compact,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                              minWidth: 40,
+                              minHeight: 40,
+                            ),
+                            onPressed: firebaseJob == null
+                                ? null
+                                : () => context.read<AppState>().toggleSavedJob(
+                                    firebaseJob,
+                                  ),
+                            icon: Icon(
+                              saved ? Icons.favorite : Icons.favorite_border,
+                              color: AppColors.brandRed,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      JobHighlightsRow(
+                        job: job,
+                        postedAt: firebaseJob?.postedAt,
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 11),
+                        decoration: BoxDecoration(
+                          color: AppColors.brandRed,
+                          borderRadius: BorderRadius.circular(AppRadius.pill),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'View details',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13.5,
+                                letterSpacing: 0.1,
+                              ),
+                            ),
+                            SizedBox(width: 6),
+                            Icon(
+                              Icons.arrow_forward_rounded,
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },

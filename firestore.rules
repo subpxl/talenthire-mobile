@@ -238,21 +238,48 @@ service cloud.firestore {
         isSignedIn() && resource.data.user_id == request.auth.uid
       ) || agencyOwnsJob(applicationJobId(resource.data));
 
-      // Only the signed-in premium owner can create their own application.
-      allow create: if isPremium()
+      // Signed-in owner can create their own application (free trial or premium).
+      allow create: if isSignedIn()
         && request.resource.data.user_id == request.auth.uid
         && appId == request.auth.uid + '_' + request.resource.data.job_id
         && request.resource.data.status == 'applied'
         && exists(/databases/$(database)/documents/jobs/$(request.resource.data.job_id))
         && stringField(request.resource.data, 'job_id', 128)
         && stringField(request.resource.data, 'job_title', 200)
-        && optionalString(request.resource.data, 'company', 120);
+        && optionalString(request.resource.data, 'company', 120)
+        && optionalString(request.resource.data, 'script', 4000)
+        && optionalString(request.resource.data, 'youtube_short_url', 500);
 
       allow update: if isAdmin() || (
         isAgency()
         && agencyOwnsJob(applicationJobId(resource.data))
         && applicationJobId(request.resource.data) == applicationJobId(resource.data)
         && request.resource.data.user_id == resource.data.user_id
+      ) || (
+        isSignedIn()
+        && resource.data.user_id == request.auth.uid
+        && request.resource.data.user_id == resource.data.user_id
+        && request.resource.data.job_id == resource.data.job_id
+        && appId == request.auth.uid + '_' + resource.data.job_id
+        && (
+          (
+            changedKeys().hasOnly(['youtube_short_url'])
+            && stringField(request.resource.data, 'youtube_short_url', 500)
+            && !(resource.data.status in ['withdrawn', 'rejected'])
+          )
+          || (
+            changedKeys().hasOnly(['status'])
+            && resource.data.status in ['applied', 'opened', 'shortlisted', 'interview']
+            && request.resource.data.status == 'withdrawn'
+          )
+          || (
+            resource.data.status == 'withdrawn'
+            && request.resource.data.status == 'applied'
+            && !changedKeys().hasAny(['user_id', 'job_id', 'id', 'job_title', 'company'])
+            && optionalString(request.resource.data, 'script', 4000)
+            && optionalString(request.resource.data, 'youtube_short_url', 500)
+          )
+        )
       );
 
       allow delete: if false;

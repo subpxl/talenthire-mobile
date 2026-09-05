@@ -1,11 +1,13 @@
 import 'package:bombay_casting/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:bombay_casting/app/app_state.dart';
-import 'package:bombay_casting/core/theme/app_theme.dart';
+import 'package:bombay_casting/core/utils/phone_utils.dart';
 import 'package:bombay_casting/core/widgets/app_filter_widgets.dart';
 import 'package:bombay_casting/core/widgets/app_form_fields.dart';
 import 'package:bombay_casting/core/widgets/option_picker.dart';
+import 'package:bombay_casting/core/widgets/app_primary_button.dart';
 import 'package:bombay_casting/core/widgets/searchable_option_picker.dart';
 
 class EditPersonalFieldsScreen extends StatefulWidget {
@@ -28,11 +30,20 @@ class _EditPersonalFieldsScreenState extends State<EditPersonalFieldsScreen> {
   final TextEditingController _whatsappController = TextEditingController();
   final TextEditingController _aboutController = TextEditingController();
   bool _whatsappSameAsMobile = true;
+  String? _mobileError;
+  String? _whatsappError;
+
+  static final _phoneInputFormatters = [
+    FilteringTextInputFormatter.digitsOnly,
+    LengthLimitingTextInputFormatter(10),
+  ];
 
   @override
   void initState() {
     super.initState();
     _mobileController.addListener(_syncWhatsappFromMobile);
+    _mobileController.addListener(_clearMobileError);
+    _whatsappController.addListener(_clearWhatsappError);
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
@@ -55,11 +66,15 @@ class _EditPersonalFieldsScreenState extends State<EditPersonalFieldsScreen> {
         personal['email'],
         user?.email,
       );
-      _mobileController.text = _firstValue(
-        personal['mobile'],
-        user?.mobile,
+      _mobileController.text = PhoneUtils.normalizeIndianMobile(
+        _firstValue(
+          personal['mobile'],
+          user?.mobile,
+        ),
       );
-      final whatsapp = _firstValue(personal['whatsapp'], '');
+      final whatsapp = PhoneUtils.normalizeIndianMobile(
+        _firstValue(personal['whatsapp'], ''),
+      );
       final sameAsStored = personal['whatsapp_same_as_mobile'];
       _whatsappSameAsMobile = sameAsStored == true ||
           (sameAsStored != false &&
@@ -148,12 +163,35 @@ class _EditPersonalFieldsScreenState extends State<EditPersonalFieldsScreen> {
   @override
   void dispose() {
     _mobileController.removeListener(_syncWhatsappFromMobile);
+    _mobileController.removeListener(_clearMobileError);
+    _whatsappController.removeListener(_clearWhatsappError);
     _nameController.dispose();
     _emailController.dispose();
     _mobileController.dispose();
     _whatsappController.dispose();
     _aboutController.dispose();
     super.dispose();
+  }
+
+  void _clearMobileError() {
+    if (_mobileError != null) setState(() => _mobileError = null);
+  }
+
+  void _clearWhatsappError() {
+    if (_whatsappError != null) setState(() => _whatsappError = null);
+  }
+
+  bool _validatePhones() {
+    final mobileError = PhoneUtils.validationError(_mobileController.text);
+    final whatsappError = _whatsappSameAsMobile
+        ? null
+        : PhoneUtils.validationError(_whatsappController.text);
+
+    setState(() {
+      _mobileError = mobileError;
+      _whatsappError = whatsappError;
+    });
+    return mobileError == null && whatsappError == null;
   }
 
   void _syncWhatsappFromMobile() {
@@ -167,6 +205,7 @@ class _EditPersonalFieldsScreenState extends State<EditPersonalFieldsScreen> {
   void _setWhatsappSameAsMobile(bool value) {
     setState(() {
       _whatsappSameAsMobile = value;
+      _whatsappError = null;
       if (value) {
         _whatsappController.text = _mobileController.text;
       }
@@ -186,13 +225,15 @@ class _EditPersonalFieldsScreenState extends State<EditPersonalFieldsScreen> {
   }
 
   Future<void> _save() async {
+    if (!_validatePhones()) return;
+
     final parts = _selectedLocation.split(',');
     final name = _nameController.text.trim();
     final email = _emailController.text.trim();
-    final mobile = _mobileController.text.trim();
+    final mobile = PhoneUtils.normalizeIndianMobile(_mobileController.text);
     final whatsapp = _whatsappSameAsMobile
         ? mobile
-        : _whatsappController.text.trim();
+        : PhoneUtils.normalizeIndianMobile(_whatsappController.text);
     await context.read<AppState>().updateUser(
           name: name,
           mobile: mobile,
@@ -267,7 +308,7 @@ class _EditPersonalFieldsScreenState extends State<EditPersonalFieldsScreen> {
                     AppReadOnlyField(
                       label: 'Email',
                       value: _emailController.text,
-                      labelAsPlaceholder: true,
+                      locked: true,
                     ),
                     AppTextField(
                       label: 'About me',
@@ -286,12 +327,18 @@ class _EditPersonalFieldsScreenState extends State<EditPersonalFieldsScreen> {
                       label: 'Mobile number',
                       controller: _mobileController,
                       keyboardType: TextInputType.phone,
+                      inputFormatters: _phoneInputFormatters,
+                      maxLength: 10,
+                      errorText: _mobileError,
                       labelAsPlaceholder: true,
                     ),
                     AppTextField(
                       label: 'WhatsApp number',
                       controller: _whatsappController,
                       keyboardType: TextInputType.phone,
+                      inputFormatters: _phoneInputFormatters,
+                      maxLength: 10,
+                      errorText: _whatsappError,
                       enabled: !_whatsappSameAsMobile,
                       labelAsPlaceholder: true,
                       trailing: AppFormCheckbox(
@@ -389,26 +436,9 @@ class _EditPersonalFieldsScreenState extends State<EditPersonalFieldsScreen> {
             ],
           ),
           const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            height: 42,
-            child: ElevatedButton(
-              onPressed: _save,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24),
-                ),
-              ),
-              child: Text(AppLocalizations.of(context)!.update,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ),
+          AppPrimaryButton(
+            label: AppLocalizations.of(context)!.update,
+            onPressed: _save,
           ),
         ],
       ),

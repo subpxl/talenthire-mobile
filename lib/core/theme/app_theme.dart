@@ -2,7 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// Central design tokens for a cohesive app look.
+/// Central design tokens for the original red theme.
 class AppColors {
   AppColors._();
 
@@ -10,8 +10,15 @@ class AppColors {
   static const primaryDark = Color(0xFFB0152D);
   static const primaryLight = Color(0xFFFFF1F3);
   static const primaryTint = Color(0xFFFDF2F2);
+  static const brandRed = primary;
+  static const brandRedLight = primaryLight;
+  static const brandRedTint = primaryTint;
+  static const error = primary;
+  static const onBrand = Color(0xFFFFFFFF);
   static const accentGreen = Color(0xFF2E7D32);
   static const chatGreen = Color(0xFF43A047);
+  static const successSoft = Color(0xFFE8F5E9);
+  static const successDark = Color(0xFF1B5E20);
   static const bannerStart = Color(0xFFFFF176);
   static const bannerEnd = Color(0xFFFFD54F);
   static const surface = Color(0xFFFFFFFF);
@@ -58,6 +65,7 @@ class AppFormStyle {
   static const border = Color(0xFFEEEEEE);
   static const valueColor = Color(0xFF424242);
   static const hintColor = Color(0xFFBDBDBD);
+  static const errorColor = AppColors.error;
 
   static const labelStyle = TextStyle(
     fontSize: labelSize,
@@ -86,6 +94,11 @@ class AppFormStyle {
         borderSide: const BorderSide(color: border),
       );
 
+  static OutlineInputBorder get errorBorder => OutlineInputBorder(
+        borderRadius: BorderRadius.circular(fieldRadius),
+        borderSide: const BorderSide(color: errorColor),
+      );
+
   static InputDecoration inputDecoration({String? hint}) {
     return InputDecoration(
       hintText: hint,
@@ -101,6 +114,42 @@ class AppFormStyle {
         borderRadius: BorderRadius.circular(fieldRadius),
         borderSide: const BorderSide(color: AppColors.primary),
       ),
+    );
+  }
+}
+
+class AppButtonStyle {
+  AppButtonStyle._();
+
+  static const formHeight = 42.0;
+
+  static ButtonStyle primary({
+    Color? backgroundColor,
+    Color? foregroundColor,
+  }) {
+    final bg = backgroundColor ?? AppColors.primary;
+    final fg = foregroundColor ?? AppColors.onBrand;
+    return ElevatedButton.styleFrom(
+      backgroundColor: bg,
+      foregroundColor: fg,
+      disabledBackgroundColor: bg.withValues(alpha: 0.5),
+      disabledForegroundColor: fg.withValues(alpha: 0.7),
+      elevation: 0,
+      minimumSize: const Size.fromHeight(formHeight),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+      ),
+      textStyle: const TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.bold,
+      ),
+    );
+  }
+
+  static ButtonStyle banner() {
+    return primary(
+      backgroundColor: AppColors.primary,
+      foregroundColor: AppColors.onBrand,
     );
   }
 }
@@ -149,19 +198,7 @@ ThemeData buildAppTheme() {
       textColor: AppColors.textPrimary,
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: primary,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 20),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadius.pill),
-        ),
-        textStyle: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
+      style: AppButtonStyle.primary(),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
@@ -194,18 +231,18 @@ ThemeData buildAppTheme() {
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: AppColors.surface,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      fillColor: AppFormStyle.fill,
+      contentPadding: AppFormStyle.fieldPadding,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(AppRadius.sm),
-        borderSide: const BorderSide(color: AppColors.border),
+        borderRadius: BorderRadius.circular(AppFormStyle.fieldRadius),
+        borderSide: const BorderSide(color: AppFormStyle.border),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(AppRadius.sm),
-        borderSide: const BorderSide(color: AppColors.border),
+        borderRadius: BorderRadius.circular(AppFormStyle.fieldRadius),
+        borderSide: const BorderSide(color: AppFormStyle.border),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(AppRadius.sm),
+        borderRadius: BorderRadius.circular(AppFormStyle.fieldRadius),
         borderSide: const BorderSide(color: primary, width: 2),
       ),
     ),

@@ -2,6 +2,42 @@ import 'package:flutter/material.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/core/widgets/app_tab_bar.dart';
 
+class StickyBarDelegate extends SliverPersistentHeaderDelegate {
+  StickyBarDelegate({required this.child, required this.extent});
+
+  final Widget child;
+  final double extent;
+
+  @override
+  double get minExtent => extent;
+
+  @override
+  double get maxExtent => extent;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return Material(
+      color: AppColors.background,
+      elevation: overlapsContent ? 0.6 : 0,
+      shadowColor: Colors.black26,
+      child: SizedBox(
+        height: extent,
+        width: double.infinity,
+        child: ClipRect(child: child),
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant StickyBarDelegate oldDelegate) {
+    return oldDelegate.extent != extent || oldDelegate.child != child;
+  }
+}
+
 /// Consistent shell for every main tab screen.
 class AppScreenLayout extends StatelessWidget {
   const AppScreenLayout({
@@ -35,6 +71,7 @@ class AppScreenLayout extends StatelessWidget {
       appBar: showAppBar
           ? AppBar(
               automaticallyImplyLeading: false,
+              titleSpacing: _hasTabs ? 28 : 16,
               title: _hasTabs
                   ? AppTabBar(
                       tabs: tabs!,
@@ -119,7 +156,10 @@ class AppScrollBody extends StatelessWidget {
 class AppRefreshScrollBody extends StatelessWidget {
   const AppRefreshScrollBody({
     super.key,
+    this.leading,
     this.header,
+    this.pinnedHeader,
+    this.pinnedHeaderExtent = 0,
     required this.itemCount,
     required this.itemBuilder,
     this.onRefresh,
@@ -130,7 +170,10 @@ class AppRefreshScrollBody extends StatelessWidget {
     this.empty,
   });
 
+  final List<Widget>? leading;
   final List<Widget>? header;
+  final Widget? pinnedHeader;
+  final double pinnedHeaderExtent;
   final int itemCount;
   final IndexedWidgetBuilder itemBuilder;
   final Future<void> Function()? onRefresh;
@@ -168,6 +211,21 @@ class AppRefreshScrollBody extends StatelessWidget {
           parent: BouncingScrollPhysics(),
         ),
         slivers: [
+          if (leading != null && leading!.isNotEmpty)
+            SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: leading!,
+              ),
+            ),
+          if (pinnedHeader != null && pinnedHeaderExtent > 0)
+            SliverPersistentHeader(
+              pinned: true,
+              delegate: StickyBarDelegate(
+                extent: pinnedHeaderExtent,
+                child: pinnedHeader!,
+              ),
+            ),
           SliverPadding(
             padding: resolved,
             sliver: SliverList(

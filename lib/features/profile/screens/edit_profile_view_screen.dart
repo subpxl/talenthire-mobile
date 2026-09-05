@@ -9,6 +9,7 @@ import 'package:bombay_casting/core/models/models.dart';
 import 'package:bombay_casting/core/navigation/app_navigation.dart';
 import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
+import 'package:bombay_casting/core/widgets/app_success_toast.dart';
 import 'package:bombay_casting/features/profile/screens/edit_social_form.dart';
 import 'package:bombay_casting/features/profile/screens/edit_verification_form.dart';
 import 'package:bombay_casting/features/profile/screens/edit_personal_details_form.dart';
@@ -22,7 +23,7 @@ class EditProfileScreen extends StatelessWidget {
     final profile = appState.profile;
     final user = appState.user;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -297,7 +298,11 @@ class EditProfileSectionList extends StatelessWidget {
                       color: AppColors.primary,
                     ),
                   ),
-                  Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    size: 20,
+                    color: AppColors.primary,
+                  ),
                 ],
               ),
               const SizedBox(height: 12),
@@ -416,10 +421,14 @@ class ProfilePhotoPicker extends StatelessWidget {
             result.files,
             mainIndex: result.mainIndex,
           );
+      if (!context.mounted) return;
+      showAppSuccessToast(context, AppLocalizations.of(context)!.saved);
     } catch (_) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppLocalizations.of(context)!.couldNotUploadPhoto)),
+      showAppToast(
+        context,
+        AppLocalizations.of(context)!.couldNotUploadPhoto,
+        type: AppToastType.error,
       );
     }
   }
@@ -427,10 +436,14 @@ class ProfilePhotoPicker extends StatelessWidget {
   Future<void> _remove(BuildContext context, String url) async {
     try {
       await context.read<AppState>().removeProfilePhoto(url);
+      if (!context.mounted) return;
+      showAppSuccessToast(context, AppLocalizations.of(context)!.saved);
     } catch (_) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppLocalizations.of(context)!.couldNotRemovePhoto)),
+      showAppToast(
+        context,
+        AppLocalizations.of(context)!.couldNotRemovePhoto,
+        type: AppToastType.error,
       );
     }
   }
@@ -785,10 +798,13 @@ class _PhotoPreviewScreenState extends State<_PhotoPreviewScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_controller.hasClients) _controller.jumpToPage(0);
       });
+      showAppSuccessToast(context, AppLocalizations.of(context)!.saved);
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppLocalizations.of(context)!.couldNotSetMainPhoto)),
+      showAppToast(
+        context,
+        AppLocalizations.of(context)!.couldNotSetMainPhoto,
+        type: AppToastType.error,
       );
     } finally {
       if (mounted) setState(() => _settingMain = false);

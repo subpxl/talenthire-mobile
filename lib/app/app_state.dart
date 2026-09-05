@@ -17,6 +17,7 @@ import 'package:bombay_casting/features/jobs/models/agency_profile.dart';
 import 'package:bombay_casting/features/jobs/models/job_listing.dart';
 import 'package:bombay_casting/features/jobs/providers/job_feed_provider.dart';
 import 'package:bombay_casting/features/jobs/providers/job_state.dart';
+import 'package:bombay_casting/features/jobs/utils/apply_quota.dart';
 import 'package:bombay_casting/features/jobs/services/job_cache_service.dart';
 import 'package:bombay_casting/features/messaging/providers/messaging_provider.dart';
 import 'package:bombay_casting/features/profile/providers/profile_provider.dart';
@@ -86,23 +87,45 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  static const _languagePromptKey = 'language_prompt_done';
+
   Locale? _appLocale;
   Locale? get appLocale => _appLocale;
+  bool _hasSelectedLanguage = false;
+  bool get hasSelectedLanguage => _hasSelectedLanguage;
+  bool _shouldShowLanguageOnboarding = false;
+  bool get shouldShowLanguageOnboarding => _shouldShowLanguageOnboarding;
+  bool _localeReady = false;
+  bool get localeReady => _localeReady;
 
   Future<void> _loadLocale() async {
     final prefs = await SharedPreferences.getInstance();
     final languageCode = prefs.getString('language_code');
+    final promptDone = prefs.getBool(_languagePromptKey) == true;
+    _hasSelectedLanguage = _hasSelectedLanguage || promptDone || languageCode != null;
     if (languageCode != null) {
       _appLocale = Locale(languageCode);
-      notifyListeners();
     }
+    _localeReady = true;
+    notifyListeners();
   }
 
   Future<void> setLocale(Locale locale) async {
-    if (_appLocale == locale) return;
     _appLocale = locale;
+    _hasSelectedLanguage = true;
+    _shouldShowLanguageOnboarding = false;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('language_code', locale.languageCode);
+    await prefs.setBool(_languagePromptKey, true);
+    notifyListeners();
+  }
+
+  Future<void> markLanguagePromptDone() async {
+    _shouldShowLanguageOnboarding = false;
+    if (_hasSelectedLanguage) return;
+    _hasSelectedLanguage = true;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_languagePromptKey, true);
     notifyListeners();
   }
 
@@ -132,6 +155,13 @@ class AppState extends ChangeNotifier {
     if (currentProfile == null || currentProfile.userId != uid) return false;
     return currentProfile.isPremium;
   }
+
+  ApplyGate get applyGate => ApplyQuota.evaluate(
+        isPremium: isPremiumUser,
+        accountCreatedAt: user?.createdAt,
+        applications: applications,
+      );
+
   List<Application> get applications => _jobs.applications;
   List<Job> get savedJobs => _jobs.savedJobs;
   List<CreatorProfile> get savedCreators => _jobs.savedCreators;
@@ -173,10 +203,12 @@ class AppState extends ChangeNotifier {
 
   int homeInnerTabIndex = 0;
   int creatorsInnerTabIndex = 0;
+  int jobsInnerTabIndex = 0;
   int? requestedMainShellTab;
 
   void openJobsTabWithFilter(HomeJobFilter filter) {
     setJobFilter(filter);
+    jobsInnerTabIndex = 0;
     requestedMainShellTab = 2;
     notifyListeners();
   }
@@ -199,6 +231,12 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setJobsInnerTab(int index) {
+    if (jobsInnerTabIndex == index) return;
+    jobsInnerTabIndex = index;
+    notifyListeners();
+  }
+
   void onMainShellTabSelected(int index) {
     var changed = false;
     if (index == 0 && homeInnerTabIndex != 0) {
@@ -207,6 +245,10 @@ class AppState extends ChangeNotifier {
     }
     if (index == 1 && creatorsInnerTabIndex != 0) {
       creatorsInnerTabIndex = 0;
+      changed = true;
+    }
+    if (index == 2 && jobsInnerTabIndex != 0) {
+      jobsInnerTabIndex = 0;
       changed = true;
     }
     final keepPresetSearch = index == 2 && requestedMainShellTab == 2;
@@ -225,6 +267,7 @@ class AppState extends ChangeNotifier {
   Future<void> refreshJobs() => _jobs.refreshJobs();
   Future<void> loadMoreJobs() => _jobs.loadMoreJobs();
   bool hasApplied(String jobId) => _jobs.hasApplied(jobId);
+  Application? applicationFor(String jobId) => _jobs.applicationFor(jobId);
 
   Future<bool> loginWithGoogle() => _auth.loginWithGoogle();
   Future<bool> loginWithEmail({
@@ -251,14 +294,34 @@ class AppState extends ChangeNotifier {
     await _jobs.refreshApplications(uid);
   }
 
-  Future<bool> applyToJob(Job job) async {
+  Future<bool> applyToJob(
+    Job job, {
+    String script = '',
+    String youtubeShortUrl = '',
+  }) async {
     final uid = user?.id;
     if (uid == null) return false;
+    if (applyGate != ApplyGate.allowed) return false;
     return _jobs.applyToJob(
       job,
       userId: uid,
-      isPremium: isPremiumUser,
+      script: script,
+      youtubeShortUrl: youtubeShortUrl,
     );
+  }
+
+  Future<bool> updateApplicationLink(
+    Application application, {
+    required String youtubeShortUrl,
+  }) {
+    return _jobs.updateApplicationLink(
+      application,
+      youtubeShortUrl: youtubeShortUrl,
+    );
+  }
+
+  Future<bool> withdrawApplication(Application application) {
+    return _jobs.withdrawApplication(application);
   }
 
   Future<void> toggleSavedJob(Job job) async {
@@ -349,8 +412,10 @@ class AppState extends ChangeNotifier {
     await _auth.logout();
     _profile.reset();
     _jobs.reset();
+    _shouldShowLanguageOnboarding = false;
     homeInnerTabIndex = 0;
     creatorsInnerTabIndex = 0;
+    jobsInnerTabIndex = 0;
     notifyListeners();
   }
 
@@ -358,11 +423,16 @@ class AppState extends ChangeNotifier {
     _profile.reset();
     _jobs.reset();
     if (bootstrap.isNewUser) {
+      if (!_hasSelectedLanguage) {
+        _shouldShowLanguageOnboarding = true;
+        notifyListeners();
+      }
       await _profile.createDefault(
         uid: bootstrap.uid,
         profileImage: bootstrap.googlePhotoUrl ?? '',
       );
     } else {
+      await markLanguagePromptDone();
       await _profile.loadProfile(bootstrap.uid);
       unawaited(_profile.syncGooglePhoto(bootstrap.googlePhotoUrl));
     }

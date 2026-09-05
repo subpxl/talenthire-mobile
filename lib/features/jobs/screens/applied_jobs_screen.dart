@@ -2,10 +2,13 @@ import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/core/models/models.dart';
 import 'package:bombay_casting/core/navigation/app_navigation.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
+import 'package:bombay_casting/core/utils/app_links.dart';
 import 'package:bombay_casting/core/widgets/app_screen_layout.dart';
 import 'package:bombay_casting/features/jobs/screens/job_detail_screen.dart';
 import 'package:bombay_casting/features/jobs/widgets/application_progress_tracker.dart';
+import 'package:bombay_casting/features/jobs/widgets/manage_application_sheet.dart';
 import 'package:bombay_casting/features/jobs/widgets/profile_completion_banner.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:bombay_casting/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -47,7 +50,7 @@ class AppliedJobsTabContent extends StatelessWidget {
       onRefresh: () => context.read<AppState>().refreshApplications(),
       header: [
         ...profileBanner,
-        const AppSectionTitle('Your applications'),
+        const AppSectionTitle('Applied'),
       ],
       itemCount: applications.length,
       itemBuilder: (context, index) {
@@ -73,42 +76,201 @@ class _AppliedJobCard extends StatelessWidget {
     return '${application.company} · Applied on $date';
   }
 
+  bool get _canManage {
+    return application.status != ApplicationStatus.rejected &&
+        application.status != ApplicationStatus.selected &&
+        application.status != ApplicationStatus.withdrawn;
+  }
+
+  void _openJob(BuildContext context) {
+    final job = context.read<AppState>().jobById(application.jobId);
+    if (job == null) return;
+    AppNavigation.openJobDetail(context, JobDetailData.fromJob(job));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final job = context.watch<AppState>().jobById(application.jobId);
+    final posterUrl = job?.imageUrl.trim() ?? '';
+    final shortUrl = application.youtubeShortUrl.trim();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    GestureDetector(
+                      onTap: () => _openJob(context),
+                      child: Text(
+                        application.jobTitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          height: 1.25,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _subtitle(),
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              _JobPoster(
+                imageUrl: posterUrl,
+                onTap: shortUrl.isNotEmpty
+                    ? () => openAppLink(context, shortUrl)
+                    : () => _openJob(context),
+                showPlay: shortUrl.isNotEmpty,
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          ApplicationProgressTracker(application: application),
+          if (_canManage) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                _TextAction(
+                  label: 'Update link',
+                  onTap: () => updateApplicationInterviewLink(
+                    context,
+                    application: application,
+                  ),
+                ),
+                Container(
+                  width: 1,
+                  height: 12,
+                  margin: const EdgeInsets.symmetric(horizontal: 10),
+                  color: AppColors.border,
+                ),
+                _TextAction(
+                  label: 'Cancel',
+                  onTap: () => confirmAndCancelApplication(
+                    context,
+                    application: application,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _TextAction extends StatelessWidget {
+  const _TextAction({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () {
-        final job = context.read<AppState>().jobById(application.jobId);
-        if (job == null) return;
-        AppNavigation.openJobDetail(context, JobDetailData.fromJob(job));
-      },
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          border: Border.all(color: AppColors.border),
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w600,
+            color: AppColors.primary,
+          ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              application.jobTitle,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              _subtitle(),
-              style: context.bodyMedium,
-            ),
-            const SizedBox(height: AppSpacing.md),
-            ApplicationProgressTracker(application: application),
-          ],
+      ),
+    );
+  }
+}
+
+class _JobPoster extends StatelessWidget {
+  const _JobPoster({
+    required this.imageUrl,
+    required this.onTap,
+    required this.showPlay,
+  });
+
+  final String imageUrl;
+  final VoidCallback onTap;
+  final bool showPlay;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: SizedBox(
+          width: 56,
+          height: 72,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (imageUrl.isNotEmpty)
+                CachedNetworkImage(
+                  imageUrl: imageUrl,
+                  fit: BoxFit.cover,
+                  memCacheWidth: 200,
+                  fadeInDuration: const Duration(milliseconds: 200),
+                  placeholder: (context, url) => const ColoredBox(
+                    color: Color(0xFFF3F3F3),
+                  ),
+                  errorWidget: (context, url, error) => const _PosterFallback(),
+                )
+              else
+                const _PosterFallback(),
+              if (showPlay)
+                const Center(
+                  child: Icon(
+                    Icons.play_circle_fill,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                ),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+}
+
+class _PosterFallback extends StatelessWidget {
+  const _PosterFallback();
+
+  @override
+  Widget build(BuildContext context) {
+    return const ColoredBox(
+      color: Color(0xFFF3F3F3),
+      child: Icon(
+        Icons.movie_filter_outlined,
+        size: 22,
+        color: AppColors.textHint,
       ),
     );
   }

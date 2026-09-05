@@ -3,6 +3,7 @@ import 'package:bombay_casting/core/deep_links/deep_link_target.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/core/widgets/app_screen_layout.dart';
 import 'package:bombay_casting/core/widgets/placeholder_avatar.dart';
+import 'package:bombay_casting/core/widgets/app_success_toast.dart';
 import 'package:bombay_casting/core/widgets/report_dialog.dart';
 import 'package:bombay_casting/core/widgets/share_link_button.dart';
 import 'package:bombay_casting/features/jobs/models/agency_profile.dart';
@@ -34,8 +35,10 @@ class AgencyDetailScreen extends StatelessWidget {
     ];
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
         leading: IconButton(
           tooltip: 'Back',
           icon: const Icon(Icons.arrow_back_ios, size: 20),
@@ -61,9 +64,7 @@ class AgencyDetailScreen extends StatelessWidget {
                   title: l10n.reportAgency,
                 );
                 if (result != null && context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(l10n.agencyReported)),
-                  );
+                  showAppSuccessToast(context, l10n.agencyReported);
                 }
               }
             },
@@ -189,7 +190,7 @@ class AgencyDetailScreen extends StatelessWidget {
             const SizedBox(height: AppSpacing.sm),
             if (listings.isEmpty)
               Text(
-                'No jobs posted yet.',
+                AppLocalizations.of(context)!.noJobsPostedYet,
                 style: context.bodyMedium,
               )
             else

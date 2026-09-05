@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/core/widgets/app_filter_widgets.dart';
 
@@ -34,6 +35,9 @@ class AppTextField extends StatelessWidget {
     this.enabled = true,
     this.trailing,
     this.labelAsPlaceholder = false,
+    this.inputFormatters,
+    this.maxLength,
+    this.errorText,
   });
 
   final String label;
@@ -46,45 +50,89 @@ class AppTextField extends StatelessWidget {
   final bool enabled;
   final Widget? trailing;
   final bool labelAsPlaceholder;
+  final List<TextInputFormatter>? inputFormatters;
+  final int? maxLength;
+  final String? errorText;
 
   @override
   Widget build(BuildContext context) {
     final placeholder = hint ?? (labelAsPlaceholder ? label : null);
     final field = trailing != null && labelAsPlaceholder
         ? _boxedField(placeholder)
-        : TextField(
-            controller: controller,
-            enabled: enabled,
-            readOnly: !enabled,
-            keyboardType: keyboardType,
-            textCapitalization: textCapitalization,
-            maxLines: maxLines,
-            style: AppFormStyle.valueStyle,
-            decoration: AppFormStyle.inputDecoration(hint: placeholder),
+        : _textField(placeholder);
+    final content = labelAsPlaceholder
+        ? field
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: AppFormSectionTitle(label, optional: optional),
+                  ),
+                  if (trailing != null) trailing!,
+                ],
+              ),
+              const SizedBox(height: AppFormStyle.labelGap),
+              field,
+            ],
           );
-    if (labelAsPlaceholder) return field;
+    if (errorText == null) return content;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: AppFormSectionTitle(label, optional: optional),
-            ),
-            if (trailing != null) trailing!,
-          ],
+        content,
+        const SizedBox(height: 4),
+        Text(
+          errorText!,
+          style: const TextStyle(
+            fontSize: 11.5,
+            color: AppFormStyle.errorColor,
+            fontWeight: FontWeight.w500,
+          ),
         ),
-        const SizedBox(height: AppFormStyle.labelGap),
-        field,
       ],
     );
   }
 
+  InputDecoration _fieldDecoration(String? placeholder) {
+    final hasError = errorText != null && errorText!.isNotEmpty;
+    return AppFormStyle.inputDecoration(hint: placeholder).copyWith(
+      errorBorder: AppFormStyle.errorBorder,
+      focusedErrorBorder: AppFormStyle.errorBorder,
+      enabledBorder: hasError ? AppFormStyle.errorBorder : AppFormStyle.inputDecoration().enabledBorder,
+      focusedBorder: hasError ? AppFormStyle.errorBorder : AppFormStyle.inputDecoration().focusedBorder,
+    );
+  }
+
+  Widget _textField(String? placeholder) {
+    return TextField(
+      controller: controller,
+      enabled: enabled,
+      readOnly: !enabled,
+      keyboardType: keyboardType,
+      textCapitalization: textCapitalization,
+      maxLines: maxLines,
+      inputFormatters: inputFormatters,
+      maxLength: maxLength,
+      buildCounter: (_, {required currentLength, required isFocused, maxLength}) =>
+          null,
+      style: AppFormStyle.valueStyle,
+      decoration: _fieldDecoration(placeholder),
+    );
+  }
+
   Widget _boxedField(String? placeholder) {
+    final hasError = errorText != null && errorText!.isNotEmpty;
     return Container(
       width: double.infinity,
       padding: AppFormStyle.fieldPadding,
-      decoration: AppFormStyle.fieldBox,
+      decoration: AppFormStyle.fieldBox.copyWith(
+        border: Border.all(
+          color: hasError ? AppFormStyle.errorColor : AppFormStyle.border,
+          width: hasError ? 1.5 : 1,
+        ),
+      ),
       child: Row(
         children: [
           Expanded(
@@ -94,6 +142,10 @@ class AppTextField extends StatelessWidget {
               keyboardType: keyboardType,
               textCapitalization: textCapitalization,
               maxLines: maxLines,
+              inputFormatters: inputFormatters,
+              maxLength: maxLength,
+              buildCounter: (_, {required currentLength, required isFocused, maxLength}) =>
+                  null,
               style: AppFormStyle.valueStyle,
               decoration: InputDecoration(
                 hintText: placeholder,
@@ -173,14 +225,18 @@ class AppReadOnlyField extends StatelessWidget {
     required this.label,
     required this.value,
     this.labelAsPlaceholder = false,
+    this.locked = false,
   });
 
   final String label;
   final String value;
   final bool labelAsPlaceholder;
+  final bool locked;
 
   @override
   Widget build(BuildContext context) {
+    if (locked) return _buildLockedField();
+
     final empty = value.trim().isEmpty;
     final box = Container(
       width: double.infinity,
@@ -201,6 +257,42 @@ class AppReadOnlyField extends StatelessWidget {
       ],
     );
   }
+
+  Widget _buildLockedField() {
+    final empty = value.trim().isEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Icon(
+              Icons.lock_outline,
+              size: 13,
+              color: Colors.grey.shade500,
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          empty ? '-' : value,
+          style: TextStyle(
+            fontSize: 13.5,
+            fontWeight: FontWeight.w500,
+            color: empty ? AppFormStyle.hintColor : AppFormStyle.valueColor,
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class AppPlatformLinkField extends StatelessWidget {
@@ -210,16 +302,21 @@ class AppPlatformLinkField extends StatelessWidget {
     required this.icon,
     required this.controller,
     this.hint = 'Paste here your URL',
+    this.errorText,
+    this.onChanged,
   });
 
   final String label;
   final Widget icon;
   final TextEditingController controller;
   final String hint;
+  final String? errorText;
+  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    final hasError = errorText != null && errorText!.isNotEmpty;
+    final field = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
@@ -236,7 +333,31 @@ class AppPlatformLinkField extends StatelessWidget {
           keyboardType: TextInputType.url,
           textInputAction: TextInputAction.next,
           style: AppFormStyle.valueStyle,
-          decoration: AppFormStyle.inputDecoration(hint: hint),
+          onChanged: onChanged,
+          decoration: AppFormStyle.inputDecoration(hint: hint).copyWith(
+            errorBorder: AppFormStyle.errorBorder,
+            focusedErrorBorder: AppFormStyle.errorBorder,
+            enabledBorder:
+                hasError ? AppFormStyle.errorBorder : AppFormStyle.inputDecoration().enabledBorder,
+            focusedBorder:
+                hasError ? AppFormStyle.errorBorder : AppFormStyle.inputDecoration().focusedBorder,
+          ),
+        ),
+      ],
+    );
+    if (!hasError) return field;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        field,
+        const SizedBox(height: 4),
+        Text(
+          errorText!,
+          style: const TextStyle(
+            fontSize: 11.5,
+            color: AppFormStyle.errorColor,
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ],
     );

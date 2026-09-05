@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
+import 'package:bombay_casting/l10n/app_localizations.dart';
 
 class ChatMessage {
   const ChatMessage({
@@ -55,6 +56,10 @@ class ConversationThread {
   final List<ChatMessage> messages;
   final Map<String, dynamic> raw;
 
+  static const welcomeId = 'welcome';
+
+  bool get isWelcome => id == welcomeId;
+
   factory ConversationThread.fromFirestore(
     String currentUserId,
     Map<String, dynamic> data,
@@ -89,6 +94,26 @@ class ConversationThread {
       raw: data,
     );
   }
+}
+
+ConversationThread welcomeConversation(AppLocalizations l10n) {
+  return ConversationThread(
+    id: ConversationThread.welcomeId,
+    name: l10n.bombayCastingCompany,
+    lastMessage: l10n.companyWelcomeMessagePreview,
+    time: l10n.today,
+    avatarColor: AppColors.primary,
+    unreadCount: 1,
+    isVerified: true,
+    messages: [
+      ChatMessage(
+        text: l10n.companyWelcomeMessageBody,
+        isMine: false,
+        time: l10n.today,
+      ),
+    ],
+    raw: const {},
+  );
 }
 
 Color _colorForName(String name) {

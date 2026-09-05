@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:bombay_casting/l10n/app_localizations.dart';
 import 'package:bombay_casting/core/models/models.dart';
+import 'package:bombay_casting/core/widgets/app_success_toast.dart';
 import 'package:bombay_casting/features/jobs/models/job_listing.dart';
 import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
@@ -117,6 +119,8 @@ Future<void> saveProfileSection({
   required Map<String, dynamic> data,
   Profile Function(Profile current)? extra,
   bool pop = true,
+  String? successMessage,
+  bool showSuccessToast = true,
 }) async {
   final appState = context.read<AppState>();
   final profile = appState.profile;
@@ -124,6 +128,12 @@ Future<void> saveProfileSection({
   var updated = profile.mergeFormSection(section, data);
   if (extra != null) updated = extra(updated);
   await appState.updateProfile(updated);
+  if (context.mounted && showSuccessToast) {
+    showAppSuccessToast(
+      context,
+      successMessage ?? AppLocalizations.of(context)!.saved,
+    );
+  }
   if (pop && context.mounted) Navigator.pop(context);
 }
 
@@ -397,8 +407,7 @@ class ProfileOptions {
 
   static List<String> get ages {
     return [
-      for (var age = 18; age <= 45; age++) '$age',
-      '45+',
+      for (var age = 18; age <= 100; age++) '$age',
     ];
   }
 }

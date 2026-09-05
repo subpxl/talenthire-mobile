@@ -1,3 +1,4 @@
+import 'package:bombay_casting/core/widgets/app_success_toast.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
@@ -57,16 +58,12 @@ class _ReportDialogState extends State<ReportDialog> {
   void _submit() {
     final l10n = AppLocalizations.of(context)!;
     if (_selectedReason == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.reportSelectReason)),
-      );
+      showAppToast(context, l10n.reportSelectReason, type: AppToastType.error);
       return;
     }
     if (_selectedReason == ReportReason.other &&
         _otherController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.reportOtherRequired)),
-      );
+      showAppToast(context, l10n.reportOtherRequired, type: AppToastType.error);
       return;
     }
 

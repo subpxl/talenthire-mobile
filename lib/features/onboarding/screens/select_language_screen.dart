@@ -5,7 +5,9 @@ import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
 
 class LanguageScreen extends StatefulWidget {
-  const LanguageScreen({super.key});
+  const LanguageScreen({super.key, this.isOnboarding = false});
+
+  final bool isOnboarding;
 
   @override
   State<LanguageScreen> createState() => _LanguageScreenState();
@@ -41,7 +43,9 @@ class _LanguageScreenState extends State<LanguageScreen> {
   void _applyLanguage() {
     final appState = context.read<AppState>();
     appState.setLocale(Locale(languages[selectedIndex].localeCode));
-    Navigator.maybePop(context);
+    if (!widget.isOnboarding) {
+      Navigator.maybePop(context);
+    }
   }
 
   @override
@@ -51,12 +55,19 @@ class _LanguageScreenState extends State<LanguageScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        leading: IconButton(
-          tooltip: 'Back',
-          icon: const Icon(Icons.arrow_back_ios, size: 20),
-          onPressed: () => Navigator.maybePop(context),
+        automaticallyImplyLeading: !widget.isOnboarding,
+        leading: widget.isOnboarding
+            ? null
+            : IconButton(
+                tooltip: 'Back',
+                icon: const Icon(Icons.arrow_back_ios, size: 20),
+                onPressed: () => Navigator.maybePop(context),
+              ),
+        title: Text(
+          widget.isOnboarding
+              ? (l10n?.chooseYourAppLanguage ?? 'Choose your app language')
+              : (l10n?.changeLanguage ?? 'Change language'),
         ),
-        title: Text(l10n?.changeLanguage ?? 'Change language'),
       ),
       body: SafeArea(
         child: Column(
@@ -183,7 +194,12 @@ class _LanguageScreenState extends State<LanguageScreen> {
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: _applyLanguage,
-                      child: Text(AppLocalizations.of(context)!.update),
+                      style: AppButtonStyle.banner(),
+                      child: Text(
+                        widget.isOnboarding
+                            ? 'Continue'
+                            : AppLocalizations.of(context)!.update,
+                      ),
                     ),
                   ),
                 ],

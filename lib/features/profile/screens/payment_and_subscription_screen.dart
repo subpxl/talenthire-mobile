@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/core/models/model_helpers.dart';
 import 'package:bombay_casting/core/services/payment_service.dart';
+import 'package:bombay_casting/core/widgets/app_success_toast.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/features/profile/screens/account_settings_screen.dart';
 import 'package:bombay_casting/l10n/app_localizations.dart';
@@ -104,9 +105,10 @@ class _PaymentAndSubscriptionScreenState
             end == null
                 ? 'Autopay cancelled. You keep Premium until this paid period ends.'
                 : 'Autopay cancelled. You keep Premium until ${DateFormat('d MMM yyyy').format(end.toLocal())}.',
+            type: AppToastType.success,
           );
         } else {
-          _showMessage(l10n.subscriptionCancelled);
+          _showMessage(l10n.subscriptionCancelled, type: AppToastType.success);
         }
         return;
       }
@@ -142,7 +144,7 @@ class _PaymentAndSubscriptionScreenState
       if (!mounted) return;
       await context.read<AppState>().refreshProfile();
       if (!mounted) return;
-      _showMessage(l10n.subscriptionCancelled);
+      _showMessage(l10n.subscriptionCancelled, type: AppToastType.success);
     } on FirebaseFunctionsException catch (error) {
       if (!mounted) return;
       if (error.code == 'failed-precondition') {
@@ -163,11 +165,8 @@ class _PaymentAndSubscriptionScreenState
     }
   }
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+  void _showMessage(String message, {AppToastType type = AppToastType.error}) {
+    showAppToast(context, message, type: type);
   }
 
   @override

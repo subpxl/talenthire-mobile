@@ -1,3 +1,4 @@
+import 'package:bombay_casting/core/widgets/app_success_toast.dart';
 import 'package:bombay_casting/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -15,8 +16,10 @@ Future<void> openLegalPage(BuildContext context, String url) async {
   final uri = Uri.parse(url);
   final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
   if (!launched && context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(AppLocalizations.of(context)!.couldNotOpenThisPageRightNow)),
+    showAppToast(
+      context,
+      AppLocalizations.of(context)!.couldNotOpenThisPageRightNow,
+      type: AppToastType.error,
     );
   }
 }

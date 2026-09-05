@@ -45,9 +45,22 @@ class _CreatorsScreenState extends State<CreatorsScreen> {
 
   void _onTabChanged(int index) {
     context.read<AppState>().setCreatorsInnerTab(index);
+    _resetScroll();
+  }
+
+  void _resetScroll() {
     if (_scrollController.hasClients) {
       _scrollController.jumpTo(0);
     }
+  }
+
+  void _setCreatorCategories(Set<String> categories) {
+    context.read<AppState>().setCreatorFilter(
+          context.read<AppState>().creatorFilter.copyWith(
+            categories: categories,
+          ),
+        );
+    _resetScroll();
   }
 
   @override
@@ -64,11 +77,34 @@ class _CreatorsScreenState extends State<CreatorsScreen> {
               : context.read<AppState>().refreshSavedCreators(),
           child: CustomScrollView(
             controller: _scrollController,
+            cacheExtent: 1200,
             physics: const AlwaysScrollableScrollPhysics(
               parent: BouncingScrollPhysics(),
             ),
             slivers: [
-              SliverToBoxAdapter(child: _buildHeader(context, selectedTab)),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.screenH,
+                    0,
+                    AppSpacing.screenH,
+                    0,
+                  ),
+                  child: AppTabBar(
+                    tabs: _tabs,
+                    selectedIndex: selectedTab,
+                    onChanged: _onTabChanged,
+                  ),
+                ),
+              ),
+              if (selectedTab == 0)
+                SliverPersistentHeader(
+                  pinned: true,
+                  delegate: StickyBarDelegate(
+                    extent: AppSearchAndChips.heightFor(_searchPadding),
+                    child: _buildSearchAndChips(context),
+                  ),
+                ),
               if (selectedTab == 0)
                 ..._buildAllSlivers(context)
               else
@@ -80,75 +116,57 @@ class _CreatorsScreenState extends State<CreatorsScreen> {
     );
   }
 
-  Widget _buildHeader(BuildContext context, int selectedTab) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.screenH,
-            4,
-            AppSpacing.screenH,
-            4,
-          ),
-          child: AppTabBar(
-            tabs: _tabs,
-            selectedIndex: selectedTab,
-            onChanged: _onTabChanged,
-          ),
-        ),
-        if (selectedTab == 0)
-          AppSearchAndChips(
-            searchController: _searchController,
-            searchHint: AppLocalizations.of(context)!.searchByNameLocationTalent,
-            chipOptions: [
-              AppLocalizations.of(context)!.all,
-              ...ProfileOptions.talentCategories,
-            ],
-            selectedChips: context.watch<AppState>().creatorFilter.categories,
-            onSearchChanged: (_) => setState(() {}),
-            onChipToggled: (label) {
-              final l10n = AppLocalizations.of(context)!;
-              final current = Set<String>.from(
-                context.read<AppState>().creatorFilter.categories,
-              );
-              if (label == l10n.all ||
-                  label.toLowerCase() == 'all' ||
-                  label.toLowerCase() == 'any') {
-                context.read<AppState>().setCreatorFilter(
-                      context.read<AppState>().creatorFilter.copyWith(
-                        categories: {'Any'},
-                      ),
-                    );
-                return;
-              }
-              current.remove('Any');
-              current.remove('All');
-              current.remove(l10n.all);
-              if (current.contains(label)) {
-                current.remove(label);
-              } else {
-                current.add(label);
-              }
-              if (current.isEmpty) {
-                current.add('Any');
-              }
-              context.read<AppState>().setCreatorFilter(
-                    context.read<AppState>().creatorFilter.copyWith(
-                      categories: current,
-                    ),
-                  );
-            },
-            onFilterTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const CreatorFilterScreen(),
-                ),
-              );
-            },
-          ),
+  static const _searchPadding = EdgeInsets.fromLTRB(
+    AppSpacing.screenH,
+    4,
+    AppSpacing.screenH,
+    8,
+  );
+
+  Widget _buildSearchAndChips(BuildContext context) {
+    return AppSearchAndChips(
+      padding: _searchPadding,
+      searchController: _searchController,
+      searchHint: AppLocalizations.of(context)!.searchByNameLocationTalent,
+      solidYellowChips: true,
+      chipOptions: [
+        AppLocalizations.of(context)!.all,
+        ...ProfileOptions.talentCategories,
       ],
+      selectedChips: context.watch<AppState>().creatorFilter.categories,
+      onSearchChanged: (_) => setState(() {}),
+      onChipToggled: (label) {
+        final l10n = AppLocalizations.of(context)!;
+        final current = Set<String>.from(
+          context.read<AppState>().creatorFilter.categories,
+        );
+        if (label == l10n.all ||
+            label.toLowerCase() == 'all' ||
+            label.toLowerCase() == 'any') {
+          _setCreatorCategories({'Any'});
+          return;
+        }
+        current.remove('Any');
+        current.remove('All');
+        current.remove(l10n.all);
+        if (current.contains(label)) {
+          current.remove(label);
+        } else {
+          current.add(label);
+        }
+        if (current.isEmpty) {
+          current.add('Any');
+        }
+        _setCreatorCategories(current);
+      },
+      onFilterTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const CreatorFilterScreen(),
+          ),
+        );
+      },
     );
   }
 
@@ -165,40 +183,38 @@ class _CreatorsScreenState extends State<CreatorsScreen> {
     final filtersActive =
         query.trim().isNotEmpty || appState.creatorFilter.isActive;
 
-    if (creators.isEmpty) {
-      return [
-        SliverFillRemaining(
-          hasScrollBody: false,
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.screenH),
-            child: appState.isLoadingCreators
-                ? const Center(
-                    child: SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  )
-                : Text(
-                    filtersActive
-                        ? AppLocalizations.of(context)!.noCreatorsMatchYourSearch
-                        : AppLocalizations.of(context)!.noCreatorsToShowYet,
-                    style: context.bodyMedium,
-                  ),
-          ),
-        ),
-      ];
-    }
-
     return [
       SliverPadding(
-        padding: const EdgeInsets.fromLTRB(
+        padding: EdgeInsets.fromLTRB(
           AppSpacing.screenH,
-          4,
+          creators.isEmpty ? 24 : 4,
           AppSpacing.screenH,
           AppSpacing.scrollBottom,
         ),
-        sliver: CreatorMasonrySliver(creators: creators),
+        sliver: creators.isEmpty
+            ? SliverToBoxAdapter(
+                child: appState.isLoadingCreators
+                    ? const Center(
+                        child: SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    : Text(
+                        filtersActive
+                            ? AppLocalizations.of(context)!
+                                .noCreatorsMatchYourSearch
+                            : AppLocalizations.of(context)!.noCreatorsToShowYet,
+                        style: context.bodyMedium,
+                      ),
+              )
+            : CreatorMasonrySliver(
+                key: ValueKey<String>(
+                  creators.map((creator) => creator.id).join(','),
+                ),
+                creators: creators,
+              ),
       ),
     ];
   }

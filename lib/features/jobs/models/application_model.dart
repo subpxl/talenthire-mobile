@@ -18,6 +18,8 @@ class Application {
     required this.jobTitle,
     this.company = '',
     this.status = ApplicationStatus.applied,
+    this.script = '',
+    this.youtubeShortUrl = '',
     DateTime? appliedAt,
   }) : appliedAt = appliedAt ?? DateTime.now();
 
@@ -27,6 +29,8 @@ class Application {
   final String jobTitle;
   final String company;
   final ApplicationStatus status;
+  final String script;
+  final String youtubeShortUrl;
   final DateTime appliedAt;
 
   factory Application.fromJson(Map<String, dynamic> json) {
@@ -41,6 +45,8 @@ class Application {
         (json['status'] ?? 'applied').toString(),
         ApplicationStatus.applied,
       ),
+      script: (json['script'] ?? '').toString(),
+      youtubeShortUrl: (json['youtube_short_url'] ?? '').toString(),
       appliedAt: parseFlexibleDate(json['applied_at']) ?? DateTime.now(),
     );
   }
@@ -52,6 +58,27 @@ class Application {
         'job_title': jobTitle,
         'company': company,
         'status': status.name,
+        'script': script,
+        'youtube_short_url': youtubeShortUrl,
         'applied_at': appliedAt.toIso8601String(),
       };
+
+  Application copyWith({
+    ApplicationStatus? status,
+    String? script,
+    String? youtubeShortUrl,
+    DateTime? appliedAt,
+  }) {
+    return Application(
+      id: id,
+      userId: userId,
+      jobId: jobId,
+      jobTitle: jobTitle,
+      company: company,
+      status: status ?? this.status,
+      script: script ?? this.script,
+      youtubeShortUrl: youtubeShortUrl ?? this.youtubeShortUrl,
+      appliedAt: appliedAt ?? this.appliedAt,
+    );
+  }
 }

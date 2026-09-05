@@ -7,6 +7,7 @@ import 'package:bombay_casting/core/widgets/promo_banner.dart';
 import 'package:bombay_casting/features/creators/widgets/creator_masonry_grid.dart';
 
 List<Widget> savedCreatorsSlivers(BuildContext context) {
+  final l10n = AppLocalizations.of(context)!;
   final savedCreators = context.watch<AppState>().savedCreators;
   if (savedCreators.isEmpty) {
     return [
@@ -16,9 +17,9 @@ List<Widget> savedCreatorsSlivers(BuildContext context) {
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
           child: Column(
             children: [
-              const PromoBanner(
-                title: 'Your saved creators',
-                subtitle: 'Bookmark profiles you want to revisit',
+              PromoBanner(
+                title: l10n.yourSavedCreators,
+                subtitle: l10n.savedCreatorsPromoSubtitle,
               ),
               const SizedBox(height: AppSpacing.lg - 4),
               Text(
@@ -32,8 +33,8 @@ List<Widget> savedCreatorsSlivers(BuildContext context) {
     ];
   }
   return [
-    const SliverPadding(
-      padding: EdgeInsets.fromLTRB(
+    SliverPadding(
+      padding: const EdgeInsets.fromLTRB(
         AppSpacing.screenH,
         AppSpacing.screenV,
         AppSpacing.screenH,
@@ -41,8 +42,8 @@ List<Widget> savedCreatorsSlivers(BuildContext context) {
       ),
       sliver: SliverToBoxAdapter(
         child: PromoBanner(
-          title: 'Your saved creators',
-          subtitle: 'Bookmark profiles you want to revisit',
+          title: l10n.yourSavedCreators,
+          subtitle: l10n.savedCreatorsPromoSubtitle,
         ),
       ),
     ),

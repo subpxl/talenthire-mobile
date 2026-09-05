@@ -10,9 +10,13 @@ import 'package:bombay_casting/core/deep_links/deep_link_target.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/core/widgets/app_screen_layout.dart';
 import 'package:bombay_casting/core/widgets/placeholder_avatar.dart';
+import 'package:bombay_casting/core/widgets/app_success_toast.dart';
 import 'package:bombay_casting/core/widgets/report_dialog.dart';
 import 'package:bombay_casting/core/widgets/share_link_button.dart';
+import 'package:bombay_casting/core/utils/social_link_utils.dart';
 import 'package:bombay_casting/core/widgets/social_platforms.dart';
+import 'package:bombay_casting/core/widgets/verified_tick.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class CreatorProfileScreen extends StatefulWidget {
   const CreatorProfileScreen({
@@ -60,8 +64,10 @@ class _CreatorProfileScreenState extends State<CreatorProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
         leading: IconButton(
           tooltip: 'Back',
           icon: const Icon(Icons.arrow_back_ios, size: 20),
@@ -86,9 +92,7 @@ class _CreatorProfileScreenState extends State<CreatorProfileScreen> {
                   title: l10n.reportProfile,
                 );
                 if (result != null && context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(l10n.creatorReported)),
-                  );
+                  showAppSuccessToast(context, l10n.creatorReported);
                 }
               }
             },
@@ -108,18 +112,29 @@ class _CreatorProfileScreenState extends State<CreatorProfileScreen> {
             _buildPhotoSwitcher(),
             const SizedBox(height: AppSpacing.md),
             _buildHeader(context),
+            if (creator.platformMetrics.any(
+              (m) => m.url.isNotEmpty || m.handle.isNotEmpty,
+            )) ...[
+              const SizedBox(height: AppSpacing.md),
+              _SocialLinksSection(metrics: creator.platformMetrics),
+            ],
+            if (_creatorStats(creator).isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.md),
+              _CreatorStatsBar(creator: creator),
+            ],
             const SizedBox(height: AppSpacing.lg),
             _InfoSection(
               title: 'About',
               body: creator.bio,
               items: creator.aboutInfo,
+              hideKeys: const {'gender', 'age'},
             ),
             const SizedBox(height: AppSpacing.md),
-            _InfoSection(title: 'Work', items: creator.workInfo),
-            if (creator.platformMetrics.where((m) => m.url.isNotEmpty || m.handle.isNotEmpty).isNotEmpty) ...[
-              const SizedBox(height: AppSpacing.md),
-              _SocialLinksSection(metrics: creator.platformMetrics),
-            ],
+            _InfoSection(
+              title: 'Work',
+              items: creator.workInfo,
+              hideKeys: const {'role'},
+            ),
           ],
         ),
       ),
@@ -219,13 +234,25 @@ class _CreatorProfileScreenState extends State<CreatorProfileScreen> {
         Row(
           children: [
             Flexible(
-              child: Text(
-                creator.name,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                ),
+              child: Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      creator.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  if (creator.isVerified || creator.isPremium) ...[
+                    const SizedBox(width: 6),
+                    const VerifiedTick(size: 20),
+                  ],
+                ],
               ),
             ),
             if (creator.id.isNotEmpty)
@@ -234,10 +261,16 @@ class _CreatorProfileScreenState extends State<CreatorProfileScreen> {
                 builder: (context, saved, _) {
                   return IconButton(
                     tooltip: saved ? 'Remove saved creator' : 'Save creator',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 36,
+                      minHeight: 36,
+                    ),
+                    visualDensity: VisualDensity.compact,
                     onPressed: () =>
                         context.read<AppState>().toggleSavedCreator(creator),
                     icon: Icon(
-                      saved ? Icons.bookmark : Icons.bookmark_border,
+                      saved ? Icons.favorite : Icons.favorite_border,
                       color: AppColors.primary,
                     ),
                   );
@@ -270,13 +303,15 @@ class _InfoSection extends StatelessWidget {
     required this.title,
     this.items = const [],
     this.body = '',
+    this.hideKeys = const {},
   });
 
   final String title;
   final List<MapEntry<String, String>> items;
   final String body;
+  final Set<String> hideKeys;
 
-  static const _hiddenKeys = {
+  static const _alwaysHidden = {
     'experience',
     'content language',
   };
@@ -289,7 +324,8 @@ class _InfoSection extends StatelessWidget {
   }
 
   bool _isVisible(MapEntry<String, String> item) {
-    if (_hiddenKeys.contains(item.key.trim().toLowerCase())) return false;
+    final key = item.key.trim().toLowerCase();
+    if (_alwaysHidden.contains(key) || hideKeys.contains(key)) return false;
     final value = item.value.trim();
     return value.isNotEmpty && value != '-';
   }
@@ -337,39 +373,9 @@ class _InfoSection extends StatelessWidget {
                     height: 1,
                     indent: AppSpacing.md,
                     endIndent: AppSpacing.md,
+                    color: Color(0xFFF0EDED),
                   ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
-                    vertical: 12,
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: Text(
-                          visible[i].key,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: AppColors.textHint,
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        flex: 3,
-                        child: Text(
-                          visible[i].value,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                _InfoFactRow(item: visible[i]),
               ],
             ],
           ),
@@ -378,6 +384,11 @@ class _InfoSection extends StatelessWidget {
     );
   }
 }
+
+const _statGreen = Color(0xFF2E7D32);
+const _statPurple = Color(0xFF7E57C2);
+const _statAmber = Color(0xFFC77800);
+const _statBlue = Color(0xFF1976D2);
 
 class _SocialLinksSection extends StatelessWidget {
   const _SocialLinksSection({required this.metrics});
@@ -388,8 +399,7 @@ class _SocialLinksSection extends StatelessWidget {
     if (url.isEmpty) return;
     Uri? uri = Uri.tryParse(url);
     if (uri == null) return;
-    
-    // Auto prefix http if scheme is missing
+
     if (!uri.hasScheme) {
       uri = Uri.parse('https://$url');
     }
@@ -401,33 +411,332 @@ class _SocialLinksSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final activeMetrics = metrics.where((m) => m.url.isNotEmpty || m.handle.isNotEmpty).toList();
+    final activeMetrics = metrics
+        .where((m) => m.url.isNotEmpty || m.handle.isNotEmpty)
+        .toList();
     if (activeMetrics.isEmpty) return const SizedBox.shrink();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const AppSectionTitle('Social Profiles'),
-        Wrap(
-          spacing: AppSpacing.md,
-          runSpacing: AppSpacing.md,
-          children: activeMetrics.map((metric) {
-            final info = SocialPlatformInfo.forName(metric.platform);
-            final target =
-                metric.url.isNotEmpty ? metric.url : metric.handle;
-            return Tooltip(
-              message: metric.platform,
-              child: SocialPlatformIcon(
-                info: info,
-                size: 44,
-                onTap: () => _launchUrl(target),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (var i = 0; i < activeMetrics.length; i++) ...[
+            if (i > 0) const SizedBox(width: 10),
+            _SocialIconButton(
+              metric: activeMetrics[i],
+              onTap: () => _launchUrl(
+                SocialLinkUtils.resolveLaunchUrl(
+                  activeMetrics[i].platform,
+                  url: activeMetrics[i].url,
+                  handle: activeMetrics[i].handle,
+                ),
               ),
-            );
-          }).toList(),
-        ),
-      ],
+            ),
+          ],
+        ],
+      ),
     );
   }
+}
+
+class _SocialIconButton extends StatelessWidget {
+  const _SocialIconButton({required this.metric, required this.onTap});
+
+  final SocialPlatformMetric metric;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final info = SocialPlatformInfo.forName(metric.platform);
+    final accent = info.color.computeLuminance() > 0.65
+        ? const Color(0xFF8A6D00)
+        : info.color;
+
+    return Tooltip(
+      message: info.name,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: Ink(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: info.color.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: info.asset != null
+                  ? SvgPicture.asset(
+                      info.asset!,
+                      width: 16,
+                      height: 16,
+                      fit: BoxFit.contain,
+                    )
+                  : Icon(info.icon, size: 16, color: accent),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CreatorStatsBar extends StatelessWidget {
+  const _CreatorStatsBar({required this.creator});
+
+  final CreatorProfile creator;
+
+  @override
+  Widget build(BuildContext context) {
+    final stats = _creatorStats(creator);
+    if (stats.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          children: [
+            for (var i = 0; i < stats.length; i++) ...[
+              if (i > 0)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 4),
+                  child: VerticalDivider(
+                    width: 12,
+                    thickness: 1,
+                    color: Color(0xFFEDE8E8),
+                  ),
+                ),
+              _CreatorStatCell(stat: stats[i]),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CreatorStatCell extends StatelessWidget {
+  const _CreatorStatCell({required this.stat});
+
+  final _CreatorStat stat;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: stat.color.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(stat.icon, size: 16, color: stat.color),
+          ),
+          const SizedBox(height: 6),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              stat.primary,
+              maxLines: 1,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                height: 1.15,
+                letterSpacing: -0.15,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+          if (stat.secondary.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                stat.secondary,
+                maxLines: 1,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  height: 1.2,
+                  color: stat.secondaryColor,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _CreatorStat {
+  const _CreatorStat({
+    required this.icon,
+    required this.color,
+    required this.primary,
+    required this.secondary,
+    this.secondaryColor = AppColors.textHint,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String primary;
+  final String secondary;
+  final Color secondaryColor;
+}
+
+class _InfoFactRow extends StatelessWidget {
+  const _InfoFactRow({required this.item});
+
+  final MapEntry<String, String> item;
+
+  static const _icons = <String, (IconData, Color)>{
+    'languages': (Icons.translate_rounded, _statBlue),
+    'gender': (Icons.person_rounded, _statPurple),
+    'age': (Icons.cake_rounded, _statGreen),
+    'role': (Icons.movie_creation_rounded, _statPurple),
+    'niches': (Icons.auto_awesome_rounded, _statAmber),
+    'open to': (Icons.work_outline_rounded, AppColors.brandRed),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final key = item.key.trim().toLowerCase();
+    final meta = _icons[key] ?? (Icons.info_outline_rounded, _statBlue);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 22,
+            height: 22,
+            child: Icon(meta.$1, size: 18, color: meta.$2),
+          ),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 108,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 1),
+              child: Text(
+                item.key,
+                style: const TextStyle(
+                  fontSize: 13,
+                  height: 1.3,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              item.value,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                fontSize: 13,
+                height: 1.35,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+List<_CreatorStat> _creatorStats(CreatorProfile creator) {
+  final stats = <_CreatorStat>[];
+  final location = creator.location.trim();
+  if (location.isNotEmpty) {
+    final comma = location.indexOf(',');
+    stats.add(
+      _CreatorStat(
+        icon: Icons.location_on_rounded,
+        color: AppColors.brandRed,
+        primary: comma > 0 ? location.substring(0, comma).trim() : location,
+        secondary: comma > 0 ? location.substring(comma + 1).trim() : 'Location',
+      ),
+    );
+  }
+
+  final role = creator.title.trim().isNotEmpty
+      ? creator.title.trim()
+      : _infoValue(creator.workInfo, 'Role');
+  if (role.isNotEmpty) {
+    final niches = _infoValue(creator.workInfo, 'Niches');
+    stats.add(
+      _CreatorStat(
+        icon: Icons.movie_creation_rounded,
+        color: _statPurple,
+        primary: role,
+        secondary: niches.isNotEmpty ? niches.split(',').first.trim() : 'Role',
+      ),
+    );
+  }
+
+  final age = _infoValue(creator.aboutInfo, 'Age');
+  if (age.isNotEmpty) {
+    stats.add(
+      _CreatorStat(
+        icon: Icons.cake_rounded,
+        color: _statGreen,
+        primary: age,
+        secondary: age.toLowerCase().contains('yr') ? 'Age' : 'Years',
+      ),
+    );
+  }
+
+  final gender = _infoValue(creator.aboutInfo, 'Gender');
+  if (gender.isNotEmpty) {
+    stats.add(
+      _CreatorStat(
+        icon: Icons.person_rounded,
+        color: _statAmber,
+        primary: gender,
+        secondary: 'Gender',
+      ),
+    );
+  } else {
+    final languages = _infoValue(creator.aboutInfo, 'Languages');
+    if (languages.isNotEmpty) {
+      stats.add(
+        _CreatorStat(
+          icon: Icons.translate_rounded,
+          color: _statBlue,
+          primary: languages.split(',').first.trim(),
+          secondary: languages.contains(',') ? 'Languages' : 'Language',
+        ),
+      );
+    }
+  }
+
+  return stats.take(4).toList();
+}
+
+String _infoValue(List<MapEntry<String, String>> items, String key) {
+  final needle = key.toLowerCase();
+  for (final item in items) {
+    if (item.key.trim().toLowerCase() == needle) {
+      final value = item.value.trim();
+      if (value.isNotEmpty && value != '-') return value;
+    }
+  }
+  return '';
 }
 
 class _PhotoZoomScreen extends StatefulWidget {

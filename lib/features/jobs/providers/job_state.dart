@@ -216,12 +216,38 @@ class JobState extends ChangeNotifier {
         final data = Map<String, dynamic>.from(doc.data());
         if ((data['id']?.toString() ?? '').isEmpty) data['id'] = doc.id;
         return Application.fromJson(data);
-      }).where((item) => item.status != ApplicationStatus.withdrawn).toList();
+      }).where((item) =>
+          item.status != ApplicationStatus.withdrawn &&
+          item.jobId.trim().isNotEmpty).toList();
+      await _resolveApplicationJobs(token);
     } catch (error) {
       debugPrint('Error loading applications: $error');
       if (token != _loadGeneration) return;
       applications = [];
     }
+  }
+
+  Future<void> _resolveApplicationJobs(int token) async {
+    final missing = {
+      for (final item in applications)
+        if (jobById(item.jobId) == null) item.jobId,
+    };
+    if (missing.isEmpty) return;
+    final missingIds = <String>{};
+    await Future.wait(missing.map((id) async {
+      try {
+        final job = await fetchJobById(id);
+        if (job == null) missingIds.add(id);
+      } catch (error) {
+        debugPrint('Error resolving applied job $id: $error');
+      }
+    }));
+    if (token != _loadGeneration) return;
+    if (missingIds.isEmpty) return;
+    applications = [
+      for (final item in applications)
+        if (!missingIds.contains(item.jobId)) item,
+    ];
   }
 
   Future<void> _loadSavedJobs(String uid, {required int token}) async {
@@ -281,14 +307,28 @@ class JobState extends ChangeNotifier {
     return applications.any((item) => item.jobId == jobId);
   }
 
-  Future<bool> applyToJob(Job job, {required String userId, required bool isPremium}) async {
-    if (hasApplied(job.id) || !isPremium) return false;
+  Application? applicationFor(String jobId) {
+    for (final item in applications) {
+      if (item.jobId == jobId) return item;
+    }
+    return null;
+  }
+
+  Future<bool> applyToJob(
+    Job job, {
+    required String userId,
+    String script = '',
+    String youtubeShortUrl = '',
+  }) async {
+    if (hasApplied(job.id)) return false;
     final application = Application(
       id: '${userId}_${job.id}',
       userId: userId,
       jobId: job.id,
       jobTitle: job.title,
       company: job.company,
+      script: script,
+      youtubeShortUrl: youtubeShortUrl,
     );
     applications = [...applications, application];
     _notify();
@@ -301,6 +341,48 @@ class JobState extends ChangeNotifier {
       debugPrint('Error applying to job: $error');
       applications =
           applications.where((item) => item.id != application.id).toList();
+      _notify();
+      return false;
+    }
+  }
+
+  Future<bool> updateApplicationLink(
+    Application application, {
+    required String youtubeShortUrl,
+  }) async {
+    final previous = applications;
+    final updated = application.copyWith(youtubeShortUrl: youtubeShortUrl);
+    applications = [
+      for (final item in applications)
+        if (item.id == application.id) updated else item,
+    ];
+    _notify();
+    try {
+      await _firestore.collection('applications').doc(application.id).update({
+        'youtube_short_url': youtubeShortUrl,
+      });
+      return true;
+    } catch (error) {
+      debugPrint('Error updating application link: $error');
+      applications = previous;
+      _notify();
+      return false;
+    }
+  }
+
+  Future<bool> withdrawApplication(Application application) async {
+    final previous = applications;
+    applications =
+        applications.where((item) => item.id != application.id).toList();
+    _notify();
+    try {
+      await _firestore.collection('applications').doc(application.id).update({
+        'status': ApplicationStatus.withdrawn.name,
+      });
+      return true;
+    } catch (error) {
+      debugPrint('Error withdrawing application: $error');
+      applications = previous;
       _notify();
       return false;
     }

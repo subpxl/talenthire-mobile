@@ -137,11 +137,11 @@ class AppLocalizationsMr extends AppLocalizations {
 
   @override
   String get tapBookmarkOnAJobToSaveIt =>
-      'नोकरी सेव्ह करण्यासाठी बुकमार्कवर टॅप करा';
+      'नोकरी सेव्ह करण्यासाठी हार्टवर टॅप करा';
 
   @override
   String get tapBookmarkOnACreatorToSaveIt =>
-      'क्रिएटर सेव्ह करण्यासाठी बुकमार्कवर टॅप करा';
+      'क्रिएटर सेव्ह करण्यासाठी हार्टवर टॅप करा';
 
   @override
   String get conversationReported => 'संवादाची तक्रार नोंदवली';
@@ -429,6 +429,28 @@ class AppLocalizationsMr extends AppLocalizations {
   @override
   String get noAppliedJobsYet =>
       'No applied jobs yet. Apply to a job to track your progress here.';
+
+  @override
+  String get noMessagesYetSayHello => 'No messages yet. Say hello!';
+
+  @override
+  String get startAConversation => 'Start a conversation';
+
+  @override
+  String get noJobsPostedYet => 'No jobs posted yet.';
+
+  @override
+  String get yourSavedJobs => 'Your saved jobs';
+
+  @override
+  String get savedJobsPromoSubtitle =>
+      'Apply to jobs and land your next collab';
+
+  @override
+  String get yourSavedCreators => 'Your saved creators';
+
+  @override
+  String get savedCreatorsPromoSubtitle => 'Save profiles you want to revisit';
 
   @override
   String get applicationStageApplied => 'Applied';

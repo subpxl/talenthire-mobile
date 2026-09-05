@@ -1,7 +1,10 @@
+import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/core/navigation/app_navigation.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
+import 'package:bombay_casting/features/profile/screens/complete_profile_photo_screen.dart';
 import 'package:bombay_casting/features/profile/screens/edit_profile_view_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 class ProfileCompletionBanner extends StatelessWidget {
   const ProfileCompletionBanner({super.key, required this.percentage});
@@ -12,7 +15,21 @@ class ProfileCompletionBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     if (percentage >= 100) return const SizedBox.shrink();
     return GestureDetector(
-      onTap: () => AppNavigation.push(context, const EditProfileScreen()),
+      onTap: () {
+        final hasMainPhoto = context
+                .read<AppState>()
+                .profile
+                ?.profileImage
+                .trim()
+                .isNotEmpty ??
+            false;
+        AppNavigation.push(
+          context,
+          hasMainPhoto
+              ? const EditProfileScreen()
+              : const CompleteProfilePhotoScreen(),
+        );
+      },
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(AppSpacing.md),
@@ -52,7 +69,7 @@ class ProfileCompletionBanner extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          'Update profile',
+                          'Complete profile',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,

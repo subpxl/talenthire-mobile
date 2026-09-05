@@ -46,6 +46,8 @@ class PlaceholderProfileImage extends StatelessWidget {
     this.fill = false,
     this.fit = BoxFit.cover,
     this.intrinsicHeight = false,
+    this.memCacheWidth = 900,
+    this.fadeInDuration = const Duration(milliseconds: 280),
   });
 
   final double height;
@@ -56,6 +58,8 @@ class PlaceholderProfileImage extends StatelessWidget {
   final bool fill;
   final BoxFit fit;
   final bool intrinsicHeight;
+  final int memCacheWidth;
+  final Duration fadeInDuration;
 
   @override
   Widget build(BuildContext context) {
@@ -77,9 +81,10 @@ class PlaceholderProfileImage extends StatelessWidget {
                       width: double.infinity,
                     )
                 : null,
-            fadeInDuration: const Duration(milliseconds: 280),
+            fadeInDuration: fadeInDuration,
             fadeOutDuration: Duration.zero,
-            memCacheWidth: 900,
+            placeholderFadeInDuration: Duration.zero,
+            memCacheWidth: memCacheWidth,
             placeholder: (context, url) => intrinsicHeight
                 ? AspectRatio(
                     aspectRatio: aspectRatio ?? 3 / 4,

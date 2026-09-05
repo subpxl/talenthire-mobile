@@ -10,8 +10,11 @@ import 'package:bombay_casting/core/deep_links/deep_link_target.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/core/widgets/app_screen_layout.dart';
 import 'package:bombay_casting/core/widgets/placeholder_avatar.dart';
+import 'package:bombay_casting/core/widgets/app_success_toast.dart';
 import 'package:bombay_casting/core/widgets/report_dialog.dart';
 import 'package:bombay_casting/core/widgets/share_link_button.dart';
+import 'package:bombay_casting/features/jobs/widgets/apply_job_sheet.dart';
+import 'package:bombay_casting/features/jobs/widgets/job_detail_sections.dart';
 
 class JobDetailScreen extends StatelessWidget {
   const JobDetailScreen({
@@ -24,11 +27,15 @@ class JobDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
+    final firebaseJob = appState.jobById(profile.jobId);
+    final listing = _listingFor(profile, firebaseJob);
     final hasApplied =
         profile.jobId.isNotEmpty && appState.hasApplied(profile.jobId);
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
         leading: IconButton(
           tooltip: 'Back',
           icon: const Icon(Icons.arrow_back_ios, size: 20),
@@ -53,9 +60,7 @@ class JobDetailScreen extends StatelessWidget {
                   title: l10n.reportJob,
                 );
                 if (result != null && context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(l10n.jobReported)),
-                  );
+                  showAppSuccessToast(context, l10n.jobReported);
                 }
               }
             },
@@ -97,76 +102,37 @@ class JobDetailScreen extends StatelessWidget {
                       appState.isJobSaved(profile.jobId)
                           ? Icons.favorite
                           : Icons.favorite_border,
-                      color: AppColors.primary,
+                      color: AppColors.brandRed,
                     ),
                   ),
               ],
             ),
+            const SizedBox(height: AppSpacing.md),
+            JobDetailStatsBar(
+              job: listing,
+              postedAt: firebaseJob?.postedAt,
+            ),
             const SizedBox(height: AppSpacing.lg),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final itemWidth = (constraints.maxWidth - 16) / 2;
-                return Wrap(
-                  spacing: 16,
-                  runSpacing: 0,
-                  children: [
-                    SizedBox(width: itemWidth, child: _buildDetailRow('Location', profile.location, Icons.location_on_outlined)),
-                    if (profile.category.isNotEmpty)
-                      SizedBox(width: itemWidth, child: _buildDetailRow('Looking for', profile.category, Icons.person_search_outlined)),
-                    if (profile.offerType.isNotEmpty)
-                      SizedBox(width: itemWidth, child: _buildDetailRow('Offer Type', profile.offerType, Icons.handshake_outlined)),
-                    SizedBox(width: itemWidth, child: _buildDetailRow('Budget', profile.budget, Icons.payments_outlined)),
-                    if (profile.age.isNotEmpty)
-                      SizedBox(width: itemWidth, child: _buildDetailRow('Age Range', profile.age, Icons.calendar_today_outlined)),
-                    if (profile.gender.isNotEmpty)
-                      SizedBox(width: itemWidth, child: _buildDetailRow('Gender', profile.gender, Icons.wc_outlined)),
-                  ],
+            const JobRolesSection(),
+            const SizedBox(height: AppSpacing.lg),
+            JobAboutSection(job: listing),
+            const SizedBox(height: AppSpacing.lg),
+            const JobSubmitSection(),
+            const SizedBox(height: AppSpacing.lg),
+            JobDetailMetaFooter(
+              appliedCount: firebaseJob?.applied ?? 0,
+              jobId: profile.jobId,
+              onReport: () async {
+                final l10n = AppLocalizations.of(context)!;
+                final result = await showReportDialog(
+                  context,
+                  title: l10n.reportJob,
                 );
+                if (result != null && context.mounted) {
+                  showAppSuccessToast(context, l10n.jobReported);
+                }
               },
             ),
-            
-            if (profile.description.isNotEmpty) ...[
-              const SizedBox(height: AppSpacing.lg),
-              const AppSectionTitle('Job Description'),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                profile.description,
-                style: const TextStyle(
-                  fontSize: 15,
-                  height: 1.5,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-            ],
-
-            if (profile.tags.isNotEmpty) ...[
-              const SizedBox(height: AppSpacing.lg),
-              const AppSectionTitle('Tags'),
-              const SizedBox(height: AppSpacing.sm),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: profile.tags.map((tag) {
-                  return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: Text(
-                      tag,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey.shade800,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ],
-            const SizedBox(height: AppSpacing.lg),
           ],
         ),
       ),
@@ -177,12 +143,50 @@ class JobDetailScreen extends StatelessWidget {
           AppSpacing.screenH,
           16,
         ),
-        child: SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: ElevatedButton(
-            onPressed: hasApplied ? null : () => _apply(context),
-            child: Text(hasApplied ? 'Applied' : AppLocalizations.of(context)!.applyNow),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: hasApplied ? null : () => _apply(context),
+            borderRadius: BorderRadius.circular(AppRadius.pill),
+            child: Ink(
+              width: double.infinity,
+              height: 48,
+              decoration: BoxDecoration(
+                color: hasApplied ? AppColors.successSoft : AppColors.brandRed,
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+              ),
+              child: Center(
+                child: hasApplied
+                    ? const Text(
+                        'Applied',
+                        style: TextStyle(
+                          color: AppColors.accentGreen,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      )
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            AppLocalizations.of(context)!.applyNow,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Icon(
+                            Icons.arrow_forward_rounded,
+                            size: 18,
+                            color: Colors.white,
+                          ),
+                        ],
+                      ),
+              ),
+            ),
           ),
         ),
       ),
@@ -190,58 +194,34 @@ class JobDetailScreen extends StatelessWidget {
   }
 
   Future<void> _apply(BuildContext context) async {
-    if (!AppNavigation.requireSubscription(context)) return;
+    if (!AppNavigation.requireApplyAccess(context)) return;
     final appState = context.read<AppState>();
     final job = appState.jobById(profile.jobId);
     if (job == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppLocalizations.of(context)!.thisJobIsNoLongerAvailable)),
+      showAppToast(
+        context,
+        AppLocalizations.of(context)!.thisJobIsNoLongerAvailable,
+        type: AppToastType.error,
       );
       return;
     }
-    final sent = await appState.applyToJob(job);
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(sent ? 'Application sent' : 'Could not send application'),
-      ),
+    final result = await showApplyJobSheet(
+      context,
+      jobTitle: job.title,
+      company: job.company,
+      pay: job.payLabel,
     );
-  }
-
-  Widget _buildDetailRow(String label, String value, IconData icon) {
-    if (value.trim().isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 16, color: Colors.grey.shade600),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-                const SizedBox(height: 1),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+    if (result == null || !context.mounted) return;
+    final sent = await appState.applyToJob(
+      job,
+      script: result.script,
+      youtubeShortUrl: result.youtubeShortUrl,
+    );
+    if (!context.mounted) return;
+    showAppToast(
+      context,
+      sent ? 'Application sent' : 'Could not send application',
+      type: sent ? AppToastType.success : AppToastType.error,
     );
   }
 
@@ -297,10 +277,10 @@ class JobDetailScreen extends StatelessWidget {
                   TextSpan(
                     text: company,
                     style: const TextStyle(
-                      color: AppColors.primary,
+                      color: AppColors.brandRed,
                       fontWeight: FontWeight.w600,
                       decoration: TextDecoration.underline,
-                      decorationColor: AppColors.primary,
+                      decorationColor: AppColors.brandRed,
                     ),
                   ),
                 ],
@@ -308,14 +288,29 @@ class JobDetailScreen extends StatelessWidget {
             ),
           ),
         ],
-        if (profile.postedLabel != null)
-          Padding(
-            padding: const EdgeInsets.only(top: AppSpacing.xs),
-            child: Text(profile.postedLabel!, style: context.caption),
-          ),
       ],
     );
   }
+}
+
+JobListing _listingFor(JobDetailData profile, Job? job) {
+  if (job != null) return JobListing.fromJob(job, 0);
+  return JobListing(
+    title: profile.name,
+    details: profile.details,
+    location: profile.location,
+    seenStatus: profile.postedLabel ?? '',
+    avatarColor: profile.avatarColor,
+    imageIndex: profile.imageIndex,
+    role: profile.category,
+    collabType: profile.offerType,
+    pay: profile.budget,
+    tags: profile.tags,
+    gender: profile.gender,
+    age: profile.age,
+    description: profile.description,
+    category: profile.category,
+  );
 }
 
 // removed _InfoSection

@@ -203,3 +203,5 @@ scripts/*.local.*
 *.pyo
 
 .svn/
+# Widget Preview related
+.widget_preview/

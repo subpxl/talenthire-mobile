@@ -5,7 +5,9 @@ import 'package:bombay_casting/core/models/models.dart';
 import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/core/widgets/app_form_fields.dart';
+import 'package:bombay_casting/core/widgets/app_primary_button.dart';
 import 'package:bombay_casting/core/widgets/option_picker.dart';
+import 'package:bombay_casting/core/utils/social_link_utils.dart';
 import 'package:bombay_casting/core/widgets/social_platforms.dart';
 
 class EditSocialFieldsScreen extends StatefulWidget {
@@ -20,11 +22,15 @@ class _EditSocialFieldsScreenState extends State<EditSocialFieldsScreen> {
     for (final platform in SocialPlatformInfo.linkFormPlatforms)
       platform.name: TextEditingController(),
   };
+  final Map<String, String?> _linkErrors = {};
   bool _saving = false;
 
   @override
   void initState() {
     super.initState();
+    for (final controller in _urlControllers.values) {
+      controller.addListener(_clearLinkErrors);
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
@@ -56,7 +62,7 @@ class _EditSocialFieldsScreenState extends State<EditSocialFieldsScreen> {
       for (final platform in SocialPlatformInfo.linkFormPlatforms) {
         final controller = _urlControllers[platform.name];
         if (controller == null) continue;
-        controller.text = urls[platform.name] ??
+        final stored = urls[platform.name] ??
             urls.entries
                 .where(
                   (entry) =>
@@ -65,22 +71,56 @@ class _EditSocialFieldsScreenState extends State<EditSocialFieldsScreen> {
                 .map((entry) => entry.value)
                 .firstOrNull ??
             '';
+        controller.text = stored.isEmpty
+            ? ''
+            : SocialLinkUtils.displayValue(
+                platform.name,
+                url: stored,
+                handle: SocialLinkUtils.extractHandle(platform.name, stored),
+              );
       }
     });
   }
 
+  void _clearLinkErrors() {
+    if (_linkErrors.isEmpty) return;
+    setState(_linkErrors.clear);
+  }
+
+  bool _validateLinks() {
+    var valid = true;
+    final nextErrors = <String, String?>{};
+    for (final platform in SocialPlatformInfo.linkFormPlatforms) {
+      final raw = _urlControllers[platform.name]?.text ?? '';
+      final error = SocialLinkUtils.validationError(platform.name, raw);
+      nextErrors[platform.name] = error;
+      if (error != null) valid = false;
+    }
+    setState(() {
+      _linkErrors
+        ..clear()
+        ..addAll(nextErrors);
+    });
+    return valid;
+  }
+
   Future<void> _save() async {
     if (_saving) return;
+    if (!_validateLinks()) return;
     setState(() => _saving = true);
-    final metrics = [
-      for (final platform in SocialPlatformInfo.linkFormPlatforms)
-        if ((_urlControllers[platform.name]?.text.trim().isNotEmpty ?? false))
-          SocialPlatformMetric(
-            platform: platform.name,
-            handle: _urlControllers[platform.name]!.text.trim(),
-            url: _urlControllers[platform.name]!.text.trim(),
-          ),
-    ];
+    final metrics = <SocialPlatformMetric>[];
+    for (final platform in SocialPlatformInfo.linkFormPlatforms) {
+      final raw = _urlControllers[platform.name]?.text.trim() ?? '';
+      if (raw.isEmpty) continue;
+      final url = SocialLinkUtils.normalizeUrl(platform.name, raw);
+      metrics.add(
+        SocialPlatformMetric(
+          platform: platform.name,
+          handle: SocialLinkUtils.extractHandle(platform.name, url),
+          url: url,
+        ),
+      );
+    }
     final primary = metrics.isNotEmpty ? metrics.first : null;
     try {
       await saveProfileSection(
@@ -108,6 +148,7 @@ class _EditSocialFieldsScreenState extends State<EditSocialFieldsScreen> {
   @override
   void dispose() {
     for (final controller in _urlControllers.values) {
+      controller.removeListener(_clearLinkErrors);
       controller.dispose();
     }
     super.dispose();
@@ -167,6 +208,7 @@ class _EditSocialFieldsScreenState extends State<EditSocialFieldsScreen> {
                           label: platform.profileLinkLabel,
                           controller: _urlControllers[platform.name]!,
                           icon: SocialPlatformIcon(info: platform, size: 28),
+                          errorText: _linkErrors[platform.name],
                         ),
                     ],
                   ),
@@ -205,27 +247,10 @@ class _EditSocialFieldsScreenState extends State<EditSocialFieldsScreen> {
             ],
           ),
           const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            height: 42,
-            child: ElevatedButton(
-              onPressed: _saving ? null : _save,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24),
-                ),
-              ),
-              child: Text(
-                AppLocalizations.of(context)!.update,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ),
+          AppPrimaryButton(
+            label: AppLocalizations.of(context)!.update,
+            onPressed: _saving ? null : _save,
+            loading: _saving,
           ),
         ],
       ),

@@ -17,30 +17,30 @@ class RecentJobsCarousel extends StatefulWidget {
 }
 
 class _RecentJobsCarouselState extends State<RecentJobsCarousel> {
-  PageController? _pageController;
+  static const _loopBasePage = 10000;
+
+  late final PageController _pageController;
   List<_CarouselSlide>? _slides;
   int _currentPage = 0;
 
-  /// Large multiplier so the user can scroll "infinitely" in both directions.
-  static const int _loopMultiplier = 1000;
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(
+      viewportFraction: 0.82,
+      initialPage: _loopBasePage,
+    );
+  }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_slides == null) {
-      _slides = _buildSlides();
-      // Set initialPage to the middle so the user can swipe both directions.
-      final middleStart = _slides!.length * (_loopMultiplier ~/ 2);
-      _pageController = PageController(
-        viewportFraction: 0.82,
-        initialPage: middleStart,
-      );
-    }
+    _slides ??= _buildSlides();
   }
 
   @override
   void dispose() {
-    _pageController?.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -69,13 +69,9 @@ class _RecentJobsCarouselState extends State<RecentJobsCarousel> {
   @override
   Widget build(BuildContext context) {
     final slides = _slides;
-    final controller = _pageController;
-    if (slides == null || slides.isEmpty || controller == null) {
+    if (slides == null || slides.isEmpty) {
       return const SizedBox.shrink();
     }
-
-    final realCount = slides.length;
-    final virtualCount = realCount * _loopMultiplier;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -85,12 +81,12 @@ class _RecentJobsCarouselState extends State<RecentJobsCarousel> {
         SizedBox(
           height: 196,
           child: PageView.builder(
-            controller: controller,
-            itemCount: virtualCount,
-            onPageChanged: (index) =>
-                setState(() => _currentPage = index % realCount),
+            controller: _pageController,
+            onPageChanged: (index) {
+              setState(() => _currentPage = index % slides.length);
+            },
             itemBuilder: (context, index) {
-              final slide = slides[index % realCount];
+              final slide = slides[index % slides.length];
               return Padding(
                 padding: const EdgeInsets.only(right: AppSpacing.sm),
                 child: _CarouselCard(
@@ -105,7 +101,7 @@ class _RecentJobsCarouselState extends State<RecentJobsCarousel> {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            for (var i = 0; i < realCount; i++)
+            for (var i = 0; i < slides.length; i++)
               AnimatedContainer(
                 duration: AppDurations.innerTab,
                 margin: const EdgeInsets.symmetric(horizontal: 3),

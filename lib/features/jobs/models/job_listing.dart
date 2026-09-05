@@ -129,6 +129,87 @@ bool isRemoteJobCity(String location) {
   return city.isEmpty || city == 'remote' || city == 'any';
 }
 
+const _applyWindowDays = 14;
+const _shortMonthNames = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+DateTime jobApplyBy(DateTime postedAt) {
+  return postedAt.add(const Duration(days: _applyWindowDays));
+}
+
+String jobApplyByLabel(DateTime postedAt) {
+  final date = jobApplyBy(postedAt);
+  return '${date.day} ${_shortMonthNames[date.month - 1]}';
+}
+
+String jobPayCompactLabel(JobListing job) {
+  if (job.payMin > 0 || job.payMax > 0) {
+    final minLabel = _compactRupee(job.payMin > 0 ? job.payMin : job.payMax);
+    final maxLabel = _compactRupee(job.payMax > 0 ? job.payMax : job.payMin);
+    if (job.payMin == job.payMax || job.payMax <= 0 || job.payMin <= 0) {
+      return minLabel;
+    }
+    return '$minLabel–$maxLabel';
+  }
+
+  final raw = job.pay.trim();
+  if (raw.isEmpty || raw.toLowerCase().contains('not specified')) {
+    return 'Undisclosed';
+  }
+  return raw
+      .replaceAll('\$', '')
+      .replaceAll('₹', '')
+      .replaceAll(RegExp(r'\bUSD\b', caseSensitive: false), '')
+      .replaceAll(RegExp(r'\bINR\b', caseSensitive: false), '')
+      .replaceAll(' - ', '–')
+      .replaceAll(RegExp(r'\s+'), '')
+      .trim();
+}
+
+String _compactRupee(int value) {
+  if (value >= 10000000) {
+    final crores = value / 10000000;
+    return crores == crores.roundToDouble()
+        ? '${crores.round()}Cr'
+        : '${crores.toStringAsFixed(1)}Cr';
+  }
+  if (value >= 100000) {
+    final lakhs = value / 100000;
+    return lakhs == lakhs.roundToDouble()
+        ? '${lakhs.round()}L'
+        : '${lakhs.toStringAsFixed(1)}L';
+  }
+  if (value >= 1000) {
+    final thousands = value / 1000;
+    return thousands == thousands.roundToDouble()
+        ? '${thousands.round()}K'
+        : '${thousands.toStringAsFixed(1)}K';
+  }
+  return '$value';
+}
+
+String jobDaysLeftLabel(DateTime postedAt) {
+  final remaining = jobApplyBy(postedAt)
+      .difference(DateTime.now())
+      .inDays;
+  if (remaining < 0) return 'Closed';
+  if (remaining == 0) return 'Last day';
+  if (remaining == 1) return '1 day left';
+  return '$remaining days left';
+}
+
 List<String> postedJobCities(List<Job> jobs) {
   final seen = <String>{};
   final cities = <String>[];

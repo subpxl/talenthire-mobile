@@ -67,4 +67,27 @@ void main() {
     expect(restored.createdAt, DateTime.parse('2026-01-01T00:00:00.000Z'));
     expect(restored.savedAt, DateTime.parse('2026-08-24T10:00:00.000Z'));
   });
+
+  test('clearing a category pill restores every creator', () {
+    final actor = CreatorProfile.fromJson({
+      'id': 'actor-1',
+      'name': 'Asha',
+      'title': 'Actor',
+    });
+    final model = CreatorProfile.fromJson({
+      'id': 'model-1',
+      'name': 'Ria',
+      'title': 'Model',
+    });
+    final creators = [actor, model];
+
+    const selected = CreatorFilter(categories: {'Actor'});
+    expect(creators.where(selected.matches).map((item) => item.id), ['actor-1']);
+
+    const cleared = CreatorFilter(categories: {'Any'});
+    expect(
+      creators.where(cleared.matches).map((item) => item.id).toList(),
+      ['actor-1', 'model-1'],
+    );
+  });
 }

@@ -4,6 +4,13 @@ import 'package:bombay_casting/core/navigation/app_navigation.dart';
 import 'package:bombay_casting/features/creators/models/creator_profile.dart';
 import 'package:bombay_casting/features/creators/widgets/creator_card.dart';
 
+/// Deterministic portrait ratios so masonry variety stays without layout shift.
+const _cardAspectRatios = [0.68, 0.74, 0.80, 0.88];
+
+double creatorCardAspectRatio(String id) {
+  return _cardAspectRatios[id.hashCode.abs() % _cardAspectRatios.length];
+}
+
 class CreatorMasonryGrid extends StatelessWidget {
   const CreatorMasonryGrid({
     super.key,
@@ -40,19 +47,54 @@ class CreatorMasonrySliver extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SliverMasonryGrid.count(
-      crossAxisCount: 2,
+    return SliverMasonryGrid(
+      gridDelegate: const SliverSimpleGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+      ),
       mainAxisSpacing: 6,
       crossAxisSpacing: 6,
-      childCount: creators.length,
-      itemBuilder: (context, index) => _card(context, creators[index]),
+      delegate: SliverChildBuilderDelegate(
+        (context, index) => _card(context, creators[index]),
+        childCount: creators.length,
+      ),
     );
   }
 }
 
 Widget _card(BuildContext context, CreatorProfile creator) {
-  return CreatorCard(
+  return _KeepAliveCreatorTile(
+    key: ValueKey(creator.id),
     creator: creator,
-    onTap: () => AppNavigation.openCreatorProfile(context, creator),
   );
+}
+
+class _KeepAliveCreatorTile extends StatefulWidget {
+  const _KeepAliveCreatorTile({
+    super.key,
+    required this.creator,
+  });
+
+  final CreatorProfile creator;
+
+  @override
+  State<_KeepAliveCreatorTile> createState() => _KeepAliveCreatorTileState();
+}
+
+class _KeepAliveCreatorTileState extends State<_KeepAliveCreatorTile>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    final creator = widget.creator;
+    return AspectRatio(
+      aspectRatio: creatorCardAspectRatio(creator.id),
+      child: CreatorCard(
+        creator: creator,
+        onTap: () => AppNavigation.openCreatorProfile(context, creator),
+      ),
+    );
+  }
 }

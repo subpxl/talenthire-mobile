@@ -2,6 +2,7 @@ import 'package:bombay_casting/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:bombay_casting/app/app_state.dart';
+import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/core/widgets/app_filter_widgets.dart';
 import 'package:bombay_casting/core/widgets/option_picker.dart';
 import 'package:bombay_casting/core/widgets/searchable_option_picker.dart';
@@ -148,8 +149,6 @@ class _PreferenceScreenState extends State<PreferenceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const primaryColor = Color(0xFFE53935);
-
     return Scaffold(
       backgroundColor: Colors.white,
       resizeToAvoidBottomInset: false,
@@ -259,7 +258,7 @@ class _PreferenceScreenState extends State<PreferenceScreen> {
                         label: gender,
                         isSelected: isSelected,
                         onTap: () => setState(() => _selectedGender = gender),
-                        activeColor: primaryColor,
+                        activeColor: AppColors.primary,
                       );
                     }).toList(),
                   ),
@@ -273,7 +272,7 @@ class _PreferenceScreenState extends State<PreferenceScreen> {
                       Padding(
                         padding: const EdgeInsets.only(top: 20),
                         child: SliderTheme(
-                          data: _getSliderTheme(primaryColor),
+                          data: _getSliderTheme(AppColors.primary),
                           child: RangeSlider(
                             values: _ageRange,
                             min: 0,
@@ -312,7 +311,7 @@ class _PreferenceScreenState extends State<PreferenceScreen> {
                         isSelected: isSelected,
                         showCheckmark: true,
                         onTap: () => _toggleJobType(type),
-                        activeColor: primaryColor,
+                        activeColor: AppColors.primary,
                       );
                     }).toList(),
                   ),
@@ -330,7 +329,7 @@ class _PreferenceScreenState extends State<PreferenceScreen> {
                         isSelected: isSelected,
                         showCheckmark: true,
                         onTap: () => _toggleLanguage(language),
-                        activeColor: primaryColor,
+                        activeColor: AppColors.primary,
                       );
                     }).toList(),
                   ),
@@ -342,7 +341,7 @@ class _PreferenceScreenState extends State<PreferenceScreen> {
                       Padding(
                         padding: const EdgeInsets.only(top: 20),
                         child: SliderTheme(
-                          data: _getSliderTheme(primaryColor),
+                          data: _getSliderTheme(AppColors.primary),
                           child: RangeSlider(
                             values: _salaryRange,
                             min: 0,
@@ -423,17 +422,12 @@ class _PreferenceScreenState extends State<PreferenceScreen> {
                       Expanded(
                         child: ElevatedButton(
                           onPressed: _apply,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: primaryColor,
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(24),
+                          style: AppButtonStyle.banner().copyWith(
+                            padding: const WidgetStatePropertyAll(
+                              EdgeInsets.symmetric(vertical: 10),
                             ),
                           ),
-                          child: Text(AppLocalizations.of(context)!.update,
-                            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
-                          ),
+                          child: Text(AppLocalizations.of(context)!.update),
                         ),
                       ),
                     ],

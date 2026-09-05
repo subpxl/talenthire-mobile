@@ -10,6 +10,8 @@ import 'package:bombay_casting/features/jobs/models/agency_profile.dart';
 import 'package:bombay_casting/features/jobs/screens/agency_detail_screen.dart';
 import 'package:bombay_casting/features/jobs/screens/job_detail_screen.dart';
 import 'package:bombay_casting/features/messaging/screens/message_detail_screen.dart';
+import 'package:bombay_casting/features/notifications/screens/notifications_screen.dart';
+import 'package:bombay_casting/features/jobs/utils/apply_quota.dart';
 
 class AppNavigation {
   AppNavigation._();
@@ -18,14 +20,29 @@ class AppNavigation {
     return context.read<AppState>().isPremiumUser;
   }
 
-  static void openPremiumScreen(BuildContext context) {
-    Navigator.of(context).push(AppModalRoute(page: const PremiumPage()));
+  static void openPremiumScreen(
+    BuildContext context, {
+    bool showApplyTomorrow = false,
+  }) {
+    Navigator.of(context).push(
+      AppModalRoute(
+        page: PremiumPage(showApplyTomorrow: showApplyTomorrow),
+      ),
+    );
   }
 
   /// Returns true when the user already has premium. Otherwise opens checkout.
   static bool requireSubscription(BuildContext context) {
     if (isSubscribed(context)) return true;
     openPremiumScreen(context);
+    return false;
+  }
+
+  /// Days 1–3: 3 free applies/day. Day 4+ or 4th apply today: show pay popup.
+  static bool requireApplyAccess(BuildContext context) {
+    final gate = context.read<AppState>().applyGate;
+    if (gate == ApplyGate.allowed) return true;
+    openPremiumScreen(context, showApplyTomorrow: true);
     return false;
   }
 
@@ -53,6 +70,12 @@ class AppNavigation {
   ) {
     Navigator.of(context).push(
       AppPageRoute(page: MessageDetailScreen(conversation: conversation)),
+    );
+  }
+
+  static void openNotifications(BuildContext context) {
+    Navigator.of(context).push(
+      AppPageRoute(page: const NotificationsScreen()),
     );
   }
 

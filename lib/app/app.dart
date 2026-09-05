@@ -6,9 +6,14 @@ import 'package:bombay_casting/app/main_shell.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/features/auth/screens/login_screen.dart';
 import 'package:bombay_casting/features/auth/screens/splash_screen.dart';
+import 'package:bombay_casting/features/onboarding/screens/select_language_screen.dart';
 
 class App extends StatelessWidget {
   const App({super.key});
+
+  static Widget _loadingScreen() {
+    return const SplashScreen();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -16,7 +21,7 @@ class App extends StatelessWidget {
 
     return MaterialApp(
       key: ValueKey(
-        'auth_${appState.isLoading}_${appState.isAuthenticated}',
+        'auth_${appState.isLoading}_${appState.isAuthenticated}_${appState.shouldShowLanguageOnboarding}',
       ),
       title: 'Bombay Casting Company',
       debugShowCheckedModeBanner: false,
@@ -26,11 +31,14 @@ class App extends StatelessWidget {
       locale: appState.appLocale,
       home: Builder(
         builder: (context) {
-          if (appState.isLoading) {
-            return const SplashScreen();
+          if (appState.isLoading || !appState.localeReady) {
+            return _loadingScreen();
           }
           if (!appState.isAuthenticated) {
             return const LoginScreen();
+          }
+          if (appState.shouldShowLanguageOnboarding) {
+            return const LanguageScreen(isOnboarding: true);
           }
           return const MainShell();
         },

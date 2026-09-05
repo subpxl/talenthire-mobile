@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/features/jobs/screens/applied_jobs_screen.dart';
-import 'package:bombay_casting/features/jobs/screens/shortlisted_screen.dart';
+import 'package:bombay_casting/features/jobs/screens/saved_jobs_screen.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/core/widgets/app_screen_layout.dart';
 import 'package:bombay_casting/core/widgets/app_tab_bar.dart';
@@ -36,9 +36,10 @@ class HomeScreen extends StatelessWidget {
       selectedTabIndex: selectedHomeTab,
       onTabChanged: (i) => context.read<AppState>().setHomeInnerTab(i),
       innerTabKey: selectedHomeTab,
+      actions: const [_HomeNotificationBell()],
       body: switch (selectedHomeTab) {
         0 => const _HomeAllTab(),
-        1 => const ShortlistTabContent(),
+        1 => const SavedJobsTabContent(),
         _ => const AppliedJobsTabContent(),
       },
     );
@@ -128,6 +129,39 @@ class _HomeAllTabState extends State<_HomeAllTab> {
                 );
               },
             ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HomeNotificationBell extends StatelessWidget {
+  const _HomeNotificationBell();
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: 'Notifications',
+      onPressed: () => AppNavigation.openNotifications(context),
+      icon: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          const Icon(
+            Icons.notifications_outlined,
+            color: AppColors.textPrimary,
+          ),
+          Positioned(
+            right: 1,
+            top: 1,
+            child: Container(
+              width: 8,
+              height: 8,
+              decoration: const BoxDecoration(
+                color: AppColors.brandRed,
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
         ],
       ),
     );

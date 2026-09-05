@@ -7,6 +7,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
+import 'package:bombay_casting/core/widgets/app_primary_button.dart';
+import 'package:bombay_casting/core/widgets/app_form_fields.dart';
+import 'package:bombay_casting/core/widgets/app_success_toast.dart';
 import 'package:bombay_casting/core/widgets/option_picker.dart';
 
 class EditVerificationFormScreen extends StatefulWidget {
@@ -150,8 +153,10 @@ class _EditVerificationFormScreenState
       );
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppLocalizations.of(context)!.couldNotSaveDocuments)),
+      showAppToast(
+        context,
+        AppLocalizations.of(context)!.couldNotSaveDocuments,
+        type: AppToastType.error,
       );
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -201,27 +206,11 @@ class _EditVerificationFormScreenState
                       style: TextStyle(fontSize: 13, color: Colors.black54),
                     ),
                     const SizedBox(height: 16),
-                    TextField(
+                    AppTextField(
+                      label: 'PAN card number',
                       controller: _panController,
+                      hint: 'ABCDE1234F',
                       textCapitalization: TextCapitalization.characters,
-                      decoration: InputDecoration(
-                        labelText: 'PAN card number',
-                        hintText: 'ABCDE1234F',
-                        hintStyle: TextStyle(color: Colors.grey.shade400),
-                        contentPadding: const EdgeInsets.all(12),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.grey.shade300),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.grey.shade200),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppColors.primary),
-                        ),
-                      ),
                     ),
                     const SizedBox(height: 16),
                     GridView.count(
@@ -323,36 +312,10 @@ class _EditVerificationFormScreenState
             ],
           ),
           const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: ElevatedButton(
-              onPressed: _saving ? null : _save,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.5),
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24),
-                ),
-              ),
-              child: _saving
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : Text(AppLocalizations.of(context)!.update,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-            ),
+          AppPrimaryButton(
+            label: AppLocalizations.of(context)!.update,
+            onPressed: _save,
+            loading: _saving,
           ),
         ],
       ),

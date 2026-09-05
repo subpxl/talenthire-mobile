@@ -6,6 +6,7 @@ import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/core/widgets/app_filter_widgets.dart';
 import 'package:bombay_casting/core/widgets/app_form_fields.dart';
+import 'package:bombay_casting/core/widgets/app_primary_button.dart';
 import 'package:bombay_casting/core/widgets/option_picker.dart';
 import 'package:bombay_casting/core/widgets/searchable_option_picker.dart';
 
@@ -197,9 +198,9 @@ class _EditContentCreatorFormScreenState
                       onTap: (option) => _toggle(_collabTypes, option),
                     ),
                     _PayRangeField(
-                      label: _payLabel,
                       values: _payRange,
                       max: _payMax,
+                      formatValue: _formatPay,
                       onChanged: (values) =>
                           setState(() => _payRange = values),
                     ),
@@ -277,27 +278,9 @@ class _EditContentCreatorFormScreenState
             ],
           ),
           const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            height: 42,
-            child: ElevatedButton(
-              onPressed: _save,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24),
-                ),
-              ),
-              child: Text(
-                AppLocalizations.of(context)!.update,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ),
+          AppPrimaryButton(
+            label: AppLocalizations.of(context)!.update,
+            onPressed: _save,
           ),
         ],
       ),
@@ -307,15 +290,15 @@ class _EditContentCreatorFormScreenState
 
 class _PayRangeField extends StatefulWidget {
   const _PayRangeField({
-    required this.label,
     required this.values,
     required this.max,
+    required this.formatValue,
     required this.onChanged,
   });
 
-  final String label;
   final RangeValues values;
   final double max;
+  final String Function(double value) formatValue;
   final ValueChanged<RangeValues> onChanged;
 
   @override
@@ -333,8 +316,8 @@ class _PayRangeFieldState extends State<_PayRangeField> {
   void initState() {
     super.initState();
     _localRange = widget.values;
-    _minController = TextEditingController(text: _payDigits(_localRange.start));
-    _maxController = TextEditingController(text: _payDigits(_localRange.end));
+    _minController = TextEditingController(text: _digits(_localRange.start));
+    _maxController = TextEditingController(text: _digits(_localRange.end));
     _minFocus = FocusNode()..addListener(_handleMinFocus);
     _maxFocus = FocusNode()..addListener(_handleMaxFocus);
   }
@@ -359,17 +342,17 @@ class _PayRangeFieldState extends State<_PayRangeField> {
     super.dispose();
   }
 
-  String _payDigits(double value) => value.round().toString();
+  String _digits(double value) => value.round().toString();
 
   void _syncControllers(RangeValues values, {bool syncMin = true, bool syncMax = true}) {
     if (syncMin) {
-      final minText = _payDigits(values.start);
+      final minText = _digits(values.start);
       if (_minController.text != minText) {
         _minController.text = minText;
       }
     }
     if (syncMax) {
-      final maxText = _payDigits(values.end);
+      final maxText = _digits(values.end);
       if (_maxController.text != maxText) {
         _maxController.text = maxText;
       }
@@ -378,15 +361,49 @@ class _PayRangeFieldState extends State<_PayRangeField> {
 
   void _handleMinFocus() {
     if (!_minFocus.hasFocus) {
-      _minController.text = _payDigits(_localRange.start);
+      _minController.text = _digits(_localRange.start);
     }
+    setState(() {});
   }
 
   void _handleMaxFocus() {
     if (!_maxFocus.hasFocus) {
-      _maxController.text = _payDigits(_localRange.end);
+      _maxController.text = _digits(_localRange.end);
     }
+    setState(() {});
   }
+
+  bool get _anyInputFocused => _minFocus.hasFocus || _maxFocus.hasFocus;
+
+  BoxDecoration get _inputBarDecoration => BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppFormStyle.fieldRadius),
+        border: Border.all(
+          color: _anyInputFocused ? AppColors.primary : AppFormStyle.border,
+          width: _anyInputFocused ? 1.5 : 1,
+        ),
+      );
+
+  static const _compactLabelStyle = TextStyle(
+    fontSize: 11,
+    fontWeight: FontWeight.w500,
+    color: Color(0xFF9E9E9E),
+    height: 1.1,
+  );
+
+  static const _compactValueStyle = TextStyle(
+    fontSize: 12.5,
+    fontWeight: FontWeight.w500,
+    color: AppFormStyle.valueColor,
+    height: 1.2,
+  );
+
+  static const _currencyStyle = TextStyle(
+    fontSize: 12,
+    fontWeight: FontWeight.w500,
+    color: Color(0xFF757575),
+    height: 1.2,
+  );
 
   void _emitRange(RangeValues values, {bool syncMin = true, bool syncMax = true}) {
     setState(() => _localRange = values);
@@ -394,7 +411,7 @@ class _PayRangeFieldState extends State<_PayRangeField> {
     widget.onChanged(values);
   }
 
-  void _onMinTextChanged(String text) {
+  void _onMinChanged(String text) {
     final parsed = int.tryParse(text);
     if (parsed == null && text.isNotEmpty) return;
 
@@ -410,7 +427,7 @@ class _PayRangeFieldState extends State<_PayRangeField> {
     );
   }
 
-  void _onMaxTextChanged(String text) {
+  void _onMaxChanged(String text) {
     final parsed = int.tryParse(text);
     if (parsed == null && text.isNotEmpty) return;
 
@@ -434,42 +451,61 @@ class _PayRangeFieldState extends State<_PayRangeField> {
     );
   }
 
-  Widget _payInput({
+  SliderThemeData _sliderTheme() {
+    return SliderThemeData(
+      activeTrackColor: AppColors.primary,
+      inactiveTrackColor: AppColors.primary.withAlpha(50),
+      thumbColor: Colors.white,
+      overlayColor: AppColors.primary.withAlpha(30),
+      rangeThumbShape: const RoundRangeSliderThumbShape(
+        enabledThumbRadius: 10,
+        elevation: 2,
+      ),
+      trackHeight: 3,
+    );
+  }
+
+  Widget _amountInputCell({
+    required String label,
     required TextEditingController controller,
     required FocusNode focusNode,
-    required String hint,
     required ValueChanged<String> onChanged,
+    required TextInputAction textInputAction,
   }) {
-    return Expanded(
-      child: Container(
-        padding: AppFormStyle.fieldPadding,
-        decoration: AppFormStyle.fieldBox,
-        child: Row(
-          children: [
-            Text('₹', style: AppFormStyle.valueStyle),
-            const SizedBox(width: 4),
-            Expanded(
-              child: TextField(
-                controller: controller,
-                focusNode: focusNode,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                style: AppFormStyle.valueStyle,
-                decoration: InputDecoration(
-                  hintText: hint,
-                  hintStyle: AppFormStyle.hintStyle,
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  isDense: true,
-                  contentPadding: EdgeInsets.zero,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: _compactLabelStyle),
+          const SizedBox(height: 3),
+          Row(
+            children: [
+              const Text('₹', style: _currencyStyle),
+              const SizedBox(width: 3),
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  style: _compactValueStyle,
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    isDense: true,
+                    isCollapsed: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  onChanged: onChanged,
+                  textInputAction: textInputAction,
                 ),
-                onChanged: onChanged,
-                textInputAction: TextInputAction.done,
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -479,58 +515,66 @@ class _PayRangeFieldState extends State<_PayRangeField> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AppFormSectionTitle('Pay range'),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            _payInput(
-              controller: _minController,
-              focusNode: _minFocus,
-              hint: 'Min',
-              onChanged: _onMinTextChanged,
+        const AppFormSectionTitle('Pay range'),
+        const SizedBox(height: 6),
+        Container(
+          decoration: _inputBarDecoration,
+          clipBehavior: Clip.antiAlias,
+          child: IntrinsicHeight(
+            child: Row(
+              children: [
+                Expanded(
+                  child: _amountInputCell(
+                    label: 'Minimum',
+                    controller: _minController,
+                    focusNode: _minFocus,
+                    onChanged: _onMinChanged,
+                    textInputAction: TextInputAction.next,
+                  ),
+                ),
+                Container(
+                  width: 1,
+                  color: AppFormStyle.border,
+                ),
+                Expanded(
+                  child: _amountInputCell(
+                    label: 'Maximum',
+                    controller: _maxController,
+                    focusNode: _maxFocus,
+                    onChanged: _onMaxChanged,
+                    textInputAction: TextInputAction.done,
+                  ),
+                ),
+              ],
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: Text(
-                '–',
-                style: TextStyle(color: Colors.grey.shade500, fontSize: 16),
-              ),
-            ),
-            _payInput(
-              controller: _maxController,
-              focusNode: _maxFocus,
-              hint: 'Max',
-              onChanged: _onMaxTextChanged,
-            ),
-          ],
+          ),
         ),
         const SizedBox(height: 12),
-        SliderTheme(
-          data: SliderThemeData(
-            activeTrackColor: AppColors.primary,
-            inactiveTrackColor: AppColors.primary.withAlpha(50),
-            thumbColor: Colors.white,
-            overlayColor: AppColors.primary.withAlpha(30),
-            rangeThumbShape: const RoundRangeSliderThumbShape(
-              enabledThumbRadius: 10,
-              elevation: 2,
+        Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 20),
+              child: SliderTheme(
+                data: _sliderTheme(),
+                child: RangeSlider(
+                  values: _localRange,
+                  min: 0,
+                  max: widget.max,
+                  onChanged: _onSliderChanged,
+                ),
+              ),
             ),
-            trackHeight: 3,
-          ),
-          child: RangeSlider(
-            values: _localRange,
-            min: 0,
-            max: widget.max,
-            divisions: 200,
-            onChanged: _onSliderChanged,
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(left: 12, right: 12, top: 2),
-          child: Text(
-            widget.label,
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-          ),
+            Positioned(
+              left: 12,
+              top: 0,
+              child: AppSliderBadge(widget.formatValue(_localRange.start)),
+            ),
+            Positioned(
+              right: 12,
+              top: 0,
+              child: AppSliderBadge(widget.formatValue(_localRange.end)),
+            ),
+          ],
         ),
       ],
     );

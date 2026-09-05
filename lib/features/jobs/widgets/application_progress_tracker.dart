@@ -9,13 +9,17 @@ class ApplicationProgressTracker extends StatelessWidget {
   final Application application;
 
   static const _activeGreen = AppColors.chatGreen;
-  static const _cancelledRed = AppColors.primary;
+  static const _cancelledRed = AppColors.brandRed;
   static const _pendingGrey = Color(0xFFD9D9D9);
 
-  bool get _isCancelled => application.status == ApplicationStatus.rejected;
+  bool get _isRejected => application.status == ApplicationStatus.rejected;
+
+  bool get _isShortlisted =>
+      application.status == ApplicationStatus.shortlisted ||
+      application.status == ApplicationStatus.selected;
 
   int get _completedStages {
-    if (_isCancelled) return 4;
+    if (_isRejected || _isShortlisted) return 4;
     switch (application.status) {
       case ApplicationStatus.applied:
         return 1;
@@ -34,35 +38,23 @@ class ApplicationProgressTracker extends StatelessWidget {
   }
 
   Color _stageColor(int stageIndex) {
-    final stage = stageIndex + 1;
-    if (_isCancelled) return _cancelledRed;
-    if (stage <= _completedStages) return _activeGreen;
+    if (_isRejected) return _cancelledRed;
+    if (stageIndex + 1 <= _completedStages) return _activeGreen;
     return _pendingGrey;
   }
 
   Color _lineColor(int afterStageIndex) {
-    final stage = afterStageIndex + 1;
-    if (_isCancelled) return _cancelledRed;
-    if (stage < _completedStages) return _activeGreen;
+    if (_isRejected) return _cancelledRed;
+    if (afterStageIndex + 1 < _completedStages) return _activeGreen;
     return _pendingGrey;
   }
 
   List<String> _labels(AppLocalizations l10n) {
-    final shortlistedLabel = l10n.applicationStageShortlisted;
-    final cancelledLabel = l10n.applicationStageCancelled;
-    if (_isCancelled) {
-      return [
-        l10n.applicationStageApplied,
-        l10n.applicationStageOpened,
-        cancelledLabel,
-        cancelledLabel,
-      ];
-    }
     return [
       l10n.applicationStageApplied,
       l10n.applicationStageOpened,
-      shortlistedLabel,
-      shortlistedLabel,
+      'In review',
+      _isRejected ? 'Rejected' : l10n.applicationStageShortlisted,
     ];
   }
 

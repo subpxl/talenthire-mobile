@@ -5,6 +5,7 @@ import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/features/messaging/models/conversation.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/core/widgets/placeholder_avatar.dart';
+import 'package:bombay_casting/core/widgets/app_success_toast.dart';
 import 'package:bombay_casting/core/widgets/report_dialog.dart';
 
 class MessageDetailScreen extends StatefulWidget {
@@ -22,15 +23,21 @@ class MessageDetailScreen extends StatefulWidget {
 class _MessageDetailScreenState extends State<MessageDetailScreen> {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
+  late List<ChatMessage> _localMessages;
 
   ConversationThread get conversation => widget.conversation;
+
+  bool get _isWelcome => conversation.isWelcome;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<AppState>().messaging?.openThread(conversation);
-    });
+    _localMessages = List<ChatMessage>.from(conversation.messages);
+    if (!_isWelcome) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        context.read<AppState>().messaging?.openThread(conversation);
+      });
+    }
   }
 
   @override
@@ -44,7 +51,21 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
     _controller.clear();
-    await context.read<AppState>().messaging?.sendMessage(text);
+
+    if (_isWelcome) {
+      setState(() {
+        _localMessages.add(
+          ChatMessage(
+            text: text,
+            isMine: true,
+            time: 'Now',
+          ),
+        );
+      });
+    } else {
+      await context.read<AppState>().messaging?.sendMessage(text);
+    }
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
       _scrollController.animateTo(
@@ -57,9 +78,12 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final messaging = context.watch<AppState>().messaging;
-    final messages = messaging?.activeMessages ?? conversation.messages;
-    final isSending = messaging?.isSending ?? false;
+    final messages = _isWelcome
+        ? _localMessages
+        : (messaging?.activeMessages ?? conversation.messages);
+    final isSending = !_isWelcome && (messaging?.isSending ?? false);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients || messages.isEmpty) return;
@@ -71,13 +95,15 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
 
     return PopScope(
       onPopInvokedWithResult: (didPop, result) {
-        if (didPop) {
+        if (didPop && !_isWelcome) {
           context.read<AppState>().messaging?.closeThread();
         }
       },
       child: Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
         leading: IconButton(
           tooltip: 'Back',
           icon: const Icon(Icons.arrow_back_ios, size: 20),
@@ -129,9 +155,7 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
                   title: l10n.report,
                 );
                 if (result != null && context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(l10n.conversationReported)),
-                  );
+                  showAppSuccessToast(context, l10n.conversationReported);
                 }
               }
             },
@@ -150,7 +174,7 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
             child: messages.isEmpty
                 ? Center(
                     child: Text(
-                      'No messages yet. Say hello!',
+                      l10n.noMessagesYetSayHello,
                       style: context.bodyMedium.copyWith(
                         color: AppColors.textSecondary,
                       ),

@@ -1,5 +1,6 @@
 import 'package:bombay_casting/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
+import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/core/utils/legal_links.dart';
 import 'package:bombay_casting/features/profile/screens/payment_and_subscription_screen.dart';
 
@@ -71,7 +72,7 @@ class _GetHelpScreenState extends State<GetHelpScreen> {
               _HelpItem(
                 title: 'Where do I see creators I saved?',
                 body:
-                    'Use the heart on a creator card to save it. Saved creators appear under Creators → Saved.',
+                    'Use the heart on a creator profile to save it. Saved creators appear under Creators → Saved.',
               ),
               _HelpItem(
                 title: 'Which jobs can I browse?',
@@ -101,7 +102,7 @@ class _GetHelpScreenState extends State<GetHelpScreen> {
               _HelpItem(
                 title: 'How do I track applications?',
                 body:
-                    'Open the Messages tab to chat with agencies, or use Home → Saved to revisit roles you saved.',
+                    'Open Home → Applied to see updates on jobs you have applied to. Use Home → Saved to revisit roles you saved for later.',
               ),
               _HelpItem(
                 title: 'Can I talk to the agency about a role?',
@@ -210,14 +211,7 @@ class _GetHelpScreenState extends State<GetHelpScreen> {
               height: 48,
               child: ElevatedButton(
                 onPressed: () => openLegalPage(context, LegalLinks.website),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFDC1C38),
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                ),
+                style: AppButtonStyle.banner(),
                 child: Text(AppLocalizations.of(context)!.contactUs,
                   style: TextStyle(
                     fontSize: 16,
