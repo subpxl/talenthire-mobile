@@ -1,7 +1,7 @@
 import 'package:bombay_casting/l10n/app_localizations.dart';
 import 'dart:io';
 
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:bombay_casting/core/widgets/app_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -877,10 +877,11 @@ class _PhotoPreviewScreenState extends State<_PhotoPreviewScreen> {
                     maxScale: 4,
                     panEnabled: false,
                     child: Center(
-                      child: CachedNetworkImage(
+                      child: AppNetworkImage(
                         imageUrl: _photos[index],
+                        variant: AppImageVariant.full,
                         fit: BoxFit.contain,
-                        placeholder: (_, _) => const Center(
+                        progressIndicatorBuilder: (_, _, _) => const Center(
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
                             color: Colors.white,
@@ -987,12 +988,13 @@ class _PhotoCard extends StatelessWidget {
               onTap: onPreview,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: CachedNetworkImage(
+                child: AppNetworkImage(
                   imageUrl: url,
+                  variant: AppImageVariant.list,
                   width: width,
                   height: height,
                   fit: BoxFit.cover,
-                  placeholder: (_, _) => const ColoredBox(
+                  progressIndicatorBuilder: (_, _, _) => const ColoredBox(
                     color: Color(0xFFF4F4F5),
                     child: Center(
                       child: SizedBox(

@@ -1,5 +1,6 @@
 import * as functions from 'firebase-functions/v1';
 import * as admin from 'firebase-admin';
+import {getDatabase} from 'firebase-admin/database';
 import {
   AGENCY_PREMIUM_AMOUNT,
   buildAgencyPaymentOrderPayload,
@@ -34,6 +35,7 @@ import {
   type CashfreeWebhookPayload,
 } from './cashfree';
 import {sendPushToUser} from './push';
+import {callable} from './callable';
 
 admin.initializeApp();
 
@@ -44,9 +46,12 @@ export {
 } from './registrationReminders';
 export {submitJobApplication} from './submitJobApplication';
 export {deleteAccount} from './deleteAccount';
+export {syncCreatorFeedCard} from './syncCreatorFeedCard';
 
 const db = admin.firestore();
 const RTDB_INSTANCE = 'talenthire-d86a1-default-rtdb';
+const RTDB_URL =
+  'https://talenthire-d86a1-default-rtdb.asia-southeast1.firebasedatabase.app';
 
 /** All payment-related functions run in Mumbai for lowest latency to Cashfree India. */
 const FUNCTION_REGION = 'asia-south1';
@@ -654,7 +659,7 @@ async function resolveExistingSubscriptionSession(
  * Cancelling in this trial window (₹1 paid, ₹299 not yet charged) requires a
  * ₹299 PhonePe charge. After the monthly Autopay, cancel is free.
  */
-export const createPremiumSubscription = functions.region(FUNCTION_REGION).https.onCall(
+export const createPremiumSubscription = callable().https.onCall(
   async (_data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError(
@@ -745,7 +750,7 @@ export const createPremiumSubscription = functions.region(FUNCTION_REGION).https
  * Webhooks remain the source of truth; this helps the UI update faster.
  * Accepts an optional subscriptionId to validate ownership before querying Cashfree.
  */
-export const verifyPremiumSubscription = functions.region(FUNCTION_REGION).https.onCall(
+export const verifyPremiumSubscription = callable().https.onCall(
   async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError(
@@ -841,7 +846,7 @@ export const verifyPremiumSubscription = functions.region(FUNCTION_REGION).https
  * Prepaid current period (₹299 already paid, still within 30 days): cancel
  * Autopay with no extra charge and keep Premium until period end.
  */
-export const createCancellationCharge = functions.region(FUNCTION_REGION).https.onCall(
+export const createCancellationCharge = callable().https.onCall(
   async (_data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError(
@@ -1036,7 +1041,7 @@ export const createCancellationCharge = functions.region(FUNCTION_REGION).https.
 /**
  * Verifies the ₹299 PhonePe payment, then cancels Autopay and ends Premium.
  */
-export const completeCancellationAfterCharge = functions.region(FUNCTION_REGION).https.onCall(
+export const completeCancellationAfterCharge = callable().https.onCall(
   async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError(
@@ -1064,7 +1069,7 @@ export const completeCancellationAfterCharge = functions.region(FUNCTION_REGION)
  * Completes cancellation only after a ₹299 PhonePe charge is paid.
  * Idempotent: already-cancelled subscriptions still expire local premium.
  */
-export const cancelPremiumSubscription = functions.region(FUNCTION_REGION).https.onCall(
+export const cancelPremiumSubscription = callable().https.onCall(
   async (_data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError(
@@ -1337,6 +1342,49 @@ async function requireAdmin(uid: string | undefined): Promise<void> {
   }
 }
 
+function messagingRtdb() {
+  const appName = 'messagingRtdb';
+  const existing = admin.apps.find((app) => app?.name === appName);
+  const app =
+    existing ??
+    admin.initializeApp(
+      {
+        databaseURL: RTDB_URL,
+      },
+      appName,
+    );
+  return getDatabase(app);
+}
+
+/**
+ * Mirrors Firestore conversation participants into RTDB so both users can
+ * read/write messages (clients may only write their own participant flag).
+ */
+export const syncConversationParticipantsToRtdb = functions
+  .region(FUNCTION_REGION)
+  .firestore.document('conversations/{convId}')
+  .onWrite(async (change, context) => {
+    if (!change.after.exists) return null;
+
+    const data = change.after.data();
+    const participants = data?.participants;
+    if (!Array.isArray(participants) || participants.length === 0) {
+      return null;
+    }
+
+    const updates: Record<string, boolean> = {};
+    for (const uid of participants) {
+      if (typeof uid === 'string' && uid.length > 0) {
+        updates[uid] = true;
+      }
+    }
+    if (Object.keys(updates).length === 0) return null;
+
+    const {convId} = context.params;
+    await messagingRtdb().ref(`conversations/${convId}/participants`).update(updates);
+    return null;
+  });
+
 /**
  * Sends a push notification to the recipient when a chat message is created.
  */
@@ -1435,9 +1483,7 @@ export const onNotificationCreated = functions
  * Admin panel callable: write inbox docs for artists / agencies / a single user.
  * Device push is sent by onNotificationCreated.
  */
-export const sendAdminNotification = functions
-  .region(FUNCTION_REGION)
-  .https.onCall(async (data, context) => {
+export const sendAdminNotification = callable().https.onCall(async (data, context) => {
     await requireAdmin(context.auth?.uid);
 
     const title = String(data?.title || '').trim();
@@ -1512,9 +1558,6 @@ export const sendAdminNotification = functions
 
     return {sent: written};
   });
-
-/** Agency portal Cashfree callables — run in Mumbai alongside other payment functions. */
-const AGENCY_PG_REGION = FUNCTION_REGION;
 
 async function loadAgencyPayerDetails(userId: string): Promise<{
   name: string;
@@ -1745,7 +1788,7 @@ async function syncBillingHistoryFromSubscription(userId: string): Promise<numbe
   return created;
 }
 
-export const syncBillingHistory = functions.region(FUNCTION_REGION).https.onCall(
+export const syncBillingHistory = callable().https.onCall(
   async (_data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError(
@@ -1877,9 +1920,7 @@ async function handleAgencyPaymentWebhook(
   }
 }
 
-export const createCashfreeOrder = functions
-  .region(AGENCY_PG_REGION)
-  .https.onCall(async (data, context) => {
+export const createCashfreeOrder = callable().https.onCall(async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError(
         'unauthenticated',
@@ -1962,9 +2003,7 @@ export const createCashfreeOrder = functions
     };
   });
 
-export const verifyCashfreePayment = functions
-  .region(AGENCY_PG_REGION)
-  .https.onCall(async (data, context) => {
+export const verifyCashfreePayment = callable().https.onCall(async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError(
         'unauthenticated',

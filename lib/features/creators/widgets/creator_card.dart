@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
+import 'package:bombay_casting/core/widgets/app_network_image.dart';
 import 'package:bombay_casting/core/widgets/placeholder_avatar.dart';
 import 'package:bombay_casting/core/widgets/verified_tick.dart';
 import 'package:bombay_casting/features/creators/models/creator_profile.dart';
@@ -29,7 +30,8 @@ class CreatorCard extends StatelessWidget {
               borderRadius: 0,
               imageIndex: creator.cover.imageIndex,
               imageUrl: creator.cover.url,
-              memCacheWidth: 560,
+              thumbUrl: creator.cover.thumbUrl,
+              variant: AppImageVariant.list,
               fadeInDuration: Duration.zero,
               fallbackIcon: Icons.person,
             ),

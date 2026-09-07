@@ -1,5 +1,5 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:bombay_casting/core/widgets/app_network_image.dart';
 import 'package:bombay_casting/features/jobs/models/job_assets.dart';
 
 /// Local placeholder avatars — no network images required for UI preview.
@@ -43,10 +43,12 @@ class PlaceholderProfileImage extends StatelessWidget {
     this.aspectRatio,
     this.imageIndex = 1,
     this.imageUrl = '',
+    this.thumbUrl = '',
+    this.preferThumbnail = true,
     this.fill = false,
     this.fit = BoxFit.cover,
     this.intrinsicHeight = false,
-    this.memCacheWidth = 900,
+    this.variant = AppImageVariant.list,
     this.fadeInDuration = const Duration(milliseconds: 280),
     this.fallbackIcon = Icons.movie_filter_outlined,
   });
@@ -56,10 +58,12 @@ class PlaceholderProfileImage extends StatelessWidget {
   final double? aspectRatio;
   final int imageIndex;
   final String imageUrl;
+  final String thumbUrl;
+  final bool preferThumbnail;
   final bool fill;
   final BoxFit fit;
   final bool intrinsicHeight;
-  final int memCacheWidth;
+  final AppImageVariant variant;
   final Duration fadeInDuration;
 
   /// Shown when [imageUrl] is empty or fails to load.
@@ -72,9 +76,15 @@ class PlaceholderProfileImage extends StatelessWidget {
       icon: fallbackIcon,
     );
     final expand = fill || !intrinsicHeight;
-    final image = imageUrl.isNotEmpty
-        ? CachedNetworkImage(
-            imageUrl: imageUrl,
+    final displayUrl = appImageDisplayUrl(
+      fullUrl: imageUrl,
+      thumbUrl: thumbUrl,
+      preferThumbnail: preferThumbnail,
+    );
+    final image = displayUrl.isNotEmpty
+        ? AppNetworkImage(
+            imageUrl: displayUrl,
+            variant: variant,
             fit: fit,
             width: double.infinity,
             height: expand ? double.infinity : null,
@@ -86,9 +96,6 @@ class PlaceholderProfileImage extends StatelessWidget {
                     )
                 : null,
             fadeInDuration: fadeInDuration,
-            fadeOutDuration: Duration.zero,
-            placeholderFadeInDuration: Duration.zero,
-            memCacheWidth: memCacheWidth,
             progressIndicatorBuilder: (context, url, progress) =>
                 intrinsicHeight
                     ? AspectRatio(
@@ -124,11 +131,13 @@ class JobAvatar extends StatelessWidget {
     required this.imageIndex,
     this.radius = 26,
     this.imageUrl = '',
+    this.thumbUrl = '',
   });
 
   final int imageIndex;
   final double radius;
   final String imageUrl;
+  final String thumbUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -136,19 +145,23 @@ class JobAvatar extends StatelessWidget {
       imageIndex: imageIndex,
       iconSize: radius * 0.9,
     );
+    final displayUrl = appImageDisplayUrl(
+      fullUrl: imageUrl,
+      thumbUrl: thumbUrl,
+      preferThumbnail: true,
+    );
     return ClipOval(
       child: SizedBox(
         width: radius * 2,
         height: radius * 2,
-        child: imageUrl.isNotEmpty
-            ? CachedNetworkImage(
-                imageUrl: imageUrl,
+        child: displayUrl.isNotEmpty
+            ? AppNetworkImage(
+                imageUrl: displayUrl,
+                variant: AppImageVariant.avatar,
                 width: radius * 2,
                 height: radius * 2,
                 fit: BoxFit.cover,
                 fadeInDuration: const Duration(milliseconds: 220),
-                fadeOutDuration: Duration.zero,
-                memCacheWidth: 200,
                 progressIndicatorBuilder: (context, url, progress) =>
                     NetworkImageLoadingPlaceholder(
                       progress: progress.progress,

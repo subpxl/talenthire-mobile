@@ -5,6 +5,7 @@
         ".read": "auth != null && root.child('conversations').child($conversationId).child('participants').child(auth.uid).val() === true",
         "participants": {
           "$uid": {
+            ".read": "auth != null && auth.uid === $uid",
             ".write": "auth != null && auth.uid === $uid && newData.val() === true",
             ".validate": "newData.isBoolean() && newData.val() === true"
           }
@@ -14,9 +15,10 @@
     "messages": {
       "$conversationId": {
         ".read": "auth != null && root.child('conversations').child($conversationId).child('participants').child(auth.uid).val() === true",
+        ".indexOn": ["created_at"],
         "$messageId": {
           ".write": "auth != null && !data.exists() && newData.child('sender_id').val() === auth.uid && root.child('conversations').child($conversationId).child('participants').child(auth.uid).val() === true",
-          ".validate": "newData.hasChildren(['sender_id', 'text']) && newData.child('text').isString() && newData.child('text').val().length > 0 && newData.child('text').val().length <= 2000"
+          ".validate": "newData.hasChildren(['sender_id', 'text']) && newData.child('sender_id').isString() && newData.child('text').isString() && newData.child('text').val().length > 0 && newData.child('text').val().length <= 2000"
         }
       }
     }

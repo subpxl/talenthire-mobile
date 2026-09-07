@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:bombay_casting/core/models/models.dart';
@@ -63,8 +65,10 @@ class CreatorFeed {
 
   Future<void> hydrateAndLoad() async {
     await _hydrateFromCache();
-    if (creators.isEmpty || !_cacheIsFresh) {
+    if (creators.isEmpty) {
       await fetchPage(reset: true);
+    } else if (!_cacheIsFresh) {
+      unawaited(fetchPage(reset: true));
     }
   }
 
@@ -206,18 +210,42 @@ class CreatorFeed {
         DateTime.now().difference(started) >= _slowNetworkThreshold;
     if (requestId != _requestId) return;
 
-    final profileIds = [for (final doc in snapshot.docs) doc.id];
-    final profilesById = await _profilesByIds(profileIds);
-    if (requestId != _requestId) return;
-
     final page = <CreatorProfile>[];
+    final missingDocs = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+
     for (final doc in snapshot.docs) {
-      final creator = _creatorFrom(
-        data: Map<String, dynamic>.from(doc.data()),
-        id: doc.id,
-        profilesById: profilesById,
+      final data = Map<String, dynamic>.from(doc.data());
+      final feedCard = data['feed_card'];
+      if (feedCard is Map) {
+        final creator = CreatorProfile.fromFeedCard(
+          userData: data,
+          userId: doc.id,
+          feedCard: Map<String, dynamic>.from(feedCard),
+          fallbackIndex: _nextFallbackIndex(),
+          currentUserId: _currentUserId,
+        );
+        if (creator != null) {
+          page.add(creator);
+          continue;
+        }
+      }
+      missingDocs.add(doc);
+    }
+
+    if (missingDocs.isNotEmpty) {
+      final profilesById = await _profilesByIds(
+        missingDocs.map((doc) => doc.id).toList(),
       );
-      if (creator != null) page.add(creator);
+      if (requestId != _requestId) return;
+
+      for (final doc in missingDocs) {
+        final creator = _creatorFrom(
+          data: Map<String, dynamic>.from(doc.data()),
+          id: doc.id,
+          profilesById: profilesById,
+        );
+        if (creator != null) page.add(creator);
+      }
     }
 
     if (replace) {

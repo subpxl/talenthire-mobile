@@ -1,7 +1,7 @@
 import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/core/utils/app_links.dart';
-import 'package:bombay_casting/core/widgets/app_form_fields.dart';
 import 'package:bombay_casting/core/widgets/app_primary_button.dart';
+import 'package:bombay_casting/core/widgets/app_success_toast.dart';
 import 'package:bombay_casting/features/jobs/utils/video_link_utils.dart';
 import 'package:flutter/material.dart';
 
@@ -13,10 +13,7 @@ const _presetScript =
 const _linkBorder = Color(0xFFE8A8AE);
 
 class ApplyJobResult {
-  const ApplyJobResult({
-    required this.script,
-    required this.youtubeShortUrl,
-  });
+  const ApplyJobResult({required this.script, required this.youtubeShortUrl});
 
   final String script;
   final String youtubeShortUrl;
@@ -33,6 +30,8 @@ Future<ApplyJobResult?> showApplyJobSheet(
   String auditionScript = '',
   String referenceVideoLink = '',
   bool updateLinkOnly = false,
+  Future<bool> Function(ApplyJobResult result)? onSubmit,
+  String submitErrorMessage = 'Could not send application',
 }) {
   return showModalBottomSheet<ApplyJobResult>(
     context: context,
@@ -52,6 +51,8 @@ Future<ApplyJobResult?> showApplyJobSheet(
       auditionScript: auditionScript,
       referenceVideoLink: referenceVideoLink,
       updateLinkOnly: updateLinkOnly,
+      onSubmit: onSubmit,
+      submitErrorMessage: submitErrorMessage,
     ),
   );
 }
@@ -68,6 +69,8 @@ class ApplyJobSheet extends StatefulWidget {
     this.auditionScript = '',
     this.referenceVideoLink = '',
     this.updateLinkOnly = false,
+    this.onSubmit,
+    this.submitErrorMessage = 'Could not send application',
   });
 
   final String jobTitle;
@@ -79,6 +82,8 @@ class ApplyJobSheet extends StatefulWidget {
   final String auditionScript;
   final String referenceVideoLink;
   final bool updateLinkOnly;
+  final Future<bool> Function(ApplyJobResult result)? onSubmit;
+  final String submitErrorMessage;
 
   @override
   State<ApplyJobSheet> createState() => _ApplyJobSheetState();
@@ -87,6 +92,7 @@ class ApplyJobSheet extends StatefulWidget {
 class _ApplyJobSheetState extends State<ApplyJobSheet> {
   late final TextEditingController _linkController;
   String? _linkError;
+  bool _submitting = false;
 
   @override
   void initState() {
@@ -106,7 +112,8 @@ class _ApplyJobSheetState extends State<ApplyJobSheet> {
     return VideoLinkUtils.isYouTubeOrInstagram(value);
   }
 
-  void _submit() {
+  Future<void> _submit() async {
+    if (_submitting) return;
     final link = VideoLinkUtils.normalize(_linkController.text);
 
     setState(() {
@@ -124,11 +131,36 @@ class _ApplyJobSheetState extends State<ApplyJobSheet> {
     final script = widget.auditionScript.trim().isNotEmpty
         ? widget.auditionScript.trim()
         : _presetScript;
+    final result = ApplyJobResult(script: script, youtubeShortUrl: link);
+    final onSubmit = widget.onSubmit;
+    if (onSubmit == null) {
+      Navigator.pop(context, result);
+      return;
+    }
 
-    Navigator.pop(
-      context,
-      ApplyJobResult(script: script, youtubeShortUrl: link),
-    );
+    setState(() => _submitting = true);
+    try {
+      final sent = await onSubmit(result);
+      if (!mounted) return;
+      if (sent) {
+        Navigator.pop(context, result);
+        return;
+      }
+      setState(() => _submitting = false);
+      showAppToast(
+        context,
+        widget.submitErrorMessage,
+        type: AppToastType.error,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      showAppToast(
+        context,
+        widget.submitErrorMessage,
+        type: AppToastType.error,
+      );
+    }
   }
 
   String get _scriptCopy {
@@ -146,16 +178,18 @@ class _ApplyJobSheetState extends State<ApplyJobSheet> {
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
     final hasLinkError = _linkError != null;
 
-    return Padding(
-      padding: EdgeInsets.only(bottom: bottomInset),
-      child: SafeArea(
-        minimum: const EdgeInsets.only(bottom: 12),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+    return PopScope(
+      canPop: !_submitting,
+      child: Padding(
+        padding: EdgeInsets.only(bottom: bottomInset),
+        child: SafeArea(
+          minimum: const EdgeInsets.only(bottom: 12),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
                 Center(
                   child: Container(
                     width: 36,
@@ -193,7 +227,9 @@ class _ApplyJobSheetState extends State<ApplyJobSheet> {
                         minWidth: 32,
                         minHeight: 32,
                       ),
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: _submitting
+                          ? null
+                          : () => Navigator.pop(context),
                       icon: const Icon(
                         Icons.close,
                         size: 20,
@@ -249,6 +285,7 @@ class _ApplyJobSheetState extends State<ApplyJobSheet> {
                   ),
                   child: TextField(
                     controller: _linkController,
+                    enabled: !_submitting,
                     keyboardType: TextInputType.url,
                     cursorColor: AppColors.primary,
                     style: const TextStyle(
@@ -279,10 +316,7 @@ class _ApplyJobSheetState extends State<ApplyJobSheet> {
                 ),
                 const SizedBox(height: 8),
                 GestureDetector(
-                  onTap: () => openAppLink(
-                    context,
-                    _exampleVideoLink,
-                  ),
+                  onTap: () => openAppLink(context, _exampleVideoLink),
                   child: const Text(
                     'Intro video example',
                     style: TextStyle(
@@ -309,9 +343,11 @@ class _ApplyJobSheetState extends State<ApplyJobSheet> {
                 const SizedBox(height: 16),
                 AppPrimaryButton(
                   label: widget.updateLinkOnly ? 'Update link' : 'Submit',
-                  onPressed: _submit,
+                  onPressed: _submitting ? null : _submit,
+                  loading: _submitting,
                 ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

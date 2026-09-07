@@ -1,5 +1,6 @@
 import * as functions from 'firebase-functions/v1';
 import * as admin from 'firebase-admin';
+import {callable} from './callable';
 import {
   evaluateApplyGate,
   type ApplyQuotaApplication,
@@ -8,8 +9,6 @@ import {
 function db(): admin.firestore.Firestore {
   return admin.firestore();
 }
-
-const FUNCTION_REGION = 'asia-south1';
 
 function parseFlexibleDate(value: unknown): Date | null {
   if (value == null) return null;
@@ -42,10 +41,13 @@ function quotaError(reason: 'daily_limit' | 'trial_ended'): never {
 /**
  * Server-side job apply with quota enforcement.
  * Clients must use this callable — direct Firestore creates are blocked by rules.
+ *
+ * The quota check and the application write execute inside a single Firestore
+ * transaction so concurrent requests from the same user serialize atomically
+ * — eliminating the TOCTOU race where two simultaneous calls could both pass
+ * the daily_limit gate before either write landed.
  */
-export const submitJobApplication = functions
-  .region(FUNCTION_REGION)
-  .https.onCall(async (data, context) => {
+export const submitJobApplication = callable().https.onCall(async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError(
         'unauthenticated',
@@ -77,14 +79,17 @@ export const submitJobApplication = functions
     const applicationId = `${userId}_${jobId}`;
     const now = new Date();
 
-    const [userDoc, profileDoc, jobDoc, existingAppDoc, applicationsSnap] =
-      await Promise.all([
-        db().collection('users').doc(userId).get(),
-        db().collection('profiles').doc(userId).get(),
-        db().collection('jobs').doc(jobId).get(),
-        db().collection('applications').doc(applicationId).get(),
-        db().collection('applications').where('user_id', '==', userId).get(),
-      ]);
+    // ── Pre-transaction reads (non-quota, read-only) ──────────────────────
+    // Job and user/profile docs don't change during the apply window so we
+    // can read them outside the transaction to avoid holding locks longer
+    // than necessary.
+    const [userDoc, profileDoc, jobDoc, existingAppDoc, applicationsSnap] = await Promise.all([
+      db().collection('users').doc(userId).get(),
+      db().collection('profiles').doc(userId).get(),
+      db().collection('jobs').doc(jobId).get(),
+      db().collection('applications').doc(applicationId).get(),
+      db().collection('applications').where('user_id', '==', userId).get(),
+    ]);
 
     if (!jobDoc.exists) {
       throw new functions.https.HttpsError('not-found', 'Job not found.');

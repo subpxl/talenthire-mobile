@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bombay_casting/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -33,13 +35,41 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AppState>().messaging?.openThread(conversation);
     });
+    _scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  /// Loads an older page of messages once the user nears the top of the
+  /// chat, preserving the visual scroll position after the page loads.
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    if (_scrollController.offset > 120) return;
+
+    final messaging = context.read<AppState>().messaging;
+    if (messaging == null || messaging.isLoadingMore || !messaging.hasMoreMessages) {
+      return;
+    }
+
+    final oldExtent = _scrollController.position.maxScrollExtent;
+    final oldOffset = _scrollController.offset;
+    unawaited(messaging.loadMoreMessages().then((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_scrollController.hasClients) return;
+        final newExtent = _scrollController.position.maxScrollExtent;
+        final diff = newExtent - oldExtent;
+        if (diff > 0) {
+          _scrollController.jumpTo(oldOffset + diff);
+        }
+      });
+    }));
   }
 
   Future<void> _sendMessage() async {
@@ -191,6 +221,8 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
       ),
       body: Column(
         children: [
+          if (!isWelcome && (messaging?.isLoadingMore ?? false))
+            const LinearProgressIndicator(minHeight: 2),
           Expanded(
             child: messages.isEmpty
                 ? Center(

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:bombay_casting/core/services/cache_ttl.dart';
 import 'package:bombay_casting/features/creators/models/creator_profile.dart';
 
 /// Persists the newest creators on disk so a cold start does not wait on Firestore.
@@ -11,7 +12,7 @@ class CreatorCacheService {
   CreatorCacheService();
 
   static const fileName = 'creators_feed_cache.json';
-  static const ttl = Duration(minutes: 15);
+  static const ttl = CacheTtl.feed;
   static const maxCreators = 80;
 
   Future<File?> _cacheFile() async {

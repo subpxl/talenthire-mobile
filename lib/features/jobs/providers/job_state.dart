@@ -10,6 +10,7 @@ import 'package:bombay_casting/features/jobs/models/agency_profile.dart';
 import 'package:bombay_casting/features/jobs/models/job_listing.dart';
 import 'package:bombay_casting/features/jobs/providers/job_feed_provider.dart';
 import 'package:bombay_casting/features/jobs/services/job_cache_service.dart';
+import 'package:bombay_casting/features/jobs/services/session_cache_service.dart';
 import 'package:bombay_casting/core/services/application_service.dart';
 
 class JobState extends ChangeNotifier {
@@ -31,6 +32,7 @@ class JobState extends ChangeNotifier {
 
   final JobCacheService jobCache = JobCacheService();
   final CreatorCacheService creatorCache = CreatorCacheService();
+  final SessionCacheService sessionCache = SessionCacheService();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final VoidCallback _onChange;
   final ApplicationService applicationService;
@@ -200,6 +202,20 @@ class JobState extends ChangeNotifier {
     String uid, {
     required bool isNewUser,
   }) async {
+    SessionCacheSnapshot? sessionCached;
+    if (!isNewUser) {
+      sessionCached = await sessionCache.read(uid);
+      if (sessionCached != null && token == _loadGeneration) {
+        applications = sessionCached.applications;
+        savedJobs = sessionCached.savedJobs;
+        savedCreators = sessionCached.savedCreators;
+        for (final job in savedJobs) {
+          jobFeed.index(job);
+        }
+        _notify();
+      }
+    }
+
     try {
       creatorFeed.setCurrentUserId(uid);
       creatorFeed.markAwaitingFirstPage();
@@ -209,18 +225,43 @@ class JobState extends ChangeNotifier {
           creatorFeed.hydrateAndLoad(),
         ]);
       } else {
+        final sessionFresh = sessionCached?.isFresh ?? false;
         await Future.wait([
-          _loadApplications(uid, token: token),
-          _loadSavedJobs(uid, token: token),
-          _loadSavedCreators(uid, token: token),
           jobFeed.hydrateAndLoad(),
           creatorFeed.hydrateAndLoad(),
+          if (!sessionFresh)
+            _loadApplications(uid, token: token),
+          if (!sessionFresh)
+            _loadSavedJobs(uid, token: token),
+          if (!sessionFresh)
+            _loadSavedCreators(uid, token: token),
         ]);
+        if (sessionFresh && token == _loadGeneration) {
+          unawaited(_resolveApplicationJobs(token));
+        }
       }
     } catch (error) {
       debugPrint('Error loading session data: $error');
     } finally {
-      if (token == _loadGeneration) _notify();
+      if (token == _loadGeneration) {
+        if (!isNewUser) {
+          unawaited(_persistSessionCache(uid));
+        }
+        _notify();
+      }
+    }
+  }
+
+  Future<void> _persistSessionCache(String uid) async {
+    try {
+      await sessionCache.write(
+        uid: uid,
+        applications: applications,
+        savedJobs: savedJobs,
+        savedCreators: savedCreators,
+      );
+    } catch (error) {
+      debugPrint('Session cache write failed: $error');
     }
   }
 
@@ -509,6 +550,7 @@ class JobState extends ChangeNotifier {
     savedCreators = [];
     jobFeed.reset();
     creatorFeed.reset();
+    unawaited(sessionCache.clear());
     _notify();
   }
 }

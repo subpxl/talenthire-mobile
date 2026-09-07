@@ -5,13 +5,14 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:bombay_casting/core/models/models.dart';
+import 'package:bombay_casting/core/services/cache_ttl.dart';
 
 /// Persists the newest jobs on disk so a cold start does not wait on Firestore.
 class JobCacheService {
   JobCacheService();
 
   static const fileName = 'jobs_feed_cache.json';
-  static const ttl = Duration(minutes: 15);
+  static const ttl = CacheTtl.feed;
   static const maxJobs = 80;
 
   Future<File?> _cacheFile() async {

@@ -1,7 +1,7 @@
 import 'package:bombay_casting/l10n/app_localizations.dart';
 import 'dart:io';
 
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:bombay_casting/core/widgets/app_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -471,10 +471,11 @@ class _DocTile extends StatelessWidget {
     if (pick.file != null) {
       return Image.file(pick.file!, fit: BoxFit.cover);
     }
-    return CachedNetworkImage(
+    return AppNetworkImage(
       imageUrl: pick.url!,
+      variant: AppImageVariant.full,
       fit: BoxFit.cover,
-      placeholder: (_, _) => const Center(
+      progressIndicatorBuilder: (_, _, _) => const Center(
         child: CircularProgressIndicator(strokeWidth: 2),
       ),
       errorWidget: (_, _, _) => const Icon(Icons.broken_image_outlined),

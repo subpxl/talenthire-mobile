@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:bombay_casting/core/models/models.dart';
 import 'package:bombay_casting/core/services/auth_service.dart';
+import 'package:bombay_casting/core/services/user_cache_service.dart';
 
 class SessionBootstrap {
   const SessionBootstrap({
@@ -24,6 +27,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   final AuthService authService = AuthService();
+  final UserCacheService _userCache = UserCacheService();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final AuthSessionLoader _onSessionReady;
   final VoidCallback _onChange;
@@ -163,6 +167,17 @@ class AuthProvider extends ChangeNotifier {
     String mobile = '',
   }) async {
     try {
+      final cached = await _userCache.read(uid);
+      if (cached != null) {
+        _userDocExists = true;
+        user = cached.user;
+        await _onSessionReady(SessionBootstrap(uid: uid));
+        if (!cached.isFresh) {
+          unawaited(_syncUserFromServer(uid: uid));
+        }
+        return true;
+      }
+
       final userDoc = await _firestore.collection('users').doc(uid).get();
       final isNewUser = !userDoc.exists;
       if (isNewUser) {
@@ -192,6 +207,7 @@ class AuthProvider extends ChangeNotifier {
         final data = Map<String, dynamic>.from(userDoc.data()!);
         data['id'] = data['id']?.toString().isNotEmpty == true ? data['id'] : uid;
         user = User.fromJson(data);
+        await _userCache.write(uid, user!);
         await _onSessionReady(
           SessionBootstrap(uid: uid),
         );
@@ -201,6 +217,21 @@ class AuthProvider extends ChangeNotifier {
       debugPrint('Error creating/fetching user: $error');
       lastAuthError = 'Failed to load account data.';
       return false;
+    }
+  }
+
+  Future<void> _syncUserFromServer({required String uid}) async {
+    try {
+      final userDoc = await _firestore.collection('users').doc(uid).get();
+      if (!userDoc.exists) return;
+      final data = Map<String, dynamic>.from(userDoc.data()!);
+      data['id'] = data['id']?.toString().isNotEmpty == true ? data['id'] : uid;
+      user = User.fromJson(data);
+      _userDocExists = true;
+      await _userCache.write(uid, user!);
+      _notify();
+    } catch (error) {
+      debugPrint('Background user sync failed: $error');
     }
   }
 
@@ -262,6 +293,7 @@ class AuthProvider extends ChangeNotifier {
       // email, ...). A partial merge here would be rejected as a failed create.
       await ref.set(user!.toJson(), SetOptions(merge: true));
       _userDocExists = true;
+      unawaited(_userCache.write(user!.id, user!));
       return;
     }
 
@@ -278,6 +310,9 @@ class AuthProvider extends ChangeNotifier {
     }
     if (onboardingStep != null) data['onboarding_step'] = onboardingStep;
     await ref.set(data, SetOptions(merge: true));
+    if (user != null) {
+      unawaited(_userCache.write(user!.id, user!));
+    }
   }
 
   Future<void> deactivateAccount() async {
@@ -303,6 +338,7 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> logout() async {
     await authService.signOut();
+    await _userCache.clear();
     user = null;
     _userDocExists = false;
     isAuthenticated = false;

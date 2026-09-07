@@ -53,6 +53,7 @@ class Profile {
     required this.userId,
     this.profileImage = '',
     List<String>? photos,
+    List<String>? photoThumbs,
     this.isVerified = false,
     this.talent = 'influencer',
     this.bio = '',
@@ -71,6 +72,7 @@ class Profile {
     this.accountStatus = AccountStatus.active,
     this.freeJobApplicationsUsed = 0,
   })  : photos = photos ?? [],
+        photoThumbs = photoThumbs ?? [],
         languages = languages ?? [],
         niches = niches ?? [],
         platformMetrics = platformMetrics ?? [],
@@ -79,6 +81,7 @@ class Profile {
   final String userId;
   String profileImage;
   List<String> photos;
+  List<String> photoThumbs;
   bool isVerified;
   String talent;
   String bio;
@@ -162,6 +165,27 @@ class Profile {
     return urls.take(maxPhotos).toList();
   }
 
+  /// Thumbnail URLs aligned by index with [galleryPhotos] when available.
+  List<String> get galleryThumbPhotos {
+    final full = galleryPhotos;
+    if (photoThumbs.isEmpty) return full;
+    return [
+      for (var i = 0; i < full.length; i++)
+        i < photoThumbs.length && photoThumbs[i].isNotEmpty
+            ? photoThumbs[i]
+            : full[i],
+    ];
+  }
+
+  String thumbUrlForPhoto(String photoUrl) {
+    final index = galleryPhotos.indexOf(photoUrl);
+    if (index == -1) return photoUrl;
+    if (index < photoThumbs.length && photoThumbs[index].isNotEmpty) {
+      return photoThumbs[index];
+    }
+    return photoUrl;
+  }
+
   factory Profile.fromJson(Map<String, dynamic> json) {
     var formData = mapFrom(json['form_data']);
     final videos = Map<String, dynamic>.from(mapFrom(formData['videos']));
@@ -193,6 +217,7 @@ class Profile {
       userId: json['user_id']?.toString() ?? json['userId']?.toString() ?? '',
       profileImage: (json['profile_image'] ?? '').toString(),
       photos: stringList(json['photos']),
+      photoThumbs: stringList(json['photo_thumbs']),
       isVerified: json['is_verified'] == true,
       talent: (json['talent'] ?? 'influencer').toString(),
       bio: (json['bio'] ?? '').toString(),
@@ -237,6 +262,7 @@ class Profile {
         'user_id': userId,
         'profile_image': profileImage,
         'photos': photos,
+        if (photoThumbs.isNotEmpty) 'photo_thumbs': photoThumbs,
         'is_verified': isVerified,
         'talent': talent,
         'bio': bio,
@@ -266,6 +292,7 @@ class Profile {
   Profile copyWith({
     String? profileImage,
     List<String>? photos,
+    List<String>? photoThumbs,
     String? bio,
     String? contact,
     String? city,
@@ -283,6 +310,7 @@ class Profile {
       userId: userId,
       profileImage: profileImage ?? this.profileImage,
       photos: photos ?? this.photos,
+      photoThumbs: photoThumbs ?? this.photoThumbs,
       isVerified: isVerified,
       talent: talent ?? this.talent,
       bio: bio ?? this.bio,

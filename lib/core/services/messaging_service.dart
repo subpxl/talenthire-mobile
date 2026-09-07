@@ -12,9 +12,28 @@ class MessagingService {
   final DatabaseReference _messagesRoot =
       FirebaseDatabase.instance.ref('messages');
 
+  /// Messages per page. Keeps live listener + "load older" queries cheap
+  /// (only ~30 nodes transferred at a time instead of full chat history).
+  static const int pageSize = 30;
+
   static String conversationId(String uidA, String uidB) {
     final ids = [uidA, uidB]..sort();
     return ids.join('_');
+  }
+
+  List<Map<String, dynamic>> _mapAndSort(Object? value) {
+    if (value is! Map) return <Map<String, dynamic>>[];
+    final messages = value.entries.map((entry) {
+      final data = Map<String, dynamic>.from(entry.value as Map);
+      data['id'] ??= entry.key;
+      return data;
+    }).toList();
+    messages.sort((a, b) {
+      final aTs = (a['created_at'] as num?)?.toInt() ?? 0;
+      final bTs = (b['created_at'] as num?)?.toInt() ?? 0;
+      return aTs.compareTo(bTs);
+    });
+    return messages;
   }
 
   Stream<List<Map<String, dynamic>>> watchConversations() {
@@ -37,22 +56,35 @@ class MessagingService {
     });
   }
 
-  Stream<List<Map<String, dynamic>>> watchMessages(String conversationId) {
-    return _messagesRoot.child(conversationId).onValue.map((event) {
-      final value = event.snapshot.value;
-      if (value is! Map) return <Map<String, dynamic>>[];
-      final messages = value.entries.map((entry) {
-        final data = Map<String, dynamic>.from(entry.value as Map);
-        data['id'] ??= entry.key;
-        return data;
-      }).toList();
-      messages.sort((a, b) {
-        final aTs = (a['created_at'] as num?)?.toInt() ?? 0;
-        final bTs = (b['created_at'] as num?)?.toInt() ?? 0;
-        return aTs.compareTo(bTs);
-      });
-      return messages;
-    });
+  /// Live "tail window": only the most recent [limit] messages. Older
+  /// history is fetched on demand via [fetchOlderMessages] instead of
+  /// streaming (and re-downloading) the entire conversation on every open.
+  Stream<List<Map<String, dynamic>>> watchMessages(
+    String conversationId, {
+    int limit = pageSize,
+  }) {
+    return _messagesRoot
+        .child(conversationId)
+        .orderByChild('created_at')
+        .limitToLast(limit)
+        .onValue
+        .map((event) => _mapAndSort(event.snapshot.value));
+  }
+
+  /// One-time fetch of up to [limit] messages older than [beforeMillis].
+  /// Used for "load more" when the user scrolls to the top of a chat.
+  Future<List<Map<String, dynamic>>> fetchOlderMessages(
+    String conversationId, {
+    required int beforeMillis,
+    int limit = pageSize,
+  }) async {
+    final snapshot = await _messagesRoot
+        .child(conversationId)
+        .orderByChild('created_at')
+        .endBefore(beforeMillis)
+        .limitToLast(limit)
+        .get();
+    return _mapAndSort(snapshot.value);
   }
 
   Future<Map<String, dynamic>?> fetchUser(String uid) async {
@@ -70,10 +102,7 @@ class MessagingService {
   }) async {
     final existing = await _findExistingConversation(otherUserId);
     if (existing != null) {
-      await ensureRtdbConversation(
-        existing['id'] as String,
-        List<String>.from(existing['participants'] as List),
-      );
+      await ensureRtdbConversation(existing['id'] as String);
       return existing;
     }
 
@@ -93,7 +122,7 @@ class MessagingService {
     };
 
     await _firestore.collection('conversations').doc(convId).set(conv);
-    await ensureRtdbConversation(convId, [userId, otherUserId]);
+    await ensureRtdbConversation(convId);
     return {'id': convId, ...conv};
   }
 
@@ -132,32 +161,52 @@ class MessagingService {
     return null;
   }
 
-  Future<void> ensureRtdbConversation(
-    String conversationId,
-    List<String> participants,
-  ) async {
-    final participantsRef = FirebaseDatabase.instance
-        .ref('conversations/$conversationId/participants');
-    final payload = <String, bool>{
-      for (final uid in participants) uid: true,
-    };
+  Future<void> ensureRtdbConversation(String conversationId) async {
+    // RTDB rules only allow each user to write their own participant flag.
+    await _ensureRtdbParticipant(conversationId);
+  }
+
+  /// Registers the signed-in user for RTDB reads/writes on this conversation.
+  Future<void> _ensureRtdbParticipant(String conversationId) async {
+    final ref = FirebaseDatabase.instance
+        .ref('conversations/$conversationId/participants/$userId');
     try {
-      await participantsRef.update(payload);
-    } catch (error) {
-      debugPrint('RTDB participant update failed, creating nodes: $error');
-      for (final uid in participants) {
-        await participantsRef.child(uid).set(true);
-      }
+      await ref.set(true);
+    } catch (error, stackTrace) {
+      debugPrint(
+        'RTDB participant setup failed for $conversationId/$userId: $error',
+      );
+      debugPrint('$stackTrace');
+      rethrow;
     }
+  }
+
+  /// Ensures RTDB access for every loaded Firestore conversation.
+  Future<void> syncRtdbParticipants(
+    Iterable<Map<String, dynamic>> conversations,
+  ) async {
+    final futures = <Future<void>>[];
+    for (final conversation in conversations) {
+      final conversationId = conversation['id']?.toString();
+      if (conversationId == null || conversationId.isEmpty) continue;
+      futures.add(
+        _ensureRtdbParticipant(conversationId).catchError((Object error) {
+          debugPrint(
+            'RTDB participant sync skipped for $conversationId: $error',
+          );
+        }),
+      );
+    }
+    if (futures.isEmpty) return;
+    await Future.wait(futures);
   }
 
   Future<void> sendMessage({
     required String conversationId,
     required String text,
     required String otherUserId,
-    required List<String> participants,
   }) async {
-    await ensureRtdbConversation(conversationId, participants);
+    await ensureRtdbConversation(conversationId);
     final trimmed = text.trim();
     final displayText =
         trimmed.isEmpty ? 'Sent an attachment' : trimmed;

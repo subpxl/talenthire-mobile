@@ -3,21 +3,25 @@ import 'package:bombay_casting/core/models/models.dart';
 class CreatorPhoto {
   const CreatorPhoto({
     this.url = '',
+    this.thumbUrl = '',
     this.imageIndex = 1,
   });
 
   final String url;
+  final String thumbUrl;
   final int imageIndex;
 
   factory CreatorPhoto.fromJson(Map<String, dynamic> json) {
     return CreatorPhoto(
       url: (json['url'] ?? '').toString(),
+      thumbUrl: (json['thumb_url'] ?? json['thumbUrl'] ?? '').toString(),
       imageIndex: (json['image_index'] as num?)?.toInt() ?? 1,
     );
   }
 
   Map<String, dynamic> toJson() => {
         'url': url,
+        if (thumbUrl.isNotEmpty) 'thumb_url': thumbUrl,
         'image_index': imageIndex,
       };
 }
@@ -130,11 +134,13 @@ class CreatorProfile {
         ? profile.bio.trim()
         : _filledValue(profile.formValue('personal', 'about', ''));
     final gallery = profile.galleryPhotos;
+    final thumbGallery = profile.galleryThumbPhotos;
     final photos = List<CreatorPhoto>.generate(
       gallery.isEmpty ? 1 : gallery.length.clamp(1, Profile.maxPhotos),
       (index) {
         return CreatorPhoto(
           url: index < gallery.length ? gallery[index] : '',
+          thumbUrl: index < thumbGallery.length ? thumbGallery[index] : '',
           imageIndex: fallbackIndex + index,
         );
       },
@@ -160,6 +166,106 @@ class CreatorProfile {
         if (lookingFor.isNotEmpty) MapEntry('Open to', lookingFor),
       ],
       platformMetrics: profile.platformMetrics,
+      collabTypes: collabTypes,
+      contentTypes: contentTypes,
+      createdAt: user.createdAt,
+    );
+  }
+
+  /// Builds a feed card from denormalized [feedCard] on the user document.
+  /// Returns null when the user should be hidden from the feed.
+  static CreatorProfile? fromFeedCard({
+    required Map<String, dynamic> userData,
+    required String userId,
+    required Map<String, dynamic> feedCard,
+    required int fallbackIndex,
+    String? currentUserId,
+  }) {
+    final data = Map<String, dynamic>.from(userData);
+    data['id'] = data['id']?.toString().isNotEmpty == true ? data['id'] : userId;
+    final user = User.fromJson(data);
+    final isCurrentUser = userId == currentUserId;
+    if (!isCurrentUser && !user.isActive) return null;
+
+    final city = (feedCard['city'] ?? '').toString();
+    final gallery = _galleryFromFeedCard(feedCard);
+    if (!isCurrentUser &&
+        user.name.trim().isEmpty &&
+        gallery.isEmpty &&
+        city.isEmpty) {
+      return null;
+    }
+
+    final state = (feedCard['state'] ?? '').toString();
+    final location = [city, state].where((item) => item.isNotEmpty).join(', ');
+    final role = _filledValue((feedCard['role'] ?? '').toString());
+    final talent = (feedCard['talent'] ?? '').toString().trim();
+    final title = role.isNotEmpty
+        ? role
+        : (talent.isNotEmpty && talent.toLowerCase() != 'influencer'
+            ? talent
+            : '');
+    final gender = _filledValue((feedCard['gender'] ?? '').toString());
+    final ageRaw = feedCard['age'];
+    final ageText = ageRaw is num
+        ? '${ageRaw.toInt()}'
+        : _filledValue((feedCard['age'] ?? '').toString());
+    final languages = stringList(feedCard['languages']).join(', ');
+    final niches = stringList(feedCard['niches']).take(3).join(', ');
+    final lookingFor = _filledValue((feedCard['looking_for'] ?? '').toString());
+    final collabTypes = stringList(feedCard['collab_types']);
+    final contentTypes = stringList(feedCard['content_types']);
+    final bio = _filledValue((feedCard['bio'] ?? '').toString());
+    final subscriptionStatus =
+        (feedCard['subscription_status'] ?? 'free').toString();
+    final isPremium = subscriptionStatus == 'premium';
+    final isVerified = feedCard['is_verified'] == true || isPremium;
+
+    final metricsRaw = feedCard['platform_metrics'];
+    final metrics = <SocialPlatformMetric>[];
+    if (metricsRaw is List) {
+      for (final item in metricsRaw) {
+        if (item is Map) {
+          metrics.add(
+            SocialPlatformMetric.fromJson(Map<String, dynamic>.from(item)),
+          );
+        }
+      }
+    }
+
+    final photos = List<CreatorPhoto>.generate(
+      gallery.isEmpty ? 1 : gallery.length.clamp(1, Profile.maxPhotos),
+      (index) {
+        final thumbs = stringList(feedCard['photo_thumbs']);
+        return CreatorPhoto(
+          url: index < gallery.length ? gallery[index] : '',
+          thumbUrl: index < thumbs.length ? thumbs[index] : '',
+          imageIndex: fallbackIndex + index,
+        );
+      },
+    );
+
+    return CreatorProfile(
+      id: user.id.isNotEmpty ? user.id : userId,
+      name: user.name.trim().isEmpty ? 'Creator' : user.name.trim(),
+      title: title,
+      location: location,
+      photos: photos,
+      videoLinks: stringList(feedCard['video_links']),
+      isVerified: isVerified,
+      isPremium: isPremium,
+      bio: bio,
+      aboutInfo: [
+        if (gender.isNotEmpty) MapEntry('Gender', gender),
+        if (ageText.isNotEmpty) MapEntry('Age', ageText),
+        if (languages.isNotEmpty) MapEntry('Languages', languages),
+      ],
+      workInfo: [
+        if (title.isNotEmpty) MapEntry('Role', title),
+        if (niches.isNotEmpty) MapEntry('Niches', niches),
+        if (lookingFor.isNotEmpty) MapEntry('Open to', lookingFor),
+      ],
+      platformMetrics: metrics,
       collabTypes: collabTypes,
       contentTypes: contentTypes,
       createdAt: user.createdAt,
@@ -226,6 +332,16 @@ class CreatorProfile {
         if (createdAt != null) 'created_at': createdAt!.toIso8601String(),
         if (savedAt != null) 'saved_at': savedAt!.toIso8601String(),
       };
+}
+
+List<String> _galleryFromFeedCard(Map<String, dynamic> feedCard) {
+  final urls = <String>[];
+  final main = (feedCard['profile_image'] ?? '').toString();
+  if (main.isNotEmpty) urls.add(main);
+  for (final photo in stringList(feedCard['photos'])) {
+    if (photo.isNotEmpty && !urls.contains(photo)) urls.add(photo);
+  }
+  return urls.take(Profile.maxPhotos).toList();
 }
 
 List<String> _videoLinksFromProfile(Profile profile) {

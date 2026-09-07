@@ -1,14 +1,17 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:bombay_casting/core/models/models.dart';
+import 'package:bombay_casting/core/services/profile_cache_service.dart';
 import 'package:bombay_casting/core/services/storage_service.dart';
 
 class ProfileProvider extends ChangeNotifier {
   ProfileProvider({required this._onChange});
 
   final StorageService storageService = StorageService();
+  final ProfileCacheService _cache = ProfileCacheService();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final VoidCallback _onChange;
 
@@ -38,9 +41,24 @@ class ProfileProvider extends ChangeNotifier {
   }
 
   Future<void> loadProfile(String uid) async {
+    final cached = await _cache.read(uid);
+    if (cached != null) {
+      profile = cached.profile;
+      _remoteExists = cached.remoteExists;
+      _notify();
+      if (!cached.isFresh) {
+        unawaited(_fetchProfileFromServer(uid));
+      }
+      return;
+    }
+
     profile = null;
     _remoteExists = false;
     _notify();
+    await _fetchProfileFromServer(uid);
+  }
+
+  Future<void> _fetchProfileFromServer(String uid) async {
     try {
       final profileDoc = await _firestore.collection('profiles').doc(uid).get();
       if (profileDoc.exists) {
@@ -49,10 +67,15 @@ class ProfileProvider extends ChangeNotifier {
         profile = Profile.fromJson(data);
         _remoteExists = true;
       } else {
-        // No document yet — keep an in-memory default and create it lazily on
-        // the first save. Avoids a redundant write on every login.
         profile = Profile(userId: uid);
         _remoteExists = false;
+      }
+      if (profile != null) {
+        await _cache.write(
+          uid: uid,
+          profile: profile!,
+          remoteExists: _remoteExists,
+        );
       }
     } catch (error) {
       debugPrint('Error loading profile: $error');
@@ -87,6 +110,15 @@ class ProfileProvider extends ChangeNotifier {
       await ref.set(data, SetOptions(merge: true));
       _remoteExists = true;
     }
+    if (userId != null) {
+      unawaited(
+        _cache.write(
+          uid: userId,
+          profile: profile!,
+          remoteExists: _remoteExists,
+        ),
+      );
+    }
   }
 
   Future<void> uploadProfilePhoto({
@@ -109,18 +141,31 @@ class ProfileProvider extends ChangeNotifier {
     isUploadingPhoto = true;
     _notify();
     final newUrls = <String>[];
+    final newThumbs = <String>[];
     try {
+      final usedSlots = _usedGallerySlots(current);
+      var slotCursor = 0;
       for (var i = 0; i < toUpload.length; i++) {
-        final url = await storageService.uploadProfilePhoto(
+        while (usedSlots.contains(slotCursor) &&
+            slotCursor < Profile.maxPhotos) {
+          slotCursor += 1;
+        }
+        if (slotCursor >= Profile.maxPhotos) break;
+        usedSlots.add(slotCursor);
+        final upload = await storageService.uploadProfilePhoto(
           userId: userId,
           file: toUpload[i],
-          fileName: '${DateTime.now().microsecondsSinceEpoch}_$i.jpg',
+          slot: slotCursor,
         );
-        newUrls.add(url);
+        newUrls.add(upload.fullUrl);
+        newThumbs.add(upload.thumbUrl);
+        slotCursor += 1;
       }
       await _saveGallery(
         current: current,
+        currentThumbs: profile!.galleryThumbPhotos,
         newUrls: newUrls,
+        newThumbUrls: newThumbs,
         mainIndex: mainIndex,
         userId: userId,
       );
@@ -130,7 +175,9 @@ class ProfileProvider extends ChangeNotifier {
         try {
           await _saveGallery(
             current: current,
+            currentThumbs: profile!.galleryThumbPhotos,
             newUrls: newUrls,
+            newThumbUrls: newThumbs,
             mainIndex: mainIndex,
             userId: userId,
           );
@@ -147,10 +194,24 @@ class ProfileProvider extends ChangeNotifier {
 
   Future<void> _saveGallery({
     required List<String> current,
+    required List<String> currentThumbs,
     required List<String> newUrls,
+    required List<String> newThumbUrls,
     required int? mainIndex,
     required String userId,
   }) async {
+    final thumbsByUrl = <String, String>{};
+    for (var i = 0; i < current.length; i++) {
+      if (i < currentThumbs.length && currentThumbs[i].isNotEmpty) {
+        thumbsByUrl[current[i]] = currentThumbs[i];
+      }
+    }
+    for (var i = 0; i < newUrls.length; i++) {
+      if (i < newThumbUrls.length && newThumbUrls[i].isNotEmpty) {
+        thumbsByUrl[newUrls[i]] = newThumbUrls[i];
+      }
+    }
+
     var photos = [
       ...current,
       ...newUrls.where((url) => !current.contains(url)),
@@ -161,19 +222,49 @@ class ProfileProvider extends ChangeNotifier {
     }
     photos = photos.take(Profile.maxPhotos).toList();
     if (photos.isEmpty) return;
+
+    final alignedThumbs = [
+      for (final photo in photos) thumbsByUrl[photo] ?? '',
+    ];
+
     await updateProfile(
-      profile!.copyWith(profileImage: photos.first, photos: photos),
+      profile!.copyWith(
+        profileImage: photos.first,
+        photos: photos,
+        photoThumbs: alignedThumbs,
+      ),
       userId: userId,
     );
+  }
+
+  Set<int> _usedGallerySlots(List<String> photos) {
+    final slots = <int>{};
+    for (final url in photos) {
+      final slot = StorageService.gallerySlotFromUrl(url);
+      if (slot != null) slots.add(slot);
+    }
+    return slots;
   }
 
   Future<void> setMainProfilePhoto(String url, {String? userId}) async {
     if (profile == null || url.isEmpty) return;
     final photos = profile!.galleryPhotos;
     if (!photos.contains(url) || photos.first == url) return;
+    final thumbs = profile!.galleryThumbPhotos;
+    final thumbByUrl = {
+      for (var i = 0; i < photos.length; i++)
+        photos[i]: i < thumbs.length ? thumbs[i] : '',
+    };
     final reordered = [url, ...photos.where((item) => item != url)];
+    final reorderedThumbs = [
+      for (final photo in reordered) thumbByUrl[photo] ?? '',
+    ];
     await updateProfile(
-      profile!.copyWith(profileImage: url, photos: reordered),
+      profile!.copyWith(
+        profileImage: url,
+        photos: reordered,
+        photoThumbs: reorderedThumbs,
+      ),
       userId: userId,
     );
   }
@@ -191,11 +282,19 @@ class ProfileProvider extends ChangeNotifier {
 
   Future<void> removeProfilePhoto(String url, {String? userId}) async {
     if (profile == null) return;
-    final photos = profile!.galleryPhotos.where((item) => item != url).toList();
+    final photos = profile!.galleryPhotos;
+    final thumbs = profile!.galleryThumbPhotos;
+    final remainingPhotos = photos.where((item) => item != url).toList();
+    final remainingThumbs = <String>[];
+    for (var i = 0; i < photos.length; i++) {
+      if (photos[i] == url) continue;
+      remainingThumbs.add(i < thumbs.length ? thumbs[i] : '');
+    }
     await updateProfile(
       profile!.copyWith(
-        profileImage: photos.isEmpty ? '' : photos.first,
-        photos: photos,
+        profileImage: remainingPhotos.isEmpty ? '' : remainingPhotos.first,
+        photos: remainingPhotos,
+        photoThumbs: remainingThumbs,
       ),
       userId: userId,
     );
@@ -210,6 +309,7 @@ class ProfileProvider extends ChangeNotifier {
     profile = null;
     isUploadingPhoto = false;
     _remoteExists = false;
+    unawaited(_cache.clear());
     _notify();
   }
 }

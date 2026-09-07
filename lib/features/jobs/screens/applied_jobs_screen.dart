@@ -8,7 +8,7 @@ import 'package:bombay_casting/features/jobs/screens/job_detail_screen.dart';
 import 'package:bombay_casting/features/jobs/widgets/application_progress_tracker.dart';
 import 'package:bombay_casting/features/jobs/widgets/manage_application_sheet.dart';
 import 'package:bombay_casting/features/jobs/widgets/profile_completion_banner.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:bombay_casting/core/widgets/app_network_image.dart';
 import 'package:bombay_casting/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -234,12 +234,13 @@ class _JobPoster extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               if (imageUrl.isNotEmpty)
-                CachedNetworkImage(
+                AppNetworkImage(
                   imageUrl: imageUrl,
+                  variant: AppImageVariant.thumb,
                   fit: BoxFit.cover,
-                  memCacheWidth: 200,
                   fadeInDuration: const Duration(milliseconds: 200),
-                  placeholder: (context, url) => const ColoredBox(
+                  progressIndicatorBuilder: (context, url, progress) =>
+                      const ColoredBox(
                     color: Color(0xFFF3F3F3),
                   ),
                   errorWidget: (context, url, error) => const _PosterFallback(),

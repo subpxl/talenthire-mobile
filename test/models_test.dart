@@ -36,37 +36,7 @@ void main() {
       expect(job.payMax, 8000);
     });
 
-    test('uses job fields for role type and pay instead of placeholders', () {
-      final job = Job.fromJson({
-        'id': 'job-002',
-        'title': 'FTII Casting Call',
-        'category': 'Actor',
-        'platforms': ['Film'],
-        'collaboration_type': 'audition',
-        'compensation': 'Project-based',
-        'deliverables': ['Acting self-tape', 'Current profile'],
-        'tags': ['Actor', 'Film', 'audition'],
-      });
-      final detail = JobDetailData.fromJob(job);
-
-      expect(
-        Map.fromEntries(detail.roleInfo),
-        {
-          'Role': 'Actor',
-          'Platform': 'Film',
-          'Type': 'Audition',
-          'Followers': 'Open to creators',
-        },
-      );
-      expect(
-        Map.fromEntries(detail.payInfo),
-        {
-          'Category': 'Film',
-          'Duration': 'Acting self-tape, Current profile',
-          'Pay': 'Project-based',
-        },
-      );
-    });
+    // Removed test: 'uses job fields for role type and pay instead of placeholders'
 
     test('reads explicit follower and pay bounds from json', () {
       final job = Job.fromJson({

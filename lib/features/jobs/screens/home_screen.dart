@@ -47,24 +47,10 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class _HomeAllTab extends StatefulWidget {
+class _HomeAllTab extends StatelessWidget {
   const _HomeAllTab();
 
-  @override
-  State<_HomeAllTab> createState() => _HomeAllTabState();
-}
-
-class _HomeAllTabState extends State<_HomeAllTab> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      context.read<AppState>().loadCreators();
-    });
-  }
-
-  Future<void> _refresh() async {
+  Future<void> _refresh(BuildContext context) async {
     await Future.wait([
       context.read<AppState>().refreshJobs(),
       context.read<AppState>().refreshCreators(),
@@ -79,7 +65,7 @@ class _HomeAllTabState extends State<_HomeAllTab> {
     final completionPercent = appState.profile?.completionPercentage ?? 0;
 
     return AppScrollBody(
-      onRefresh: _refresh,
+      onRefresh: () => _refresh(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

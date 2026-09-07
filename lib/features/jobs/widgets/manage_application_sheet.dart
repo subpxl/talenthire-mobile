@@ -11,25 +11,24 @@ Future<void> updateApplicationInterviewLink(
   required Application application,
   bool popOnSuccess = false,
 }) async {
+  final appState = context.read<AppState>();
   final result = await showApplyJobSheet(
     context,
     jobTitle: application.jobTitle,
     company: application.company,
     initialYoutubeShortUrl: application.youtubeShortUrl,
     updateLinkOnly: true,
+    submitErrorMessage: 'Could not update the link',
+    onSubmit: (applyResult) {
+      return appState.updateApplicationLink(
+        application,
+        youtubeShortUrl: applyResult.youtubeShortUrl,
+      );
+    },
   );
   if (result == null || !context.mounted) return;
-  final updated = await context.read<AppState>().updateApplicationLink(
-        application,
-        youtubeShortUrl: result.youtubeShortUrl,
-      );
-  if (!context.mounted) return;
-  if (updated && popOnSuccess) Navigator.pop(context);
-  showAppToast(
-    context,
-    updated ? 'Interview link updated' : 'Could not update the link',
-    type: updated ? AppToastType.success : AppToastType.error,
-  );
+  if (popOnSuccess) Navigator.pop(context);
+  showAppToast(context, 'Interview link updated');
 }
 
 Future<void> confirmAndCancelApplication(
@@ -60,8 +59,9 @@ Future<void> confirmAndCancelApplication(
     ),
   );
   if (confirmed != true || !context.mounted) return;
-  final withdrawn =
-      await context.read<AppState>().withdrawApplication(application);
+  final withdrawn = await context.read<AppState>().withdrawApplication(
+    application,
+  );
   if (!context.mounted) return;
   if (withdrawn && popOnSuccess) Navigator.pop(context);
   showAppToast(

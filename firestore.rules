@@ -184,9 +184,11 @@ service cloud.firestore {
     // ── conversations ──────────────────────────────────────────────────────
     match /conversations/{convId} {
       function isParticipant() {
-        return isConversationParticipant(convId);
+        return isSignedIn()
+          && request.auth.uid in resource.data.participants;
       }
 
+      // resource.data (not get()) so array-contains list queries are allowed.
       allow read: if isAdmin() || isParticipant();
 
       allow create: if isSignedIn()

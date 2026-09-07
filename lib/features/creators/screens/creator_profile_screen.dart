@@ -1,5 +1,5 @@
 import 'package:bombay_casting/l10n/app_localizations.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:bombay_casting/core/widgets/app_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -372,8 +372,9 @@ class _CreatorVideoPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     final thumbnail = VideoLinkUtils.youtubeThumbnailUrl(url);
     if (thumbnail != null) {
-      return CachedNetworkImage(
+      return AppNetworkImage(
         imageUrl: thumbnail,
+        variant: AppImageVariant.list,
         fit: BoxFit.cover,
         progressIndicatorBuilder: (_, _, progress) => ColoredBox(
           color: const Color(0xFF1A1A1A),
@@ -947,10 +948,11 @@ class _PhotoZoomScreenState extends State<_PhotoZoomScreen> {
                 maxScale: 4,
                 child: Center(
                   child: photo.url.isNotEmpty
-                      ? CachedNetworkImage(
+                      ? AppNetworkImage(
                           imageUrl: photo.url,
+                          variant: AppImageVariant.full,
                           fit: BoxFit.contain,
-                          placeholder: (_, _) => const Center(
+                          progressIndicatorBuilder: (_, _, _) => const Center(
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
                               color: Colors.white,

@@ -1,7 +1,6 @@
 import * as functions from 'firebase-functions/v1';
 import * as admin from 'firebase-admin';
-
-const FUNCTION_REGION = 'asia-south1';
+import {callable} from './callable';
 const BATCH_SIZE = 400;
 
 function db(): admin.firestore.Firestore {
@@ -80,9 +79,7 @@ async function purgeUserData(userId: string): Promise<void> {
  * Permanently deletes the signed-in user's Firebase Auth account and app data.
  * Required for Google Play account-deletion policy compliance.
  */
-export const deleteAccount = functions
-  .region(FUNCTION_REGION)
-  .https.onCall(async (_data, context) => {
+export const deleteAccount = callable().https.onCall(async (_data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError(
         'unauthenticated',

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:bombay_casting/features/jobs/models/job_listing.dart';
@@ -59,8 +61,10 @@ class JobFeed {
 
   Future<void> hydrateAndLoad() async {
     await _hydrateFromCache();
-    if (jobs.isEmpty || !_cacheIsFresh) {
+    if (jobs.isEmpty) {
       await fetchPage(reset: true);
+    } else if (!_cacheIsFresh) {
+      unawaited(fetchPage(reset: true));
     }
   }
 

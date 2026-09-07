@@ -17,16 +17,21 @@ import 'package:bombay_casting/core/widgets/verified_tick.dart';
 import 'package:bombay_casting/features/jobs/widgets/apply_job_sheet.dart';
 import 'package:bombay_casting/features/jobs/widgets/job_detail_sections.dart';
 
-class JobDetailScreen extends StatelessWidget {
-  const JobDetailScreen({
-    super.key,
-    required this.profile,
-  });
+class JobDetailScreen extends StatefulWidget {
+  const JobDetailScreen({super.key, required this.profile});
 
   final JobDetailData profile;
 
   @override
+  State<JobDetailScreen> createState() => _JobDetailScreenState();
+}
+
+class _JobDetailScreenState extends State<JobDetailScreen> {
+  bool _isApplying = false;
+
+  @override
   Widget build(BuildContext context) {
+    final profile = widget.profile;
     final appState = context.watch<AppState>();
     final firebaseJob = appState.jobById(profile.jobId);
     final listing = _listingFor(profile, firebaseJob);
@@ -42,7 +47,8 @@ class JobDetailScreen extends StatelessWidget {
           icon: const Icon(Icons.arrow_back_ios, size: 20),
           onPressed: () => Navigator.maybePop(context),
         ),
-        title: Text(AppLocalizations.of(context)!.job,
+        title: Text(
+          AppLocalizations.of(context)!.job,
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
         ),
         centerTitle: true,
@@ -69,7 +75,8 @@ class JobDetailScreen extends StatelessWidget {
               }
             },
             itemBuilder: (context) => [
-              PopupMenuItem(value: 'report',
+              PopupMenuItem(
+                value: 'report',
                 child: Text(AppLocalizations.of(context)!.reportJob),
               ),
             ],
@@ -112,14 +119,14 @@ class JobDetailScreen extends StatelessWidget {
               ],
             ),
             const SizedBox(height: AppSpacing.md),
-            JobDetailStatsBar(
-              job: listing,
-              postedAt: firebaseJob?.postedAt,
-            ),
+            JobDetailStatsBar(job: listing, postedAt: firebaseJob?.postedAt),
             const SizedBox(height: AppSpacing.lg),
             JobAboutSection(job: listing),
             const SizedBox(height: AppSpacing.lg),
-            JobSubmitSection(requiresVideo: firebaseJob?.requiresVideoSubmission ?? listing.isAudition),
+            JobSubmitSection(
+              requiresVideo:
+                  firebaseJob?.requiresVideoSubmission ?? listing.isAudition,
+            ),
             const SizedBox(height: AppSpacing.lg),
             JobDetailMetaFooter(
               appliedCount: firebaseJob?.applied ?? 0,
@@ -141,17 +148,17 @@ class JobDetailScreen extends StatelessWidget {
           ],
         ),
       ),
-      bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.fromLTRB(
+      bottomNavigationBar: Padding(
+        padding: EdgeInsets.fromLTRB(
           AppSpacing.screenH,
           8,
           AppSpacing.screenH,
-          16,
+          24 + MediaQuery.viewPaddingOf(context).bottom,
         ),
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            onTap: hasApplied ? null : () => _apply(context),
+            onTap: hasApplied || _isApplying ? null : _apply,
             borderRadius: BorderRadius.circular(AppRadius.pill),
             child: Ink(
               width: double.infinity,
@@ -161,7 +168,16 @@ class JobDetailScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(AppRadius.pill),
               ),
               child: Center(
-                child: hasApplied
+                child: _isApplying
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: Colors.white,
+                        ),
+                      )
+                    : hasApplied
                     ? const Text(
                         'Applied',
                         style: TextStyle(
@@ -198,10 +214,11 @@ class JobDetailScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _apply(BuildContext context) async {
+  Future<void> _apply() async {
+    if (_isApplying) return;
     if (!AppNavigation.requireApplyAccess(context)) return;
     final appState = context.read<AppState>();
-    final job = appState.jobById(profile.jobId);
+    final job = appState.jobById(widget.profile.jobId);
     if (job == null) {
       showAppToast(
         context,
@@ -211,9 +228,6 @@ class JobDetailScreen extends StatelessWidget {
       return;
     }
 
-    String script = '';
-    String youtubeShortUrl = '';
-
     if (job.requiresVideoSubmission) {
       final result = await showApplyJobSheet(
         context,
@@ -222,26 +236,35 @@ class JobDetailScreen extends StatelessWidget {
         pay: job.payLabel,
         auditionScript: job.auditionScript,
         referenceVideoLink: job.interviewVideoLink,
+        onSubmit: (applyResult) {
+          return appState.applyToJob(
+            job,
+            script: applyResult.script,
+            youtubeShortUrl: applyResult.youtubeShortUrl,
+          );
+        },
       );
-      if (result == null || !context.mounted) return;
-      script = result.script;
-      youtubeShortUrl = result.youtubeShortUrl;
+      if (result == null || !mounted) return;
+      showAppToast(context, 'Application sent');
+      return;
     }
 
-    final sent = await appState.applyToJob(
-      job,
-      script: script,
-      youtubeShortUrl: youtubeShortUrl,
-    );
-    if (!context.mounted) return;
-    showAppToast(
-      context,
-      sent ? 'Application sent' : 'Could not send application',
-      type: sent ? AppToastType.success : AppToastType.error,
-    );
+    setState(() => _isApplying = true);
+    try {
+      final sent = await appState.applyToJob(job);
+      if (!mounted) return;
+      showAppToast(
+        context,
+        sent ? 'Application sent' : 'Could not send application',
+        type: sent ? AppToastType.success : AppToastType.error,
+      );
+    } finally {
+      if (mounted) setState(() => _isApplying = false);
+    }
   }
 
   Widget _buildHeader(BuildContext context) {
+    final profile = widget.profile;
     final company = profile.company.trim();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -402,7 +425,9 @@ class JobDetailData {
       projectTag: job.projectTag,
       category: job.category,
       offerType: job.collabType,
-      budget: job.pay.toLowerCase().contains('not specified') ? 'Undisclosed' : job.pay,
+      budget: job.pay.toLowerCase().contains('not specified')
+          ? 'Undisclosed'
+          : job.pay,
       tags: job.tags,
       company: company ?? job.company,
       createdBy: createdBy ?? '',

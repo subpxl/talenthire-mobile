@@ -48,6 +48,13 @@ class MessagingProvider extends ChangeNotifier {
   Object? loadError;
   String? pendingConversationId;
 
+  /// Messages loaded via "load more" (older than the live tail window).
+  List<ChatMessage> _olderMessages = [];
+  /// Most recent page, kept in sync by the live RTDB listener.
+  List<ChatMessage> _liveMessages = [];
+  bool hasMoreMessages = true;
+  bool isLoadingMore = false;
+
   String get _welcomeReadKey => 'company_welcome_read_$userId';
   String get _welcomeRepliesKey => 'company_welcome_replies_$userId';
 
@@ -70,6 +77,7 @@ class MessagingProvider extends ChangeNotifier {
     unawaited(_loadWelcomeState());
     _conversationsSub = _service.watchConversations().listen(
       (items) {
+        unawaited(_service.syncRtdbParticipants(items));
         _remoteConversations = items
             .map((item) => ConversationThread.fromFirestore(userId, item))
             .toList();
@@ -185,6 +193,10 @@ class MessagingProvider extends ChangeNotifier {
     pendingConversationId = null;
     _messagesSub?.cancel();
     _messagesSub = null;
+    _olderMessages = [];
+    _liveMessages = [];
+    hasMoreMessages = true;
+    isLoadingMore = false;
     if (thread.isCompanyWelcome) {
       activeMessages = ConversationThread.companyWelcome(
         unread: false,
@@ -194,14 +206,76 @@ class MessagingProvider extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    _messagesSub = _service.watchMessages(thread.id).listen((items) {
-      activeMessages = items
-          .map((item) => ChatMessage.fromRtdb(item, currentUserId: userId))
-          .toList();
-      notifyListeners();
-    });
+    await _service.ensureRtdbConversation(thread.id);
+    _messagesSub = _service.watchMessages(thread.id).listen(
+      (items) {
+        _liveMessages = items
+            .map((item) => ChatMessage.fromRtdb(item, currentUserId: userId))
+            .toList();
+        // Live tail window came back short of a full page: there's nothing
+        // older left to fetch.
+        if (_liveMessages.length < MessagingService.pageSize) {
+          hasMoreMessages = false;
+        }
+        final liveIds = _liveMessages.map((m) => m.id).toSet();
+        _olderMessages =
+            _olderMessages.where((m) => !liveIds.contains(m.id)).toList();
+        _recomputeActiveMessages();
+        notifyListeners();
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        debugPrint('Error loading messages for ${thread.id}: $error');
+        debugPrint('$stackTrace');
+      },
+    );
     await _service.markRead(thread.id);
     notifyListeners();
+  }
+
+  void _recomputeActiveMessages() {
+    activeMessages = [..._olderMessages, ..._liveMessages];
+  }
+
+  /// Fetches the next page of older messages and prepends them. Called when
+  /// the user scrolls to the top of the chat.
+  Future<void> loadMoreMessages() async {
+    final thread = activeConversation;
+    if (thread == null || thread.isCompanyWelcome) return;
+    if (isLoadingMore || !hasMoreMessages) return;
+
+    final oldestLoaded = activeMessages.isNotEmpty
+        ? activeMessages.first.createdAtMillis
+        : null;
+    if (oldestLoaded == null) return;
+
+    isLoadingMore = true;
+    notifyListeners();
+    try {
+      final older = await _service.fetchOlderMessages(
+        thread.id,
+        beforeMillis: oldestLoaded,
+      );
+      final mapped = older
+          .map((item) => ChatMessage.fromRtdb(item, currentUserId: userId))
+          .toList();
+      if (mapped.length < MessagingService.pageSize) {
+        hasMoreMessages = false;
+      }
+      final existingIds = {
+        ..._olderMessages.map((m) => m.id),
+        ..._liveMessages.map((m) => m.id),
+      };
+      final newOnes =
+          mapped.where((m) => !existingIds.contains(m.id)).toList();
+      _olderMessages = [...newOnes, ..._olderMessages];
+      _recomputeActiveMessages();
+    } catch (error, stackTrace) {
+      debugPrint('Error loading older messages for ${thread.id}: $error');
+      debugPrint('$stackTrace');
+    } finally {
+      isLoadingMore = false;
+      notifyListeners();
+    }
   }
 
   Future<ConversationThread?> startWithAgency({
@@ -238,7 +312,6 @@ class MessagingProvider extends ChangeNotifier {
         conversationId: thread.id,
         text: trimmed,
         otherUserId: otherUserId,
-        participants: List<String>.from(thread.raw['participants'] as List),
       );
     } finally {
       isSending = false;
@@ -286,6 +359,10 @@ class MessagingProvider extends ChangeNotifier {
     _messagesSub = null;
     activeConversation = null;
     activeMessages = [];
+    _olderMessages = [];
+    _liveMessages = [];
+    hasMoreMessages = true;
+    isLoadingMore = false;
     notifyListeners();
   }
 
@@ -299,6 +376,10 @@ class MessagingProvider extends ChangeNotifier {
     _companyWelcomeRead = true;
     _welcomeReplies = [];
     activeMessages = [];
+    _olderMessages = [];
+    _liveMessages = [];
+    hasMoreMessages = true;
+    isLoadingMore = false;
     activeConversation = null;
     pendingConversationId = null;
     isLoading = true;
