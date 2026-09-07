@@ -34,7 +34,10 @@ class CreatorProfile {
     this.aboutInfo = const [],
     this.workInfo = const [],
     this.platformMetrics = const [],
+    this.collabTypes = const [],
+    this.contentTypes = const [],
     this.bio = '',
+    this.videoLinks = const [],
     this.createdAt,
     this.savedAt,
   });
@@ -44,11 +47,14 @@ class CreatorProfile {
   final String title;
   final String location;
   final List<CreatorPhoto> photos;
+  final List<String> videoLinks;
   final bool isVerified;
   final bool isPremium;
   final List<MapEntry<String, String>> aboutInfo;
   final List<MapEntry<String, String>> workInfo;
   final List<SocialPlatformMetric> platformMetrics;
+  final List<String> collabTypes;
+  final List<String> contentTypes;
   final String bio;
   final DateTime? createdAt;
   final DateTime? savedAt;
@@ -70,6 +76,8 @@ class CreatorProfile {
       bio,
       for (final entry in aboutInfo) '${entry.key} ${entry.value}',
       for (final entry in workInfo) '${entry.key} ${entry.value}',
+      ...collabTypes,
+      ...contentTypes,
     ].join(' ').toLowerCase();
     return terms.every(haystack.contains);
   }
@@ -116,6 +124,8 @@ class CreatorProfile {
     final lookingFor = _filledValue(
       profile.formValue('personal', 'looking_for', ''),
     );
+    final collabTypes = _formList(profile, 'collab_types');
+    final contentTypes = _formList(profile, 'content_types');
     final bio = _filledValue(profile.bio).isNotEmpty
         ? profile.bio.trim()
         : _filledValue(profile.formValue('personal', 'about', ''));
@@ -135,6 +145,7 @@ class CreatorProfile {
       title: title,
       location: location,
       photos: photos,
+      videoLinks: _videoLinksFromProfile(profile),
       isVerified: profile.isVerified || profile.isPremium,
       isPremium: profile.isPremium,
       bio: bio,
@@ -149,6 +160,8 @@ class CreatorProfile {
         if (lookingFor.isNotEmpty) MapEntry('Open to', lookingFor),
       ],
       platformMetrics: profile.platformMetrics,
+      collabTypes: collabTypes,
+      contentTypes: contentTypes,
       createdAt: user.createdAt,
     );
   }
@@ -185,7 +198,10 @@ class CreatorProfile {
       aboutInfo: _entriesFromJson(json['about_info']),
       workInfo: _entriesFromJson(json['work_info']),
       platformMetrics: metrics,
+      collabTypes: stringList(json['collab_types'] ?? json['collabTypes']),
+      contentTypes: stringList(json['content_types'] ?? json['contentTypes']),
       bio: (json['bio'] ?? json['about'] ?? '').toString(),
+      videoLinks: stringList(json['video_links'] ?? json['videoLinks']),
       createdAt: parseFlexibleDate(json['created_at']),
       savedAt: parseFlexibleDate(json['saved_at']),
     );
@@ -203,16 +219,44 @@ class CreatorProfile {
         'work_info': _entriesToJson(workInfo),
         'platform_metrics':
             platformMetrics.map((metric) => metric.toJson()).toList(),
+        if (collabTypes.isNotEmpty) 'collab_types': collabTypes,
+        if (contentTypes.isNotEmpty) 'content_types': contentTypes,
         if (bio.isNotEmpty) 'bio': bio,
+        if (videoLinks.isNotEmpty) 'video_links': videoLinks,
         if (createdAt != null) 'created_at': createdAt!.toIso8601String(),
         if (savedAt != null) 'saved_at': savedAt!.toIso8601String(),
       };
+}
+
+List<String> _videoLinksFromProfile(Profile profile) {
+  final videos = profile.formSection('videos');
+  return [
+    videos['introduction_link'],
+    videos['previous_experience'],
+    videos['other_video_link'],
+  ]
+      .map((value) => (value ?? '').toString().trim())
+      .where((value) => value.isNotEmpty)
+      .toList();
 }
 
 String _filledValue(String value) {
   final text = value.trim();
   if (text.isEmpty || text == '-') return '';
   return text;
+}
+
+List<String> _formList(Profile profile, String key) {
+  final fromCreator = _valuesList(profile.formSection('creator')[key]);
+  if (fromCreator.isNotEmpty) return fromCreator;
+  return _valuesList(profile.formSection('content')[key]);
+}
+
+List<String> _valuesList(dynamic stored) {
+  return stringList(stored)
+      .map((item) => item.trim())
+      .where((item) => item.isNotEmpty && item != 'Any' && item != '-')
+      .toList();
 }
 
 List<Map<String, String>> _entriesToJson(List<MapEntry<String, String>> entries) {

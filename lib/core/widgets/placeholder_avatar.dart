@@ -48,6 +48,7 @@ class PlaceholderProfileImage extends StatelessWidget {
     this.intrinsicHeight = false,
     this.memCacheWidth = 900,
     this.fadeInDuration = const Duration(milliseconds: 280),
+    this.fallbackIcon = Icons.movie_filter_outlined,
   });
 
   final double height;
@@ -61,11 +62,14 @@ class PlaceholderProfileImage extends StatelessWidget {
   final int memCacheWidth;
   final Duration fadeInDuration;
 
+  /// Shown when [imageUrl] is empty or fails to load.
+  final IconData fallbackIcon;
+
   @override
   Widget build(BuildContext context) {
-    final fallback = ColoredBox(
-      color: Colors.grey.shade300,
-      child: Icon(Icons.movie_filter_outlined, size: 72, color: Colors.grey.shade500),
+    final fallback = JobPosterFallback(
+      imageIndex: imageIndex,
+      icon: fallbackIcon,
     );
     final expand = fill || !intrinsicHeight;
     final image = imageUrl.isNotEmpty
@@ -85,41 +89,20 @@ class PlaceholderProfileImage extends StatelessWidget {
             fadeOutDuration: Duration.zero,
             placeholderFadeInDuration: Duration.zero,
             memCacheWidth: memCacheWidth,
-            placeholder: (context, url) => intrinsicHeight
-                ? AspectRatio(
-                    aspectRatio: aspectRatio ?? 3 / 4,
-                    child: ColoredBox(
-                      color: Colors.grey.shade200,
-                      child: Icon(
-                        Icons.movie_filter_outlined,
-                        size: 40,
-                        color: Colors.grey.shade400,
+            progressIndicatorBuilder: (context, url, progress) =>
+                intrinsicHeight
+                    ? AspectRatio(
+                        aspectRatio: aspectRatio ?? 3 / 4,
+                        child: NetworkImageLoadingPlaceholder(
+                          progress: progress.progress,
+                        ),
+                      )
+                    : NetworkImageLoadingPlaceholder(
+                        progress: progress.progress,
                       ),
-                    ),
-                  )
-                : ColoredBox(
-                    color: Colors.grey.shade200,
-                    child: Icon(
-                      Icons.movie_filter_outlined,
-                      size: 56,
-                      color: Colors.grey.shade400,
-                    ),
-                  ),
-            errorWidget: (context, url, error) => Image.asset(
-              JobAssets.pathFor(imageIndex),
-              fit: fit,
-              width: double.infinity,
-              height: expand ? double.infinity : null,
-              errorBuilder: (context, error, stackTrace) => fallback,
-            ),
+            errorWidget: (context, url, error) => fallback,
           )
-        : Image.asset(
-            JobAssets.pathFor(imageIndex),
-            fit: fit,
-            width: double.infinity,
-            height: expand ? double.infinity : null,
-            errorBuilder: (context, error, stackTrace) => fallback,
-          );
+        : fallback;
 
     final clipped = ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
@@ -149,44 +132,101 @@ class JobAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fallback = CircleAvatar(
-      radius: radius,
-      backgroundColor: Colors.grey.shade400,
-      child: Icon(Icons.movie_filter_outlined, size: radius * 0.9, color: Colors.white),
+    final fallback = JobPosterFallback(
+      imageIndex: imageIndex,
+      iconSize: radius * 0.9,
     );
     return ClipOval(
-      child: imageUrl.isNotEmpty
-          ? CachedNetworkImage(
-              imageUrl: imageUrl,
-              width: radius * 2,
-              height: radius * 2,
-              fit: BoxFit.cover,
-              fadeInDuration: const Duration(milliseconds: 220),
-              fadeOutDuration: Duration.zero,
-              memCacheWidth: 200,
-              placeholder: (context, url) => ColoredBox(
-                color: Colors.grey.shade300,
-                child: Icon(
-                  Icons.movie_filter_outlined,
-                  size: radius * 0.9,
-                  color: Colors.white,
-                ),
-              ),
-              errorWidget: (context, url, error) => Image.asset(
-                JobAssets.pathFor(imageIndex),
+      child: SizedBox(
+        width: radius * 2,
+        height: radius * 2,
+        child: imageUrl.isNotEmpty
+            ? CachedNetworkImage(
+                imageUrl: imageUrl,
                 width: radius * 2,
                 height: radius * 2,
                 fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => fallback,
+                fadeInDuration: const Duration(milliseconds: 220),
+                fadeOutDuration: Duration.zero,
+                memCacheWidth: 200,
+                progressIndicatorBuilder: (context, url, progress) =>
+                    NetworkImageLoadingPlaceholder(
+                      progress: progress.progress,
+                      compact: true,
+                    ),
+                errorWidget: (context, url, error) => fallback,
+              )
+            : fallback,
+      ),
+    );
+  }
+}
+
+class NetworkImageLoadingPlaceholder extends StatelessWidget {
+  const NetworkImageLoadingPlaceholder({
+    super.key,
+    this.progress,
+    this.compact = false,
+  });
+
+  final double? progress;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final shortest = constraints.biggest.shortestSide;
+        final size = compact || shortest < 80 ? 16.0 : 28.0;
+        return ColoredBox(
+          color: const Color(0xFFF0F0F0),
+          child: Center(
+            child: SizedBox(
+              width: size,
+              height: size,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                value: progress,
+                color: const Color(0xFFDC1C38),
               ),
-            )
-          : Image.asset(
-              JobAssets.pathFor(imageIndex),
-              width: radius * 2,
-              height: radius * 2,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => fallback,
             ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class JobPosterFallback extends StatelessWidget {
+  const JobPosterFallback({
+    super.key,
+    this.imageIndex = 1,
+    this.iconSize = 56,
+    this.icon = Icons.movie_filter_outlined,
+  });
+
+  final int imageIndex;
+  final double iconSize;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = JobAssets.colorsFor(imageIndex);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: colors,
+        ),
+      ),
+      child: Center(
+        child: Icon(
+          icon,
+          size: iconSize,
+          color: Colors.white.withValues(alpha: 0.92),
+        ),
+      ),
     );
   }
 }

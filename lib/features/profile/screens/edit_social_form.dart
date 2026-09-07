@@ -137,10 +137,8 @@ class _EditSocialFieldsScreenState extends State<EditSocialFieldsScreen> {
           contact: primary?.url ?? profile.contact,
           platformMetrics: metrics,
         ),
-        pop: false,
       );
-      if (mounted) Navigator.maybePop(context);
-    } catch (_) {
+    } finally {
       if (mounted) setState(() => _saving = false);
     }
   }

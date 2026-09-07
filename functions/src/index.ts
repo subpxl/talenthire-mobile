@@ -1,4 +1,4 @@
-import * as functions from 'firebase-functions';
+import * as functions from 'firebase-functions/v1';
 import * as admin from 'firebase-admin';
 import {
   AGENCY_PREMIUM_AMOUNT,
@@ -33,8 +33,18 @@ import {
   type CashfreePgWebhookPayload,
   type CashfreeWebhookPayload,
 } from './cashfree';
+import {sendPushToUser} from './push';
 
 admin.initializeApp();
+
+export {
+  onUserRegistered,
+  sendRegistrationReminder10Min,
+  sendRegistrationReminder24Hour,
+} from './registrationReminders';
+export {submitJobApplication} from './submitJobApplication';
+export {deleteAccount} from './deleteAccount';
+
 const db = admin.firestore();
 const RTDB_INSTANCE = 'talenthire-d86a1-default-rtdb';
 
@@ -369,6 +379,13 @@ async function markCancellationOrderPaid(
     },
     {merge: true},
   );
+  await recordCancellationChargeTransaction(userId, orderId);
+  await markPaymentCompleted({
+    orderId,
+    userId,
+    amount: CANCELLATION_CHARGE_AMOUNT,
+    purpose: 'cancellation_charge',
+  });
 }
 
 async function finalizeCancellationAfterPaidOrder({
@@ -940,6 +957,12 @@ export const createCancellationCharge = functions.region(FUNCTION_REGION).https.
             },
             {merge: true},
           );
+          await upsertPendingPayment({
+            orderId: existingOrder.order_id,
+            userId,
+            amount: CANCELLATION_CHARGE_AMOUNT,
+            purpose: 'cancellation_charge',
+          });
 
           return {
             alreadyCancelled: false,
@@ -991,6 +1014,12 @@ export const createCancellationCharge = functions.region(FUNCTION_REGION).https.
       },
       {merge: true},
     );
+    await upsertPendingPayment({
+      orderId: created.order_id,
+      userId,
+      amount: CANCELLATION_CHARGE_AMOUNT,
+      purpose: 'cancellation_charge',
+    });
 
     return {
       alreadyCancelled: false,
@@ -1259,6 +1288,15 @@ async function handleCashfreeHttpWebhook(
       } else {
         await expirePrepaidIfPeriodEnded(userId);
       }
+
+      if (subscriptionId) {
+        if (isAuthorizationSuccessWebhook(payload)) {
+          await recordPremiumTrialTransaction(userId, subscriptionId);
+        }
+        if (payload.type === 'SUBSCRIPTION_CHARGED') {
+          await recordPremiumMonthlyTransaction(userId, subscriptionId);
+        }
+      }
     }
 
     res.status(200).send('OK');
@@ -1285,6 +1323,19 @@ export const expireEndedPremiumSubscriptions = functions
     );
     return null;
   });
+
+async function requireAdmin(uid: string | undefined): Promise<void> {
+  if (!uid) {
+    throw new functions.https.HttpsError('unauthenticated', 'Sign in first.');
+  }
+  const caller = await db.collection('users').doc(uid).get();
+  if (caller.data()?.role !== 'admin') {
+    throw new functions.https.HttpsError(
+      'permission-denied',
+      'Only admins can send notifications.',
+    );
+  }
+}
 
 /**
  * Sends a push notification to the recipient when a chat message is created.
@@ -1313,12 +1364,6 @@ export const onNewMessage = functions
     const participantNames: Record<string, string> =
       conv.participant_names || {};
     const senderName = participantNames[senderId] || 'Someone';
-    const userDoc = await db.collection('users').doc(recipientId).get();
-    if (!userDoc.exists) return null;
-
-    const fcmTokens: string[] = userDoc.data()?.fcm_tokens || [];
-    if (fcmTokens.length === 0) return null;
-
     const body = text.length > 100 ? `${text.substring(0, 100)}...` : text;
 
     await db.collection('notifications').add({
@@ -1329,52 +1374,147 @@ export const onNewMessage = functions
       conversationId,
       senderId,
       read: false,
+      pushed: true,
       created_at: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    await Promise.all(
-      fcmTokens.map(async (token) => {
-        try {
-          await admin.messaging().send({
-            token,
-            notification: {title: senderName, body},
-            data: {
-              type: 'new_message',
-              conversationId,
-              senderId,
-              senderName,
-              body,
-            },
-            android: {
-              priority: 'high',
-              notification: {channelId: 'messages'},
-            },
-            apns: {
-              payload: {
-                aps: {sound: 'default'},
-              },
-            },
-          });
-        } catch (error: any) {
-          const code = error?.code || error?.errorInfo?.code;
-          if (
-            code === 'messaging/invalid-registration-token' ||
-            code === 'messaging/registration-token-not-registered'
-          ) {
-            await db.collection('users').doc(recipientId).update({
-              fcm_tokens: admin.firestore.FieldValue.arrayRemove(token),
-            });
-          }
-          console.error(`Failed to send push to ${recipientId}:`, error);
-        }
-      }),
-    );
+    await sendPushToUser({
+      userId: recipientId,
+      title: senderName,
+      body,
+      channelId: 'messages',
+      data: {
+        type: 'new_message',
+        conversationId,
+        senderId,
+        senderName,
+        body,
+      },
+    });
 
     return null;
   });
 
-/** Agency portal Cashfree callables — same region as the React webapp client. */
-const AGENCY_PG_REGION = 'us-central1';
+/**
+ * Pushes FCM when admin (or another server write) creates an inbox notification.
+ * Chat messages already send their own push, so those docs are skipped.
+ */
+export const onNotificationCreated = functions
+  .region(FUNCTION_REGION)
+  .firestore.document('notifications/{notificationId}')
+  .onCreate(async (snapshot) => {
+    const data = snapshot.data();
+    if (!data) return null;
+    if (data.pushed === true || data.type === 'new_message') return null;
+
+    const userId = String(data.userId || '');
+    const title = String(data.title || 'Notification');
+    const body = String(data.body || data.message || '');
+    if (!userId || !title) return null;
+
+    await sendPushToUser({
+      userId,
+      title,
+      body: body || title,
+      channelId: 'alerts',
+      data: {
+        type: String(data.type || 'admin'),
+        title,
+        body: body || title,
+        conversationId: String(data.conversationId || ''),
+        jobId: String(data.jobId || data.job_id || ''),
+        notificationId: snapshot.id,
+      },
+    });
+
+    await snapshot.ref.set({pushed: true}, {merge: true});
+    return null;
+  });
+
+/**
+ * Admin panel callable: write inbox docs for artists / agencies / a single user.
+ * Device push is sent by onNotificationCreated.
+ */
+export const sendAdminNotification = functions
+  .region(FUNCTION_REGION)
+  .https.onCall(async (data, context) => {
+    await requireAdmin(context.auth?.uid);
+
+    const title = String(data?.title || '').trim();
+    const body = String(data?.body || '').trim();
+    const type = String(data?.type || 'admin').trim() || 'admin';
+    const audience = String(data?.audience || 'influencers').trim();
+    const jobId = String(data?.jobId || '').trim();
+    const userId = String(data?.userId || '').trim();
+
+    if (!title || title.length > 200) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'Enter a title up to 200 characters.',
+      );
+    }
+    if (!body || body.length > 2000) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'Enter a message up to 2000 characters.',
+      );
+    }
+
+    let recipientIds: string[] = [];
+    if (audience === 'user') {
+      if (!userId) {
+        throw new functions.https.HttpsError(
+          'invalid-argument',
+          'Choose a user to notify.',
+        );
+      }
+      recipientIds = [userId];
+    } else {
+      const usersSnap = await db.collection('users').get();
+      recipientIds = usersSnap.docs
+        .filter((doc) => {
+          const role = String(doc.data()?.role || '');
+          if (role === 'admin') return false;
+          if (audience === 'agencies') return role === 'agency';
+          if (audience === 'all') return role === 'influencer' || role === 'agency';
+          return role === 'influencer';
+        })
+        .map((doc) => doc.id);
+    }
+
+    if (recipientIds.length === 0) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'No matching users to notify.',
+      );
+    }
+
+    const createdAt = admin.firestore.FieldValue.serverTimestamp();
+    let written = 0;
+    const chunkSize = 400;
+    for (let i = 0; i < recipientIds.length; i += chunkSize) {
+      const batch = db.batch();
+      for (const recipientId of recipientIds.slice(i, i + chunkSize)) {
+        const ref = db.collection('notifications').doc();
+        batch.set(ref, {
+          userId: recipientId,
+          type,
+          title,
+          body,
+          jobId,
+          read: false,
+          created_at: createdAt,
+        });
+        written += 1;
+      }
+      await batch.commit();
+    }
+
+    return {sent: written};
+  });
+
+/** Agency portal Cashfree callables — run in Mumbai alongside other payment functions. */
+const AGENCY_PG_REGION = FUNCTION_REGION;
 
 async function loadAgencyPayerDetails(userId: string): Promise<{
   name: string;
@@ -1406,6 +1546,218 @@ function agencyOrderId(purpose: AgencyPaymentPurpose, userId: string): string {
   const prefix = purpose === 'agency_premium' ? 'agp' : 'wlt';
   return `${prefix}_${userId}_${Date.now()}`;
 }
+
+type BillingTransactionType =
+  | 'premium_trial'
+  | 'premium_monthly'
+  | 'cancellation_charge'
+  | 'agency_premium'
+  | 'wallet_topup';
+
+async function recordBillingTransaction(opts: {
+  docId: string;
+  userId: string;
+  amount: number;
+  type: BillingTransactionType;
+  status?: 'completed' | 'pending' | 'failed';
+  cashfreeOrderId?: string | null;
+  cashfreeSubscriptionId?: string | null;
+  cashfreePaymentId?: string | null;
+  paidAt?: admin.firestore.Timestamp | admin.firestore.FieldValue;
+}): Promise<void> {
+  const ref = db.collection('transactions').doc(opts.docId);
+  const existing = await ref.get();
+  if (existing.exists && existing.data()?.status === 'completed') {
+    return;
+  }
+
+  await ref.set(
+    {
+      userId: opts.userId,
+      amount: opts.amount,
+      currency: 'INR',
+      status: opts.status ?? 'completed',
+      type: opts.type,
+      purpose: opts.type,
+      gateway: 'cashfree',
+      cashfreeOrderId: opts.cashfreeOrderId ?? null,
+      cashfreeSubscriptionId: opts.cashfreeSubscriptionId ?? null,
+      cashfreePaymentId: opts.cashfreePaymentId ?? null,
+      paidAt: opts.paidAt ?? admin.firestore.FieldValue.serverTimestamp(),
+      createdAt:
+        existing.data()?.createdAt ??
+        admin.firestore.FieldValue.serverTimestamp(),
+    },
+    {merge: true},
+  );
+}
+
+async function recordPremiumTrialTransaction(
+  userId: string,
+  subscriptionId: string,
+  paidAt?: admin.firestore.Timestamp | admin.firestore.FieldValue,
+): Promise<void> {
+  await recordBillingTransaction({
+    docId: `pt_${subscriptionId}`,
+    userId,
+    amount: 1,
+    type: 'premium_trial',
+    cashfreeSubscriptionId: subscriptionId,
+    paidAt,
+  });
+}
+
+async function recordPremiumMonthlyTransaction(
+  userId: string,
+  subscriptionId: string,
+  paidAt?: admin.firestore.Timestamp | admin.firestore.FieldValue,
+): Promise<void> {
+  const paidAtDate =
+    paidAt instanceof admin.firestore.Timestamp
+      ? paidAt.toDate()
+      : new Date();
+  const chargeKey = paidAtDate.getTime();
+  await recordBillingTransaction({
+    docId: `pm_${subscriptionId}_${chargeKey}`,
+    userId,
+    amount: 299,
+    type: 'premium_monthly',
+    cashfreeSubscriptionId: subscriptionId,
+    paidAt,
+  });
+}
+
+async function recordCancellationChargeTransaction(
+  userId: string,
+  orderId: string,
+  paidAt?: admin.firestore.Timestamp | admin.firestore.FieldValue,
+): Promise<void> {
+  await recordBillingTransaction({
+    docId: `cxl_${orderId}`,
+    userId,
+    amount: CANCELLATION_CHARGE_AMOUNT,
+    type: 'cancellation_charge',
+    cashfreeOrderId: orderId,
+    paidAt,
+  });
+}
+
+async function upsertPendingPayment(opts: {
+  orderId: string;
+  userId: string;
+  amount: number;
+  purpose: BillingTransactionType;
+}): Promise<void> {
+  await db.collection('payments').doc(opts.orderId).set(
+    {
+      userId: opts.userId,
+      orderId: opts.orderId,
+      amount: opts.amount,
+      purpose: opts.purpose,
+      status: 'pending',
+      gateway: 'cashfree',
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    {merge: true},
+  );
+}
+
+async function markPaymentCompleted(opts: {
+  orderId: string;
+  userId: string;
+  amount: number;
+  purpose: BillingTransactionType;
+  paymentId?: string;
+}): Promise<void> {
+  await db.collection('payments').doc(opts.orderId).set(
+    {
+      userId: opts.userId,
+      orderId: opts.orderId,
+      amount: opts.amount,
+      purpose: opts.purpose,
+      status: 'completed',
+      gateway: 'cashfree',
+      cashfreePaymentId: opts.paymentId ?? null,
+      paidAt: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    {merge: true},
+  );
+}
+
+async function syncBillingHistoryFromSubscription(userId: string): Promise<number> {
+  const snap = await db.collection('subscriptions').doc(userId).get();
+  if (!snap.exists) return 0;
+
+  const data = snap.data() ?? {};
+  const subscriptionId = (data.subscription_id as string | undefined) ?? '';
+  if (!subscriptionId) return 0;
+
+  let created = 0;
+
+  const authorizedAt = data.authorized_at as admin.firestore.Timestamp | undefined;
+  if (authorizedAt) {
+    await recordPremiumTrialTransaction(userId, subscriptionId, authorizedAt);
+    created++;
+  }
+
+  const lastChargedAt = parseFlexibleDate(data.last_charged_at);
+  if (lastChargedAt) {
+    await recordPremiumMonthlyTransaction(
+      userId,
+      subscriptionId,
+      admin.firestore.Timestamp.fromDate(lastChargedAt),
+    );
+    created++;
+  } else {
+    const firstChargeAt = parseFlexibleDate(data.first_charge_at);
+    if (firstChargeAt && firstChargeAt.getTime() <= Date.now()) {
+      await recordPremiumMonthlyTransaction(
+        userId,
+        subscriptionId,
+        admin.firestore.Timestamp.fromDate(firstChargeAt),
+      );
+      created++;
+    }
+  }
+
+  const cancellationStatus = (
+    data.cancellation_order_status as string | undefined
+  )?.toUpperCase();
+  const cancellationOrderId = data.cancellation_order_id as string | undefined;
+  if (cancellationStatus === 'PAID' && cancellationOrderId) {
+    const paidAt = parseFlexibleDate(data.cancellation_paid_at);
+    await recordCancellationChargeTransaction(
+      userId,
+      cancellationOrderId,
+      paidAt
+        ? admin.firestore.Timestamp.fromDate(paidAt)
+        : admin.firestore.FieldValue.serverTimestamp(),
+    );
+    await markPaymentCompleted({
+      orderId: cancellationOrderId,
+      userId,
+      amount: CANCELLATION_CHARGE_AMOUNT,
+      purpose: 'cancellation_charge',
+    });
+    created++;
+  }
+
+  return created;
+}
+
+export const syncBillingHistory = functions.region(FUNCTION_REGION).https.onCall(
+  async (_data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError(
+        'unauthenticated',
+        'Sign in to sync billing history.',
+      );
+    }
+
+    const synced = await syncBillingHistoryFromSubscription(context.auth.uid);
+    return {synced};
+  },
+);
 
 async function fulfillAgencyPayment(opts: {
   userId: string;

@@ -76,7 +76,7 @@ class PremiumSubscriptionSession {
     return PremiumSubscriptionSession(
       subscriptionId: data['subscriptionId'] as String,
       subscriptionSessionId: data['subscriptionSessionId'] as String,
-      environment: data['environment'] as String? ?? 'sandbox',
+      environment: _parseEnvironment(data['environment']),
       firstChargeAt: data['firstChargeAt'] as String? ?? '',
     );
   }
@@ -125,7 +125,7 @@ class CancellationChargeSession {
     return CancellationChargeSession(
       orderId: data['orderId'] as String? ?? '',
       paymentSessionId: data['paymentSessionId'] as String? ?? '',
-      environment: data['environment'] as String? ?? 'sandbox',
+      environment: _parseEnvironment(data['environment']),
       amount: (data['amount'] as num?)?.toInt() ?? 299,
       alreadyCancelled: data['alreadyCancelled'] == true,
       chargeWaived: data['chargeWaived'] == true,
@@ -134,10 +134,22 @@ class CancellationChargeSession {
   }
 }
 
+String _parseEnvironment(Object? raw) {
+  final value = raw?.toString().trim();
+  if (value == 'production' || value == 'sandbox') {
+    return value!;
+  }
+  throw FormatException(
+    'Cashfree environment missing or invalid in server response: $raw',
+  );
+}
+
 enum PremiumPaymentResult {
   success,
   failure,
-  cancelled,
+  cancelled;
+
+  bool get isSuccess => this == success;
 }
 
 class PaymentService {
@@ -167,6 +179,15 @@ class PaymentService {
       subscriptionId != null ? {'subscriptionId': subscriptionId} : {},
     );
     return PremiumVerificationResult.fromMap(result.data);
+  }
+
+  /// Backfills billing transactions from legacy subscription fields.
+  Future<void> syncBillingHistory() async {
+    try {
+      await _functions.httpsCallable('syncBillingHistory').call();
+    } catch (_) {
+      // Best-effort; the transactions stream still shows anything already stored.
+    }
   }
 
   /// Starts a ₹299 PhonePe UPI charge, or cancels immediately with no extra
@@ -199,26 +220,8 @@ class PaymentService {
   Future<PremiumPaymentResult> launchUpiOneTimePayment({
     required CancellationChargeSession session,
     required UpiAppOption upiApp,
-    void Function(String message)? onFailure,
-  }) async {
-    final completer = Completer<PremiumPaymentResult>();
-
-    _gateway.setCallback(
-      (orderId) {
-        if (!completer.isCompleted) {
-          completer.complete(PremiumPaymentResult.success);
-        }
-      },
-      (CFErrorResponse errorResponse, String orderId) {
-        final message = errorResponse.getMessage() ?? 'Payment failed';
-        onFailure?.call(message);
-        if (!completer.isCompleted) {
-          completer.complete(PremiumPaymentResult.failure);
-        }
-      },
-    );
-
-    try {
+  }) {
+    return _runGatewayPayment(() {
       final cfSession = CFSessionBuilder()
           .setEnvironment(_mapEnvironment(session.environment))
           .setOrderId(session.orderId)
@@ -230,51 +233,17 @@ class PaymentService {
           .setUPIID(upiApp.launchId)
           .build();
 
-      final upiPayment = CFUPIPaymentBuilder()
-          .setSession(cfSession)
-          .setUPI(upi)
-          .build();
-
-      _gateway.doPayment(upiPayment);
-    } on CFException catch (error) {
-      onFailure?.call(error.message);
-      return PremiumPaymentResult.failure;
-    } catch (error) {
-      onFailure?.call(error.toString());
-      return PremiumPaymentResult.failure;
-    }
-
-    return completer.future.timeout(
-      const Duration(minutes: 5),
-      onTimeout: () => PremiumPaymentResult.cancelled,
-    );
+      _gateway.doPayment(
+        CFUPIPaymentBuilder().setSession(cfSession).setUPI(upi).build(),
+      );
+    });
   }
 
   Future<PremiumPaymentResult> launchUpiMandate({
     required PremiumSubscriptionSession session,
     required UpiAppOption upiApp,
-    void Function(String subscriptionId)? onVerify,
-    void Function(String message)? onFailure,
-  }) async {
-    final completer = Completer<PremiumPaymentResult>();
-
-    _gateway.setCallback(
-      (subscriptionId) {
-        onVerify?.call(subscriptionId);
-        if (!completer.isCompleted) {
-          completer.complete(PremiumPaymentResult.success);
-        }
-      },
-      (CFErrorResponse errorResponse, String orderId) {
-        final message = errorResponse.getMessage() ?? 'Payment failed';
-        onFailure?.call(message);
-        if (!completer.isCompleted) {
-          completer.complete(PremiumPaymentResult.failure);
-        }
-      },
-    );
-
-    try {
+  }) {
+    return _runGatewayPayment(() {
       final cfSession = CFSubscriptionSessionBuilder()
           .setEnvironment(_mapEnvironment(session.environment))
           .setSubscriptionId(session.subscriptionId)
@@ -286,17 +255,37 @@ class PaymentService {
           .setUPIID(upiApp.launchId)
           .build();
 
-      final subsUpiPayment = CFSubsUPIPaymentBuilder()
-          .setSession(cfSession)
-          .setUPI(subsUpi)
-          .build();
+      _gateway.doPayment(
+        CFSubsUPIPaymentBuilder().setSession(cfSession).setUPI(subsUpi).build(),
+      );
+    });
+  }
 
-      _gateway.doPayment(subsUpiPayment);
-    } on CFException catch (error) {
-      onFailure?.call(error.message);
+  /// User-cancel and timeout stay [PremiumPaymentResult.cancelled].
+  /// Only a real gateway/SDK error is [PremiumPaymentResult.failure].
+  Future<PremiumPaymentResult> _runGatewayPayment(
+    void Function() startPayment,
+  ) async {
+    final completer = Completer<PremiumPaymentResult>();
+
+    _gateway.setCallback(
+      (id) {
+        if (!completer.isCompleted) {
+          completer.complete(PremiumPaymentResult.success);
+        }
+      },
+      (CFErrorResponse error, String _) {
+        if (!completer.isCompleted) {
+          completer.complete(_resultFromError(error));
+        }
+      },
+    );
+
+    try {
+      startPayment();
+    } on CFException {
       return PremiumPaymentResult.failure;
-    } catch (error) {
-      onFailure?.call(error.toString());
+    } catch (_) {
       return PremiumPaymentResult.failure;
     }
 
@@ -304,6 +293,19 @@ class PaymentService {
       const Duration(minutes: 5),
       onTimeout: () => PremiumPaymentResult.cancelled,
     );
+  }
+
+  PremiumPaymentResult _resultFromError(CFErrorResponse error) {
+    final text = [
+      error.getStatus(),
+      error.getCode(),
+      error.getType(),
+      error.getMessage(),
+    ].whereType<String>().join(' ').toLowerCase();
+    if (text.contains('cancel') || text.contains('user dropped')) {
+      return PremiumPaymentResult.cancelled;
+    }
+    return PremiumPaymentResult.failure;
   }
 
   CFEnvironment _mapEnvironment(String raw) {

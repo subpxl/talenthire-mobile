@@ -113,6 +113,8 @@ Future<String?> showOptionPicker({
   );
 }
 
+bool _savingProfileSection = false;
+
 Future<void> saveProfileSection({
   required BuildContext context,
   required String section,
@@ -122,19 +124,33 @@ Future<void> saveProfileSection({
   String? successMessage,
   bool showSuccessToast = true,
 }) async {
+  if (_savingProfileSection) return;
   final appState = context.read<AppState>();
   final profile = appState.profile;
   if (profile == null) return;
   var updated = profile.mergeFormSection(section, data);
   if (extra != null) updated = extra(updated);
-  await appState.updateProfile(updated);
-  if (context.mounted && showSuccessToast) {
-    showAppSuccessToast(
-      context,
-      successMessage ?? AppLocalizations.of(context)!.saved,
-    );
+  _savingProfileSection = true;
+  try {
+    await appState.updateProfile(updated);
+    if (context.mounted && showSuccessToast) {
+      showAppSuccessToast(
+        context,
+        successMessage ?? AppLocalizations.of(context)!.saved,
+      );
+    }
+    if (pop && context.mounted) Navigator.pop(context);
+  } catch (_) {
+    if (context.mounted) {
+      showAppToast(
+        context,
+        AppLocalizations.of(context)!.couldNotSaveDocuments,
+        type: AppToastType.error,
+      );
+    }
+  } finally {
+    _savingProfileSection = false;
   }
-  if (pop && context.mounted) Navigator.pop(context);
 }
 
 class ProfileOptions {

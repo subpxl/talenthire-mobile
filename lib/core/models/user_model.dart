@@ -1,6 +1,6 @@
 import 'model_helpers.dart';
 
-enum UserRole { influencer }
+enum UserRole { influencer, admin }
 
 class User {
   User({
@@ -13,6 +13,8 @@ class User {
     this.birthMonth,
     this.birthYear,
     this.isActive = true,
+    this.onboardingCompleted = false,
+    this.onboardingStep = 'mobile',
     DateTime? createdAt,
     DateTime? updatedAt,
   })  : createdAt = createdAt ?? DateTime.now(),
@@ -27,10 +29,22 @@ class User {
   int? birthMonth;
   int? birthYear;
   bool isActive;
+  bool onboardingCompleted;
+  String onboardingStep;
   final DateTime createdAt;
   DateTime updatedAt;
 
   factory User.fromJson(Map<String, dynamic> json) {
+    final hasOnboardingMeta = json.containsKey('onboarding_completed') ||
+        json.containsKey('onboarding_step');
+    final onboardingCompleted = hasOnboardingMeta
+        ? json['onboarding_completed'] == true
+        : true;
+    final onboardingStep = !hasOnboardingMeta
+        ? 'done'
+        : (json['onboarding_step'] ??
+                (onboardingCompleted ? 'done' : 'mobile'))
+            .toString();
     return User(
       id: json['id']?.toString() ?? '',
       mobile: (json['mobile'] ?? '').toString(),
@@ -45,6 +59,8 @@ class User {
       birthMonth: (json['birth_month'] ?? json['birthMonth']) as int?,
       birthYear: (json['birth_year'] ?? json['birthYear']) as int?,
       isActive: json['is_active'] ?? true,
+      onboardingCompleted: onboardingCompleted,
+      onboardingStep: onboardingStep,
       createdAt: parseFlexibleDate(json['created_at']) ?? DateTime.now(),
       updatedAt: parseFlexibleDate(json['updated_at']) ?? DateTime.now(),
     );
@@ -60,6 +76,8 @@ class User {
         if (birthMonth != null) 'birth_month': birthMonth,
         if (birthYear != null) 'birth_year': birthYear,
         'is_active': isActive,
+        'onboarding_completed': onboardingCompleted,
+        'onboarding_step': onboardingStep,
         'created_at': createdAt.toIso8601String(),
         'updated_at': updatedAt.toIso8601String(),
       };
@@ -68,6 +86,9 @@ class User {
     String? mobile,
     String? name,
     String? email,
+    bool? isActive,
+    bool? onboardingCompleted,
+    String? onboardingStep,
     DateTime? updatedAt,
   }) {
     return User(
@@ -79,7 +100,9 @@ class User {
       birthDay: birthDay,
       birthMonth: birthMonth,
       birthYear: birthYear,
-      isActive: isActive,
+      isActive: isActive ?? this.isActive,
+      onboardingCompleted: onboardingCompleted ?? this.onboardingCompleted,
+      onboardingStep: onboardingStep ?? this.onboardingStep,
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

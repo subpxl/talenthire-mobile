@@ -12,6 +12,7 @@ import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/core/widgets/app_success_toast.dart';
 import 'package:bombay_casting/features/profile/screens/edit_social_form.dart';
 import 'package:bombay_casting/features/profile/screens/edit_verification_form.dart';
+import 'package:bombay_casting/features/profile/screens/edit_introduction_video_form.dart';
 import 'package:bombay_casting/features/profile/screens/edit_personal_details_form.dart';
 import 'package:bombay_casting/features/profile/screens/edit_content_creator_form.dart';
 
@@ -87,40 +88,6 @@ class EditProfileSectionList extends StatelessWidget {
       children: [
         _tappableSection(
           context: context,
-          icon: Icons.verified_outlined,
-          title: 'Verification',
-          onTap: () => _openVerification(context),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _verificationTitle(profile),
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _verificationSubtitle(profile),
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        _tappableSection(
-          context: context,
           icon: Icons.person_outline_rounded,
           title: 'Personal',
           onTap: () => _open(context, const EditPersonalFieldsScreen()),
@@ -151,6 +118,65 @@ class EditProfileSectionList extends StatelessWidget {
               _item(profile, 'creator', 'collab_types', 'Collab type'),
               _item(profile, 'creator', 'platforms', 'Platforms'),
               _item(profile, 'creator', 'niches', 'Niches', isLast: true),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        _tappableSection(
+          context: context,
+          icon: Icons.videocam_outlined,
+          title: 'Introduction video',
+          onTap: () => _open(context, const EditIntroductionVideoFormScreen()),
+          child: Column(
+            children: [
+              _item(profile, 'videos', 'introduction_link', 'Introduction link'),
+              _item(
+                profile,
+                'videos',
+                'previous_experience',
+                'Previous experience',
+              ),
+              _item(
+                profile,
+                'videos',
+                'other_video_link',
+                'Other video link',
+                isLast: true,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        _tappableSection(
+          context: context,
+          icon: Icons.verified_outlined,
+          title: 'Verification',
+          onTap: () => _openVerification(context),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _verificationTitle(profile),
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _verificationSubtitle(profile),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
@@ -1043,9 +1069,18 @@ class _AddPhotoCard extends StatelessWidget {
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
-                        Icons.add,
+                        Icons.add_a_photo_outlined,
                         color: AppColors.primary,
-                        size: 18,
+                        size: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Upload',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primary,
                       ),
                     ),
                   ],

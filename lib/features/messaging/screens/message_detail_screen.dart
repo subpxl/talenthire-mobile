@@ -2,11 +2,12 @@ import 'package:bombay_casting/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:bombay_casting/app/app_state.dart';
+import 'package:bombay_casting/core/navigation/app_navigation.dart';
 import 'package:bombay_casting/features/messaging/models/conversation.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/core/widgets/placeholder_avatar.dart';
+import 'package:bombay_casting/core/services/report_service.dart';
 import 'package:bombay_casting/core/widgets/app_success_toast.dart';
-import 'package:bombay_casting/core/widgets/report_dialog.dart';
 
 class MessageDetailScreen extends StatefulWidget {
   const MessageDetailScreen({
@@ -23,21 +24,15 @@ class MessageDetailScreen extends StatefulWidget {
 class _MessageDetailScreenState extends State<MessageDetailScreen> {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
-  late List<ChatMessage> _localMessages;
 
   ConversationThread get conversation => widget.conversation;
-
-  bool get _isWelcome => conversation.isWelcome;
 
   @override
   void initState() {
     super.initState();
-    _localMessages = List<ChatMessage>.from(conversation.messages);
-    if (!_isWelcome) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        context.read<AppState>().messaging?.openThread(conversation);
-      });
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AppState>().messaging?.openThread(conversation);
+    });
   }
 
   @override
@@ -50,20 +45,24 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
   Future<void> _sendMessage() async {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
+    if (!AppNavigation.requireSubscription(context)) return;
+
     _controller.clear();
 
-    if (_isWelcome) {
-      setState(() {
-        _localMessages.add(
-          ChatMessage(
-            text: text,
-            isMine: true,
-            time: 'Now',
-          ),
-        );
-      });
-    } else {
+    try {
       await context.read<AppState>().messaging?.sendMessage(text);
+    } catch (_) {
+      if (!mounted) return;
+      _controller.value = TextEditingValue(
+        text: text,
+        selection: TextSelection.collapsed(offset: text.length),
+      );
+      showAppToast(
+        context,
+        'Could not send',
+        type: AppToastType.error,
+      );
+      return;
     }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -80,10 +79,20 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final messaging = context.watch<AppState>().messaging;
-    final messages = _isWelcome
-        ? _localMessages
-        : (messaging?.activeMessages ?? conversation.messages);
-    final isSending = !_isWelcome && (messaging?.isSending ?? false);
+    final isWelcome = conversation.isCompanyWelcome;
+    final stored = messaging?.activeMessages ?? conversation.messages;
+    final messages = isWelcome
+        ? [
+            ChatMessage(
+              id: '${ConversationThread.companyWelcomeId}_body',
+              text: l10n.companyWelcomeMessageBody,
+              isMine: false,
+              time: conversation.time,
+            ),
+            ...stored.where((message) => message.isMine),
+          ]
+        : stored;
+    final isSending = messaging?.isSending ?? false;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients || messages.isEmpty) return;
@@ -95,7 +104,7 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
 
     return PopScope(
       onPopInvokedWithResult: (didPop, result) {
-        if (didPop && !_isWelcome) {
+        if (didPop) {
           context.read<AppState>().messaging?.closeThread();
         }
       },
@@ -112,18 +121,26 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
         titleSpacing: 0,
         title: Row(
           children: [
-            JobAvatar(
-              imageIndex: conversation.imageIndex,
-              radius: 18,
-              imageUrl: conversation.imageUrl,
-            ),
+            isWelcome
+                ? PlaceholderAvatar(
+                    radius: 18,
+                    color: conversation.avatarColor,
+                    iconSize: 18,
+                  )
+                : JobAvatar(
+                    imageIndex: conversation.imageIndex,
+                    radius: 18,
+                    imageUrl: conversation.imageUrl,
+                  ),
             const SizedBox(width: 10),
             Expanded(
               child: Row(
                 children: [
                   Flexible(
                     child: Text(
-                      conversation.name,
+                      isWelcome
+                          ? l10n.bombayCastingCompany
+                          : conversation.name,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 18,
@@ -145,18 +162,22 @@ class _MessageDetailScreenState extends State<MessageDetailScreen> {
           ],
         ),
         actions: [
-          PopupMenuButton<String>(
+          if (!isWelcome)
+            PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
             onSelected: (value) async {
               if (value == 'report') {
                 final l10n = AppLocalizations.of(context)!;
-                final result = await showReportDialog(
+                await ReportService.instance.submitFromDialog(
                   context,
-                  title: l10n.report,
+                  dialogTitle: l10n.report,
+                  successMessage: l10n.conversationReported,
+                  target: ReportTarget(
+                    type: ReportType.conversation,
+                    targetId: conversation.id,
+                    targetLabel: conversation.name,
+                  ),
                 );
-                if (result != null && context.mounted) {
-                  showAppSuccessToast(context, l10n.conversationReported);
-                }
               }
             },
             itemBuilder: (context) => [
@@ -295,7 +316,7 @@ class _ComposerBar extends StatelessWidget {
                   textCapitalization: TextCapitalization.sentences,
                   minLines: 1,
                   maxLines: 4,
-                  enabled: onSend != null,
+                  enabled: true,
                   decoration: const InputDecoration(
                     hintText: 'Type a message',
                     isDense: true,

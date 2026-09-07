@@ -182,6 +182,7 @@ class MessagingService {
 
     await convRef.update({
       'last_message': displayText,
+      'last_sender_id': userId,
       'updated_at': now.toIso8601String(),
       'unread_counts.$otherUserId': currentUnread + 1,
       'unread_counts.$userId': 0,
@@ -204,6 +205,8 @@ class MessagingService {
   int totalUnread(List<Map<String, dynamic>> conversations) {
     var total = 0;
     for (final conv in conversations) {
+      final lastSenderId = (conv['last_sender_id'] ?? '').toString();
+      if (lastSenderId.isNotEmpty && lastSenderId == userId) continue;
       final unread = conv['unread_counts'];
       if (unread is Map) {
         total += (unread[userId] as num?)?.toInt() ?? 0;

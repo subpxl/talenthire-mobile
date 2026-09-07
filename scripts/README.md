@@ -1,8 +1,9 @@
 # Firebase job seed tool
 
 This self-contained Node utility validates and optionally seeds the 66 job
-posters in `assets/jobs`. It creates only ownerless `jobs` documents and
-Storage objects; it does not create users or agencies.
+posters in `scripts/job-posters`. It creates only ownerless `jobs` documents and
+Storage objects; it does not create users or agencies. Those JPEGs are seed
+inputs only and are not bundled into the Flutter app.
 
 ## Requirements
 

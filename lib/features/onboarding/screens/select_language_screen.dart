@@ -3,6 +3,9 @@ import 'package:provider/provider.dart';
 import 'package:bombay_casting/l10n/app_localizations.dart';
 import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
+import 'package:bombay_casting/core/utils/app_strings.dart';
+import 'package:bombay_casting/features/onboarding/first_login_step.dart';
+import 'package:bombay_casting/features/onboarding/widgets/onboarding_step_scaffold.dart';
 
 class LanguageScreen extends StatefulWidget {
   const LanguageScreen({super.key, this.isOnboarding = false});
@@ -40,34 +43,103 @@ class _LanguageScreenState extends State<LanguageScreen> {
     });
   }
 
-  void _applyLanguage() {
+  Future<void> _applyLanguage() async {
+    final locale = Locale(languages[selectedIndex].localeCode);
     final appState = context.read<AppState>();
-    appState.setLocale(Locale(languages[selectedIndex].localeCode));
-    if (!widget.isOnboarding) {
-      Navigator.maybePop(context);
+    if (widget.isOnboarding) {
+      await appState.completeLanguageOnboarding(locale);
+      return;
     }
+    await appState.setLocale(locale);
+    if (!mounted) return;
+    Navigator.maybePop(context);
+  }
+
+  Widget _languageGrid() {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: languages.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 14,
+        mainAxisSpacing: 14,
+        childAspectRatio: 2.05,
+      ),
+      itemBuilder: (context, index) {
+        final language = languages[index];
+        final selected = selectedIndex == index;
+
+        return GestureDetector(
+          onTap: () => setState(() => selectedIndex = index),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            decoration: BoxDecoration(
+              color: selected ? AppColors.primaryLight : AppColors.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: selected ? AppColors.primary : AppColors.border,
+                width: selected ? 1.6 : 1,
+              ),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  language.native,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 17,
+                    height: 1.1,
+                    fontWeight: FontWeight.w600,
+                    color: selected ? AppColors.primary : AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  language.english,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    height: 1,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final title = l10n?.chooseYourAppLanguage ?? 'Choose your app language';
+
+    if (widget.isOnboarding) {
+      return OnboardingStepScaffold(
+        step: FirstLoginStep.language,
+        icon: Icons.translate_outlined,
+        title: title,
+        subtitle: context.chooseLanguageSubtitle,
+        actionLabel: context.nextAction,
+        onAction: _applyLanguage,
+        onBack: () => context.read<AppState>().goToPreviousFirstLoginStep(),
+        child: SingleChildScrollView(child: _languageGrid()),
+      );
+    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        automaticallyImplyLeading: !widget.isOnboarding,
-        leading: widget.isOnboarding
-            ? null
-            : IconButton(
-                tooltip: 'Back',
-                icon: const Icon(Icons.arrow_back_ios, size: 20),
-                onPressed: () => Navigator.maybePop(context),
-              ),
-        title: Text(
-          widget.isOnboarding
-              ? (l10n?.chooseYourAppLanguage ?? 'Choose your app language')
-              : (l10n?.changeLanguage ?? 'Change language'),
+        automaticallyImplyLeading: true,
+        leading: IconButton(
+          tooltip: 'Back',
+          icon: const Icon(Icons.arrow_back_ios, size: 20),
+          onPressed: () => Navigator.maybePop(context),
         ),
+        title: Text(l10n?.changeLanguage ?? 'Change language'),
       ),
       body: SafeArea(
         child: Column(
@@ -86,8 +158,10 @@ class _LanguageScreenState extends State<LanguageScreen> {
                         border: Border.all(color: AppColors.primary, width: 2),
                         color: AppColors.primaryLight,
                       ),
-                      child: Center(child: Text(AppLocalizations.of(context)!.kemptyStr,
-                          style: TextStyle(
+                      child: Center(
+                        child: Text(
+                          AppLocalizations.of(context)!.kemptyStr,
+                          style: const TextStyle(
                             fontSize: 27,
                             fontWeight: FontWeight.w500,
                             color: AppColors.primary,
@@ -97,7 +171,7 @@ class _LanguageScreenState extends State<LanguageScreen> {
                     ),
                     const SizedBox(height: 28),
                     Text(
-                      l10n?.chooseYourAppLanguage ?? 'Choose your app language',
+                      title,
                       style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w500,
@@ -105,65 +179,7 @@ class _LanguageScreenState extends State<LanguageScreen> {
                       ),
                     ),
                     const SizedBox(height: 18),
-                    GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: languages.length,
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 18,
-                        mainAxisSpacing: 18,
-                        childAspectRatio: 1.95,
-                      ),
-                      itemBuilder: (context, index) {
-                        final language = languages[index];
-                        final selected = selectedIndex == index;
-
-                        return GestureDetector(
-                          onTap: () {
-                            setState(() => selectedIndex = index);
-                            // Optionally apply immediately: 
-                            // context.read<AppState>().setLocale(Locale(language.localeCode));
-                          },
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: AppColors.surface,
-                              borderRadius: BorderRadius.circular(18),
-                              border: Border.all(
-                                color: selected
-                                    ? AppColors.primary
-                                    : AppColors.border,
-                              ),
-                            ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  language.native,
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    height: 1.1,
-                                    fontWeight: FontWeight.w500,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                ),
-                                const SizedBox(height: 5),
-                                Text(
-                                  language.english,
-                                  style: const TextStyle(
-                                    fontSize: 15,
-                                    height: 1,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+                    _languageGrid(),
                   ],
                 ),
               ),
@@ -175,14 +191,15 @@ class _LanguageScreenState extends State<LanguageScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.verified_user_outlined,
                         size: 21,
                         color: AppColors.accentGreen,
                       ),
-                      SizedBox(width: 8),
-                      Text(AppLocalizations.of(context)!.yourDataIs100SafeWithUs,
-                        style: TextStyle(
+                      const SizedBox(width: 8),
+                      Text(
+                        AppLocalizations.of(context)!.yourDataIs100SafeWithUs,
+                        style: const TextStyle(
                           fontSize: 14,
                           color: AppColors.textSecondary,
                         ),
@@ -195,11 +212,7 @@ class _LanguageScreenState extends State<LanguageScreen> {
                     child: ElevatedButton(
                       onPressed: _applyLanguage,
                       style: AppButtonStyle.banner(),
-                      child: Text(
-                        widget.isOnboarding
-                            ? 'Continue'
-                            : AppLocalizations.of(context)!.update,
-                      ),
+                      child: Text(AppLocalizations.of(context)!.update),
                     ),
                   ),
                 ],

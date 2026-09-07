@@ -88,6 +88,25 @@ class AppLocalizationsHi extends AppLocalizations {
       'अभी कोई जॉब नहीं। रीफ्रेश करने के लिए नीचे खींचें।';
 
   @override
+  String get couldNotLoadJobs =>
+      'जॉब लोड नहीं हो सके। कनेक्शन जांचें और फिर कोशिश करें।';
+
+  @override
+  String get couldNotLoadCreators =>
+      'क्रिएटर्स लोड नहीं हो सके। कनेक्शन जांचें और फिर कोशिश करें।';
+
+  @override
+  String get couldNotLoadMessages =>
+      'संदेश लोड नहीं हो सके। कनेक्शन जांचें और फिर कोशिश करें।';
+
+  @override
+  String get couldNotLoadNotifications =>
+      'सूचनाएं लोड नहीं हो सकीं। कनेक्शन जांचें और फिर कोशिश करें।';
+
+  @override
+  String get tryAgain => 'फिर कोशिश करें';
+
+  @override
   String get job => 'जॉब';
 
   @override
@@ -173,6 +192,36 @@ class AppLocalizationsHi extends AppLocalizations {
   String get reportOtherRequired => 'Please describe the issue';
 
   @override
+  String get reportFailed => 'Could not submit report. Please try again.';
+
+  @override
+  String get adminReports => 'Reports';
+
+  @override
+  String get reportTypeCreator => 'Creator';
+
+  @override
+  String get reportTypeJob => 'Job';
+
+  @override
+  String get reportTypeAgency => 'Agency';
+
+  @override
+  String get reportTypeConversation => 'Conversation';
+
+  @override
+  String get reportStatusPending => 'Pending';
+
+  @override
+  String get reportStatusResolved => 'Resolved';
+
+  @override
+  String get noReportsYet => 'No reports yet';
+
+  @override
+  String get reportReporter => 'Reporter';
+
+  @override
   String get agenciesMessageYouAfterYouApply =>
       'आवेदन करने के बाद एजेंसियां आपको मैसेज करती हैं';
 
@@ -204,10 +253,6 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get contactUs => 'हमसे संपर्क करें';
-
-  @override
-  String get paymentsAreNotAvailableYetYouCanGoBackAndKeepUsingTheApp =>
-      'भुगतान अभी उपलब्ध नहीं हैं। आप वापस जा सकते हैं और ऐप का उपयोग करना जारी रख सकते हैं।';
 
   @override
   String get for1DayThen299month => '3 दिनों के लिए, फिर ₹299/महीना';

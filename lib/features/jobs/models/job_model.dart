@@ -53,6 +53,10 @@ class Job {
     this.payMax = 0,
     this.gender = '',
     this.age = '',
+    this.projectTag = '',
+    this.isAudition = false,
+    this.auditionScript = '',
+    this.interviewVideoLink = '',
   })  : postedAt = postedAt ?? DateTime.now(),
         tags = tags ?? [],
         platforms = platforms ?? [],
@@ -85,6 +89,12 @@ class Job {
   final int payMax;
   final String gender;
   final String age;
+  final String projectTag;
+  final bool isAudition;
+  final String auditionScript;
+  final String interviewVideoLink;
+
+  bool get requiresVideoSubmission => isAudition;
 
   String get timeAgo {
     final diff = DateTime.now().difference(postedAt);
@@ -174,7 +184,7 @@ class Job {
   int get fallbackImageIndex {
     final match = RegExp(r'\((\d+)\)').firstMatch(sourceImage);
     if (match != null) return int.parse(match.group(1)!);
-    return (id.hashCode.abs() % 66) + 1;
+    return id.hashCode.abs() % 8 + 1;
   }
 
   factory Job.fromJson(Map<String, dynamic> json) {
@@ -218,8 +228,16 @@ class Job {
       minFollowers: _jobMinFollowers(json, category),
       payMin: pay.$1,
       payMax: pay.$2,
-      gender: (json['gender'] ?? '').toString(),
-      age: (json['age'] ?? json['age_group'] ?? '').toString(),
+      gender: _jobGender(json),
+      age: _jobAge(json),
+      projectTag: (json['projectTag'] ?? json['project_tag'] ?? '').toString(),
+      isAudition: json['isAudition'] == true || json['is_audition'] == true,
+      auditionScript:
+          (json['auditionScript'] ?? json['audition_script'] ?? '').toString(),
+      interviewVideoLink: (json['interview_video_link'] ??
+              json['interviewVideoLink'] ??
+              '')
+          .toString(),
     );
   }
 
@@ -251,7 +269,53 @@ class Job {
         'pay_max': payMax,
         'gender': gender,
         'age': age,
+        'projectTag': projectTag,
+        'isAudition': isAudition,
+        'is_audition': isAudition,
+        'auditionScript': auditionScript,
+        'audition_script': auditionScript,
+        'interview_video_link': interviewVideoLink,
       };
+}
+
+String _jobGender(Map<String, dynamic> json) {
+  for (final key in ['gender', 'gender_required', 'genderRequired']) {
+    final value = json[key];
+    if (value == null) continue;
+    final text = value.toString().trim();
+    if (text.isEmpty || text.toLowerCase() == 'null') continue;
+    return text;
+  }
+  return '';
+}
+
+String _jobAge(Map<String, dynamic> json) {
+  for (final key in ['age', 'age_group']) {
+    final value = json[key];
+    if (value == null) continue;
+    final text = value.toString().trim();
+    if (text.isEmpty || text.toLowerCase() == 'null') continue;
+    return text;
+  }
+  return _formatAgeRange(
+    json['age_min'] ?? json['ageMin'],
+    json['age_max'] ?? json['ageMax'],
+  );
+}
+
+String _formatAgeRange(dynamic min, dynamic max) {
+  int? parseAge(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toInt();
+    return int.tryParse(value.toString().trim());
+  }
+
+  final ageMin = parseAge(min);
+  final ageMax = parseAge(max);
+  if (ageMin != null && ageMax != null) return '$ageMin–$ageMax';
+  if (ageMin != null) return '$ageMin+';
+  if (ageMax != null) return 'Up to $ageMax';
+  return '';
 }
 
 int _positiveInt(dynamic value) {

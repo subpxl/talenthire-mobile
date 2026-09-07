@@ -1,6 +1,7 @@
 import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/core/navigation/app_navigation.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
+import 'package:bombay_casting/core/widgets/app_feed_status.dart';
 import 'package:bombay_casting/core/widgets/app_screen_layout.dart';
 import 'package:bombay_casting/core/widgets/app_search_filters.dart';
 import 'package:bombay_casting/core/widgets/app_tab_bar.dart';
@@ -112,31 +113,29 @@ class _JobsAllTabState extends State<_JobsAllTab> {
     final appState = context.watch<AppState>();
     final jobs = appState.filteredJobListings;
     final l10n = AppLocalizations.of(context)!;
-    final completionPercent = appState.profile?.completionPercentage ?? 20;
+    final completionPercent = appState.profile?.completionPercentage ?? 0;
 
     _syncSearchField(appState.jobFilter.searchQuery);
 
-    final Widget empty;
+    final jobsFailed = appState.jobs.isEmpty && appState.jobsLoadError != null;
+    final jobsLoading = appState.jobs.isEmpty && appState.isLoadingJobs;
     final noMatches =
         appState.jobFilter.isActive ||
         (appState.jobs.isNotEmpty && jobs.isEmpty);
-    if (noMatches) {
-      empty = Padding(
-        padding: const EdgeInsets.only(left: 16, right: 16, top: 24, bottom: 8),
-        child: Text(
-          l10n.noJobsMatchYourFiltersPullToRefreshOrChangeFilters,
-          style: context.bodyMedium,
-        ),
-      );
-    } else {
-      empty = Padding(
-        padding: const EdgeInsets.only(top: AppSpacing.sm),
-        child: Text(
-          l10n.noJobsYetPullDownToRefresh,
-          style: context.bodyMedium,
-        ),
-      );
-    }
+    final empty = AppFeedStatus(
+      isLoading: jobsLoading,
+      errorMessage: jobsFailed ? l10n.couldNotLoadJobs : null,
+      emptyMessage: noMatches
+          ? l10n.noJobsMatchYourFiltersPullToRefreshOrChangeFilters
+          : l10n.noJobsYetPullDownToRefresh,
+      onRetry: jobsFailed
+          ? () => context.read<AppState>().refreshJobs()
+          : null,
+      retryLabel: l10n.tryAgain,
+      padding: noMatches && !jobsLoading && !jobsFailed
+          ? const EdgeInsets.only(left: 16, right: 16, top: 24, bottom: 8)
+          : const EdgeInsets.only(top: AppSpacing.sm),
+    );
 
     const searchPadding = EdgeInsets.fromLTRB(
       AppSpacing.screenH,

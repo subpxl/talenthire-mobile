@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/core/navigation/app_navigation.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
+import 'package:bombay_casting/core/widgets/app_feed_status.dart';
 import 'package:bombay_casting/core/widgets/app_screen_layout.dart';
 import 'package:bombay_casting/core/widgets/profile_list_tile.dart';
 import 'package:bombay_casting/core/widgets/promo_banner.dart';
@@ -19,14 +20,18 @@ class MessageListScreen extends StatelessWidget {
     final appState = context.watch<AppState>();
     final messaging = appState.messaging;
     final isPremium = appState.isPremiumUser;
-    final conversations = messaging?.conversations ?? const <ConversationThread>[];
+    final conversations =
+        messaging?.conversations ?? const <ConversationThread>[];
     final isLoading = messaging?.isLoading ?? true;
-    final welcome = welcomeConversation(l10n);
+    final loadError = messaging?.loadError;
 
     return AppScreenLayout(
       title: l10n.navMessages,
       body: AppScrollBody(
         padding: EdgeInsets.zero,
+        onRefresh: messaging == null
+            ? null
+            : () async => messaging.retry(),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -42,63 +47,53 @@ class MessageListScreen extends StatelessWidget {
                   },
                 ),
               ),
-            if (isLoading)
+            if (conversations.isNotEmpty)
+              ...conversations.map((thread) {
+                final isWelcome = thread.isCompanyWelcome;
+                return ProfileListTile(
+                  name: isWelcome
+                      ? l10n.bombayCastingCompany
+                      : thread.name,
+                  subtitle: isWelcome
+                      ? (thread.lastSenderId == 'local'
+                          ? thread.lastMessage
+                          : l10n.companyWelcomeMessagePreview)
+                      : (thread.lastMessage.isEmpty
+                          ? l10n.startAConversation
+                          : thread.lastMessage),
+                  meta: thread.time,
+                  avatarColor: thread.avatarColor,
+                  showVerified: thread.isVerified,
+                  trailing: thread.hasIncomingUnread
+                      ? UnreadCountBadge(count: thread.unreadCount)
+                      : null,
+                  onTap: () async {
+                    final provider = appState.messaging;
+                    if (provider == null) return;
+                    await provider.openThread(thread);
+                    if (!context.mounted) return;
+                    AppNavigation.openMessageDetail(context, thread);
+                  },
+                );
+              })
+            else if (isLoading)
               const Padding(
                 padding: EdgeInsets.all(AppSpacing.lg),
-                child: Center(
-                  child: CircularProgressIndicator(color: AppColors.primary),
-                ),
+                child: AppFeedStatus.spinner,
               )
-            else ...[
-              ProfileListTile(
-                name: welcome.name,
-                subtitle: welcome.lastMessage,
-                meta: welcome.time,
-                avatarColor: welcome.avatarColor,
-                showVerified: welcome.isVerified,
-                trailing: welcome.unreadCount > 0
-                    ? UnreadCountBadge(count: welcome.unreadCount)
-                    : null,
-                onTap: () => AppNavigation.openMessageDetail(context, welcome),
+            else
+              AppFeedStatus(
+                errorMessage:
+                    loadError != null ? l10n.couldNotLoadMessages : null,
+                emptyMessage: l10n.agenciesMessageYouAfterYouApply,
+                onRetry: loadError != null ? messaging?.retry : null,
+                retryLabel: l10n.tryAgain,
+                textAlign: TextAlign.center,
+                padding: const EdgeInsets.all(AppSpacing.lg),
               ),
-              if (conversations.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.all(AppSpacing.lg),
-                  child: Text(
-                    l10n.agenciesMessageYouAfterYouApply,
-                    textAlign: TextAlign.center,
-                    style: context.bodyMedium.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                )
-              else
-                ...conversations.map((thread) {
-                  return ProfileListTile(
-                    name: thread.name,
-                    subtitle: thread.lastMessage.isEmpty
-                        ? l10n.startAConversation
-                        : thread.lastMessage,
-                    meta: thread.time,
-                    avatarColor: thread.avatarColor,
-                    showVerified: thread.isVerified,
-                    trailing: thread.unreadCount > 0
-                        ? UnreadCountBadge(count: thread.unreadCount)
-                        : null,
-                    onTap: () async {
-                      final provider = appState.messaging;
-                      if (provider == null) return;
-                      await provider.openThread(thread);
-                      if (!context.mounted) return;
-                      AppNavigation.openMessageDetail(context, thread);
-                    },
-                  );
-                }),
-            ],
           ],
         ),
       ),
     );
   }
 }
-

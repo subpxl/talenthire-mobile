@@ -1,0 +1,47 @@
+{
+  "conditions": [],
+  "parameters": {
+    "min_android_build": {
+      "defaultValue": {
+        "value": "18"
+      },
+      "description": "Minimum Android versionCode allowed to use the app. Current production APK is 1.0.0+18.",
+      "valueType": "NUMBER"
+    },
+    "min_ios_build": {
+      "defaultValue": {
+        "value": "18"
+      },
+      "description": "Minimum iOS CFBundleVersion allowed to use the app.",
+      "valueType": "NUMBER"
+    },
+    "min_version": {
+      "defaultValue": {
+        "value": "1.0.0"
+      },
+      "description": "Minimum marketing version shown on the force-update screen.",
+      "valueType": "STRING"
+    },
+    "android_store_url": {
+      "defaultValue": {
+        "value": "https://play.google.com/store/apps/details?id=com.bombaycastingcompany.app"
+      },
+      "description": "Play Store listing opened from the force-update screen.",
+      "valueType": "STRING"
+    },
+    "ios_store_url": {
+      "defaultValue": {
+        "value": ""
+      },
+      "description": "App Store listing opened from the force-update screen.",
+      "valueType": "STRING"
+    },
+    "force_update_message": {
+      "defaultValue": {
+        "value": "A new version is available on the app store. Please update to continue using the app."
+      },
+      "description": "Copy shown on the force-update screen.",
+      "valueType": "STRING"
+    }
+  }
+}

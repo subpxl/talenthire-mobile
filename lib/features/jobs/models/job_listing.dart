@@ -26,6 +26,8 @@ class JobListing {
     this.locationType = LocationType.remote,
     this.gender = '',
     this.age = '',
+    this.projectTag = '',
+    this.isAudition = false,
     this.description = '',
     this.tags = const [],
   });
@@ -53,6 +55,8 @@ class JobListing {
   final LocationType locationType;
   final String gender;
   final String age;
+  final String projectTag;
+  final bool isAudition;
   final String description;
   final List<String> tags;
 
@@ -89,6 +93,8 @@ class JobListing {
       locationType: job.locationType,
       gender: job.gender,
       age: job.age,
+      projectTag: job.projectTag,
+      isAudition: job.isAudition,
       description: job.description,
       tags: job.tags,
     );
@@ -198,6 +204,80 @@ String _compactRupee(int value) {
         : '${thousands.toStringAsFixed(1)}K';
   }
   return '$value';
+}
+
+String jobGenderLabel(String gender) {
+  final value = gender.trim();
+  if (value.isEmpty || value.toLowerCase() == 'null') return 'Any';
+  if (value.contains('/')) {
+    return value
+        .split('/')
+        .map((part) => _titleCase(part.trim()))
+        .where((part) => part.isNotEmpty)
+        .join('/');
+  }
+  return _titleCase(value);
+}
+
+String jobAgeLabel(String age) {
+  final value = age.trim();
+  if (value.isEmpty ||
+      value.toLowerCase() == 'null' ||
+      value.toLowerCase() == 'any') {
+    return 'Any';
+  }
+  return value.replaceAll(' - ', '–').replaceAll('-', '–');
+}
+
+String jobProjectTypeLabel(JobListing job) {
+  final fromTag = _compactProjectType(job.projectTag);
+  if (fromTag != null) return fromTag;
+
+  final fromPlatforms = _compactProjectType(job.platforms);
+  if (fromPlatforms != null) return fromPlatforms;
+
+  final blob = [
+    job.title,
+    job.category,
+    ...job.tags,
+  ].join(' ').toLowerCase();
+
+  if (RegExp(r'web\s*-?\s*seri').hasMatch(blob) || blob.contains('webserie')) {
+    return 'Webseries';
+  }
+  if (RegExp(r'\bshort\s*film\b').hasMatch(blob)) return 'Short';
+  if (RegExp(r'\b(ad|advert|advertisement|commercial)\b').hasMatch(blob) ||
+      blob.contains('ad campaign')) {
+    return 'Ad';
+  }
+  if (RegExp(r'\b(movie|film)\b').hasMatch(blob)) return 'Movie';
+  return 'Project';
+}
+
+String? _compactProjectType(String raw) {
+  final normalized = raw.trim().toLowerCase().replaceAll(RegExp(r'[\s_-]+'), '');
+  if (normalized.isEmpty) return null;
+  if (normalized.contains('webserie') ||
+      normalized.contains('webseries') ||
+      normalized == 'series') {
+    return 'Webseries';
+  }
+  if (normalized.contains('shortfilm') || normalized == 'short') return 'Short';
+  if (normalized.contains('adcampaign') ||
+      normalized.contains('advert') ||
+      normalized.contains('commercial') ||
+      normalized == 'ad') {
+    return 'Ad';
+  }
+  if (normalized.contains('movie') || normalized.contains('film')) {
+    return 'Movie';
+  }
+  return null;
+}
+
+String _titleCase(String value) {
+  if (value.isEmpty) return value;
+  return '${value[0].toUpperCase()}${value.substring(1).toLowerCase()}';
 }
 
 String jobDaysLeftLabel(DateTime postedAt) {

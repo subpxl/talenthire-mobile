@@ -7,6 +7,7 @@ import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/core/widgets/app_filter_widgets.dart';
 import 'package:bombay_casting/core/widgets/app_form_fields.dart';
 import 'package:bombay_casting/core/widgets/app_primary_button.dart';
+import 'package:bombay_casting/core/widgets/app_success_toast.dart';
 import 'package:bombay_casting/core/widgets/option_picker.dart';
 import 'package:bombay_casting/core/widgets/searchable_option_picker.dart';
 
@@ -30,6 +31,7 @@ class _EditContentCreatorFormScreenState
   final Set<String> _contentTypes = {};
   final Set<String> _niches = {};
   RangeValues _payRange = const RangeValues(0, _payMax);
+  bool _saving = false;
 
   @override
   void initState() {
@@ -142,24 +144,38 @@ class _EditContentCreatorFormScreenState
   }
 
   Future<void> _save() async {
-    await saveProfileSection(
-      context: context,
-      section: _section,
-      data: {
-        'collab_types': _collabTypes.toList(),
-        'platforms': _platforms.toList(),
-        'formats': _formats.toList(),
-        'work_modes': _workModes.toList(),
-        'content_types': _contentTypes.toList(),
-        'niches': _niches.toList(),
-        'pay_min': _payRange.start.round(),
-        'pay_max': _payRange.end.round(),
-        'pay_range': _payLabel,
-      },
-      extra: (profile) => profile.copyWith(
-        niches: _niches.toList(),
-      ),
-    );
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      await saveProfileSection(
+        context: context,
+        section: _section,
+        data: {
+          'collab_types': _collabTypes.toList(),
+          'platforms': _platforms.toList(),
+          'formats': _formats.toList(),
+          'work_modes': _workModes.toList(),
+          'content_types': _contentTypes.toList(),
+          'niches': _niches.toList(),
+          'pay_min': _payRange.start.round(),
+          'pay_max': _payRange.end.round(),
+          'pay_range': _payLabel,
+        },
+        extra: (profile) => profile.copyWith(
+          niches: _niches.toList(),
+        ),
+      );
+    } catch (_) {
+      if (mounted) {
+        showAppToast(
+          context,
+          AppLocalizations.of(context)!.couldNotSaveDocuments,
+          type: AppToastType.error,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -280,7 +296,8 @@ class _EditContentCreatorFormScreenState
           const SizedBox(height: 10),
           AppPrimaryButton(
             label: AppLocalizations.of(context)!.update,
-            onPressed: _save,
+            onPressed: _saving ? null : _save,
+            loading: _saving,
           ),
         ],
       ),

@@ -2,9 +2,10 @@ import 'package:bombay_casting/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:bombay_casting/app/app_state.dart';
+import 'package:bombay_casting/core/navigation/app_navigation.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/core/widgets/promo_banner.dart';
-import 'package:bombay_casting/features/creators/widgets/creator_masonry_grid.dart';
+import 'package:bombay_casting/features/creators/widgets/creator_card.dart';
 
 List<Widget> savedCreatorsSlivers(BuildContext context) {
   final l10n = AppLocalizations.of(context)!;
@@ -54,7 +55,25 @@ List<Widget> savedCreatorsSlivers(BuildContext context) {
         AppSpacing.screenH,
         AppSpacing.scrollBottom,
       ),
-      sliver: CreatorMasonrySliver(creators: savedCreators),
+      sliver: SliverGrid(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
+          childAspectRatio: 0.72,
+        ),
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            final creator = savedCreators[index];
+            return CreatorCard(
+              key: ValueKey(creator.id),
+              creator: creator,
+              onTap: () => AppNavigation.openCreatorProfile(context, creator),
+            );
+          },
+          childCount: savedCreators.length,
+        ),
+      ),
     ),
   ];
 }

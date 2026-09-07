@@ -2,6 +2,7 @@ import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/core/utils/app_links.dart';
 import 'package:bombay_casting/core/widgets/app_form_fields.dart';
 import 'package:bombay_casting/core/widgets/app_primary_button.dart';
+import 'package:bombay_casting/features/jobs/utils/video_link_utils.dart';
 import 'package:flutter/material.dart';
 
 const _presetScript =
@@ -29,6 +30,8 @@ Future<ApplyJobResult?> showApplyJobSheet(
   String imageUrl = '',
   int imageIndex = 1,
   String initialYoutubeShortUrl = '',
+  String auditionScript = '',
+  String referenceVideoLink = '',
   bool updateLinkOnly = false,
 }) {
   return showModalBottomSheet<ApplyJobResult>(
@@ -46,6 +49,8 @@ Future<ApplyJobResult?> showApplyJobSheet(
       imageUrl: imageUrl,
       imageIndex: imageIndex,
       initialYoutubeShortUrl: initialYoutubeShortUrl,
+      auditionScript: auditionScript,
+      referenceVideoLink: referenceVideoLink,
       updateLinkOnly: updateLinkOnly,
     ),
   );
@@ -60,6 +65,8 @@ class ApplyJobSheet extends StatefulWidget {
     this.imageUrl = '',
     this.imageIndex = 1,
     this.initialYoutubeShortUrl = '',
+    this.auditionScript = '',
+    this.referenceVideoLink = '',
     this.updateLinkOnly = false,
   });
 
@@ -69,6 +76,8 @@ class ApplyJobSheet extends StatefulWidget {
   final String imageUrl;
   final int imageIndex;
   final String initialYoutubeShortUrl;
+  final String auditionScript;
+  final String referenceVideoLink;
   final bool updateLinkOnly;
 
   @override
@@ -94,15 +103,11 @@ class _ApplyJobSheetState extends State<ApplyJobSheet> {
   }
 
   bool _isVideoLink(String value) {
-    final url = value.toLowerCase();
-    return url.contains('youtube.com/') ||
-        url.contains('youtu.be/') ||
-        url.contains('instagram.com/') ||
-        url.contains('instagr.am/');
+    return VideoLinkUtils.isYouTubeOrInstagram(value);
   }
 
   void _submit() {
-    final link = _linkController.text.trim();
+    final link = VideoLinkUtils.normalize(_linkController.text);
 
     setState(() {
       if (link.isEmpty) {
@@ -116,10 +121,24 @@ class _ApplyJobSheetState extends State<ApplyJobSheet> {
 
     if (_linkError != null) return;
 
+    final script = widget.auditionScript.trim().isNotEmpty
+        ? widget.auditionScript.trim()
+        : _presetScript;
+
     Navigator.pop(
       context,
-      ApplyJobResult(script: _presetScript, youtubeShortUrl: link),
+      ApplyJobResult(script: script, youtubeShortUrl: link),
     );
+  }
+
+  String get _scriptCopy {
+    final custom = widget.auditionScript.trim();
+    return custom.isNotEmpty ? custom : _presetScript;
+  }
+
+  String get _exampleVideoLink {
+    final custom = widget.referenceVideoLink.trim();
+    return custom.isNotEmpty ? custom : AppLinks.exampleIntroductionVideo;
   }
 
   @override
@@ -202,9 +221,9 @@ class _ApplyJobSheetState extends State<ApplyJobSheet> {
                       ),
                       border: Border.all(color: AppFormStyle.border),
                     ),
-                    child: const Text(
-                      _presetScript,
-                      style: TextStyle(
+                    child: Text(
+                      _scriptCopy,
+                      style: const TextStyle(
                         fontSize: 13.5,
                         height: 1.45,
                         color: AppColors.textSecondary,
@@ -262,7 +281,7 @@ class _ApplyJobSheetState extends State<ApplyJobSheet> {
                 GestureDetector(
                   onTap: () => openAppLink(
                     context,
-                    AppLinks.exampleIntroductionVideo,
+                    _exampleVideoLink,
                   ),
                   child: const Text(
                     'Intro video example',

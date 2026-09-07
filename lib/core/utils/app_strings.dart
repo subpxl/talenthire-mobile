@@ -32,6 +32,18 @@ extension AppStringsExt on BuildContext {
   String get newHere => _l10n?.newHere ?? 'New here?';
   String get logInAction => _l10n?.logIn ?? 'Log in';
   String get createAccountAction => _l10n?.createAnAccount ?? 'Create an account';
+  String get enterMobileTitle => 'Enter your mobile number';
+  String get enterMobileSubtitle =>
+      'We use this to keep your account secure and reach you about jobs.';
+  String get mobileNumberHint => '10-digit mobile number';
+  String get nextAction => 'Next';
+  String get skipAction => 'Skip';
+  String get addPhotoTitle => 'Upload a profile photo';
+  String get addPhotoSubtitle =>
+      'Agencies see this first. Upload a clear photo of you, or skip and add one later.';
+  String get addPhotoAction => 'Upload photo';
+  String get chooseLanguageSubtitle =>
+      'Pick the language you want to use in the app.';
 
   // Splash Screen Strings
   String get loadingSplash => 'Loading...';

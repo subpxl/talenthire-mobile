@@ -19,7 +19,7 @@ class SavedJobsTabContent extends StatelessWidget {
     final appState = context.watch<AppState>();
     final savedJobs = appState.savedJobs;
     final isPremium = appState.isPremiumUser;
-    final completionPercent = appState.profile?.completionPercentage ?? 20;
+    final completionPercent = appState.profile?.completionPercentage ?? 0;
     final profileBanner = completionPercent < 100
         ? [
             ProfileCompletionBanner(percentage: completionPercent),

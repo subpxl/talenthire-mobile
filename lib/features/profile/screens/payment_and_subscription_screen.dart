@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:bombay_casting/app/app_state.dart';
+import 'package:bombay_casting/core/models/billing_transaction.dart';
 import 'package:bombay_casting/core/models/model_helpers.dart';
 import 'package:bombay_casting/core/services/payment_service.dart';
 import 'package:bombay_casting/core/widgets/app_success_toast.dart';
@@ -23,6 +24,19 @@ class _PaymentAndSubscriptionScreenState
     extends State<PaymentAndSubscriptionScreen> {
   final PaymentService _paymentService = PaymentService();
   bool _isCancelling = false;
+  bool _syncedBillingHistory = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncBillingHistoryOnce());
+  }
+
+  Future<void> _syncBillingHistoryOnce() async {
+    if (_syncedBillingHistory) return;
+    _syncedBillingHistory = true;
+    await _paymentService.syncBillingHistory();
+  }
 
   static const _terminalStatuses = {
     'CUSTOMER_CANCELLED',
@@ -113,28 +127,15 @@ class _PaymentAndSubscriptionScreenState
         return;
       }
 
-      var paymentResult = PremiumPaymentResult.failure;
-      try {
-        paymentResult = await _paymentService.launchUpiOneTimePayment(
-          session: session,
-          upiApp: UpiAppOption.phonePe,
-          onFailure: (message) {
-            if (!mounted) return;
-            _showMessage(
-              message.isEmpty ? l10n.couldNotOpenPhonePe : message,
-            );
-          },
-        );
-      } catch (_) {
-        if (!mounted) return;
-        _showMessage(l10n.couldNotOpenPhonePe);
-        return;
-      }
-
+      final paymentResult = await _paymentService.launchUpiOneTimePayment(
+        session: session,
+        upiApp: UpiAppOption.phonePe,
+      );
       if (!mounted) return;
-
-      if (paymentResult == PremiumPaymentResult.failure) {
-        _showMessage(l10n.cancellationChargeIncomplete);
+      if (!paymentResult.isSuccess) {
+        if (paymentResult == PremiumPaymentResult.failure) {
+          _showMessage(l10n.cancellationChargeIncomplete);
+        }
         return;
       }
 
@@ -217,25 +218,51 @@ class _PaymentAndSubscriptionScreenState
                       isPremium: false,
                       canCancel: false,
                       subscription: null,
+                      transactions: const [],
                     )
                   : StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                       stream: FirebaseFirestore.instance
                           .collection('subscriptions')
                           .doc(uid)
                           .snapshots(),
-                      builder: (context, snapshot) {
-                        final data = snapshot.data?.data();
+                      builder: (context, subscriptionSnapshot) {
+                        final data = subscriptionSnapshot.data?.data();
                         final canCancel = _canCancel(
                           status: data?['subscription_status']?.toString(),
                           isPremium: isPremium,
                           hasSubscription: data != null,
                           cancelAtPeriodEnd: data?['cancel_at_period_end'] == true,
                         );
-                        return _body(
-                          l10n: l10n,
-                          isPremium: isPremium,
-                          canCancel: canCancel,
-                          subscription: data,
+                        return StreamBuilder<
+                            QuerySnapshot<Map<String, dynamic>>>(
+                          stream: FirebaseFirestore.instance
+                              .collection('transactions')
+                              .where('userId', isEqualTo: uid)
+                              .orderBy('createdAt', descending: true)
+                              .limit(30)
+                              .snapshots(),
+                          builder: (context, transactionsSnapshot) {
+                            final transactions = transactionsSnapshot.data?.docs
+                                    .map(
+                                      (doc) => BillingTransaction.fromFirestore(
+                                        doc.id,
+                                        doc.data(),
+                                      ),
+                                    )
+                                    .toList() ??
+                                const <BillingTransaction>[];
+
+                            return _body(
+                              l10n: l10n,
+                              isPremium: isPremium,
+                              canCancel: canCancel,
+                              subscription: data,
+                              transactions: transactions,
+                              loadingTransactions:
+                                  transactionsSnapshot.connectionState ==
+                                      ConnectionState.waiting,
+                            );
+                          },
                         );
                       },
                     ),
@@ -251,9 +278,9 @@ class _PaymentAndSubscriptionScreenState
     required bool isPremium,
     required bool canCancel,
     required Map<String, dynamic>? subscription,
+    required List<BillingTransaction> transactions,
+    bool loadingTransactions = false,
   }) {
-    final transactions = _transactionsFromSubscription(subscription);
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -268,7 +295,18 @@ class _PaymentAndSubscriptionScreenState
         const SizedBox(height: 4),
         Text(l10n.recentTransactions, style: context.caption),
         const SizedBox(height: AppSpacing.md),
-        if (transactions.isEmpty)
+        if (loadingTransactions && transactions.isEmpty)
+          const Padding(
+            padding: EdgeInsets.only(bottom: AppSpacing.md),
+            child: Center(
+              child: SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          )
+        else if (transactions.isEmpty)
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.md),
             child: Text(l10n.noTransactionsYet, style: context.caption),
@@ -338,94 +376,20 @@ class _PaymentAndSubscriptionScreenState
     }
     return l10n.cancelPremiumMessage;
   }
-
-  List<_TransactionItem> _transactionsFromSubscription(
-    Map<String, dynamic>? data,
-  ) {
-    if (data == null) return const [];
-
-    final status = (data['subscription_status'] ?? '').toString();
-    final createdAt = parseFlexibleDate(data['created_at']);
-    final storedFirstChargeAt = parseFlexibleDate(data['first_charge_at']);
-    final firstChargeAt = storedFirstChargeAt;
-    final authAmount = data['authorization_amount'] ?? 1;
-    final recurringAmount = data['recurring_amount'] ?? 299;
-    final cancellationStatus =
-        (data['cancellation_order_status'] ?? '').toString().toUpperCase();
-    final cancellationPaidAt = parseFlexibleDate(data['cancellation_paid_at']);
-    final cancellationAmount = data['cancellation_amount'] ?? 299;
-    final now = DateTime.now();
-    final monthlyUpcoming =
-        firstChargeAt != null && firstChargeAt.isAfter(now);
-
-    final items = <_TransactionItem>[
-      _TransactionItem(
-        title: 'Premium Trial',
-        amount: '₹$authAmount',
-        date: createdAt == null ? '' : DateFormat('d MMM yyyy').format(createdAt),
-        status: _displayStatus(status, upcoming: false),
-        isCancelled: _terminalStatuses.contains(status.toUpperCase()),
-      ),
-      _TransactionItem(
-        title: 'Premium Monthly',
-        amount: '₹$recurringAmount',
-        date: firstChargeAt == null
-            ? ''
-            : DateFormat('d MMM yyyy').format(firstChargeAt),
-        status: _displayStatus(status, upcoming: monthlyUpcoming),
-        isCancelled: _terminalStatuses.contains(status.toUpperCase()),
-      ),
-    ];
-
-    if (cancellationStatus == 'PAID') {
-      items.add(
-        _TransactionItem(
-          title: 'Cancellation charge',
-          amount: '₹$cancellationAmount',
-          date: cancellationPaidAt == null
-              ? ''
-              : DateFormat('d MMM yyyy').format(cancellationPaidAt),
-          status: 'Paid',
-        ),
-      );
-    }
-
-    return items;
-  }
-
-  String _displayStatus(String status, {required bool upcoming}) {
-    final normalized = status.toUpperCase();
-    if (_terminalStatuses.contains(normalized)) return 'Cancelled';
-    if (upcoming) return 'Upcoming';
-    if (normalized == 'ACTIVE') return 'Paid';
-    if (normalized.isEmpty) return 'Pending';
-    return 'Pending';
-  }
-}
-
-class _TransactionItem {
-  const _TransactionItem({
-    required this.title,
-    required this.amount,
-    required this.date,
-    required this.status,
-    this.isCancelled = false,
-  });
-
-  final String title;
-  final String amount;
-  final String date;
-  final String status;
-  final bool isCancelled;
 }
 
 class _TransactionTile extends StatelessWidget {
   const _TransactionTile({required this.item});
 
-  final _TransactionItem item;
+  final BillingTransaction item;
 
   @override
   Widget build(BuildContext context) {
+    final occurredAt = item.occurredAt;
+    final dateLabel = occurredAt == null
+        ? ''
+        : DateFormat('d MMM yyyy').format(occurredAt.toLocal());
+
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.md),
       child: Row(
@@ -458,7 +422,8 @@ class _TransactionTile extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 2),
-                if (item.date.isNotEmpty) Text(item.date, style: context.caption),
+                if (dateLabel.isNotEmpty)
+                  Text(dateLabel, style: context.caption),
               ],
             ),
           ),
@@ -466,7 +431,7 @@ class _TransactionTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                item.amount,
+                item.formattedAmount,
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -475,11 +440,11 @@ class _TransactionTile extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               Text(
-                item.status,
+                item.displayStatus,
                 style: context.caption.copyWith(
-                  color: item.isCancelled
-                      ? AppColors.textSecondary
-                      : AppColors.accentGreen,
+                  color: item.isPaid
+                      ? AppColors.accentGreen
+                      : AppColors.textSecondary,
                   fontWeight: FontWeight.w600,
                 ),
               ),

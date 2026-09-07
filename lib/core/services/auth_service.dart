@@ -76,58 +76,6 @@ class AuthService {
     }
   }
 
-  // ===== Phone OTP =====
-  Future<void> sendOtp({
-    required String phoneNumber,
-    required Function(String verificationId) onCodeSent,
-    required Function(String error) onError,
-    required Function(fb.PhoneAuthCredential credential) onAutoVerify,
-  }) async {
-    try {
-      await _auth.verifyPhoneNumber(
-        phoneNumber: '+91$phoneNumber',
-        verificationCompleted: (fb.PhoneAuthCredential credential) {
-          onAutoVerify(credential);
-        },
-        verificationFailed: (fb.FirebaseAuthException e) {
-          onError(e.message ?? 'Verification failed');
-        },
-        codeSent: (String verificationId, int? resendToken) {
-          onCodeSent(verificationId);
-        },
-        codeAutoRetrievalTimeout: (String verificationId) {},
-        timeout: const Duration(seconds: 60),
-      );
-    } catch (e) {
-      onError(e.toString());
-    }
-  }
-
-  Future<fb.UserCredential?> verifyOtp({
-    required String verificationId,
-    required String otp,
-  }) async {
-    try {
-      final credential = fb.PhoneAuthProvider.credential(
-        verificationId: verificationId,
-        smsCode: otp,
-      );
-      return await _auth.signInWithCredential(credential);
-    } catch (e) {
-      debugPrint('OTP verification error: $e');
-      return null;
-    }
-  }
-
-  Future<fb.UserCredential?> signInWithPhoneCredential(fb.PhoneAuthCredential credential) async {
-    try {
-      return await _auth.signInWithCredential(credential);
-    } catch (e) {
-      debugPrint('Auto OTP verification error: $e');
-      return null;
-    }
-  }
-
   // ===== Email & Password =====
   Future<fb.UserCredential?> signInWithEmailPassword({
     required String email,

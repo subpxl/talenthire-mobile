@@ -31,6 +31,7 @@ class CreatorCard extends StatelessWidget {
               imageUrl: creator.cover.url,
               memCacheWidth: 560,
               fadeInDuration: Duration.zero,
+              fallbackIcon: Icons.person,
             ),
             const Positioned(
               left: 0,

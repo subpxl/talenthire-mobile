@@ -1,5 +1,6 @@
 {
   "projects": {
+    "default": "talenthire-d86a1",
     "dev": "talenthire-d86a1"
   },
   "targets": {},

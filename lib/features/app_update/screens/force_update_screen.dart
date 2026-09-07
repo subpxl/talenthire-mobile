@@ -45,10 +45,12 @@ class ForceUpdateScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: AppSpacing.md),
-                  const Text(
-                    'A new version is available on the app store. Please update to continue using the app.',
+                  Text(
+                    (info.message != null && info.message!.trim().isNotEmpty)
+                        ? info.message!
+                        : 'A new version is available on the app store. Please update to continue using the app.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 15,
                       height: 1.5,
                       color: AppColors.textSecondary,

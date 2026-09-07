@@ -9,7 +9,7 @@ class AppLinks {
 
   /// Example introduction video shown on the job apply sheet.
   static const exampleIntroductionVideo =
-      'https://youtube.com/shorts/eUatFTYYlkc?si=vpiONauFNypodQ1v';
+      'https://m.youtube.com/results?sp=mAEA&search_query=example+introduction+video+india+modeling';
 }
 
 Future<void> openAppLink(BuildContext context, String url) async {

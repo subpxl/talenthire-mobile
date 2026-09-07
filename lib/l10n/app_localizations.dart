@@ -260,6 +260,36 @@ abstract class AppLocalizations {
   /// **'No jobs yet. Pull down to refresh.'**
   String get noJobsYetPullDownToRefresh;
 
+  /// No description provided for @couldNotLoadJobs.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load jobs. Check your connection and try again.'**
+  String get couldNotLoadJobs;
+
+  /// No description provided for @couldNotLoadCreators.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load creators. Check your connection and try again.'**
+  String get couldNotLoadCreators;
+
+  /// No description provided for @couldNotLoadMessages.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load messages. Check your connection and try again.'**
+  String get couldNotLoadMessages;
+
+  /// No description provided for @couldNotLoadNotifications.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load notifications. Check your connection and try again.'**
+  String get couldNotLoadNotifications;
+
+  /// No description provided for @tryAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get tryAgain;
+
   /// No description provided for @job.
   ///
   /// In en, this message translates to:
@@ -422,6 +452,66 @@ abstract class AppLocalizations {
   /// **'Please describe the issue'**
   String get reportOtherRequired;
 
+  /// No description provided for @reportFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not submit report. Please try again.'**
+  String get reportFailed;
+
+  /// No description provided for @adminReports.
+  ///
+  /// In en, this message translates to:
+  /// **'Reports'**
+  String get adminReports;
+
+  /// No description provided for @reportTypeCreator.
+  ///
+  /// In en, this message translates to:
+  /// **'Creator'**
+  String get reportTypeCreator;
+
+  /// No description provided for @reportTypeJob.
+  ///
+  /// In en, this message translates to:
+  /// **'Job'**
+  String get reportTypeJob;
+
+  /// No description provided for @reportTypeAgency.
+  ///
+  /// In en, this message translates to:
+  /// **'Agency'**
+  String get reportTypeAgency;
+
+  /// No description provided for @reportTypeConversation.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversation'**
+  String get reportTypeConversation;
+
+  /// No description provided for @reportStatusPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Pending'**
+  String get reportStatusPending;
+
+  /// No description provided for @reportStatusResolved.
+  ///
+  /// In en, this message translates to:
+  /// **'Resolved'**
+  String get reportStatusResolved;
+
+  /// No description provided for @noReportsYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No reports yet'**
+  String get noReportsYet;
+
+  /// No description provided for @reportReporter.
+  ///
+  /// In en, this message translates to:
+  /// **'Reporter'**
+  String get reportReporter;
+
   /// No description provided for @agenciesMessageYouAfterYouApply.
   ///
   /// In en, this message translates to:
@@ -481,12 +571,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Contact us'**
   String get contactUs;
-
-  /// No description provided for @paymentsAreNotAvailableYetYouCanGoBackAndKeepUsingTheApp.
-  ///
-  /// In en, this message translates to:
-  /// **'Payments are not available yet. You can go back and keep using the app.'**
-  String get paymentsAreNotAvailableYetYouCanGoBackAndKeepUsingTheApp;
 
   /// No description provided for @for1DayThen299month.
   ///

@@ -7,7 +7,10 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:bombay_casting/core/deep_links/deep_link_target.dart';
 import 'package:bombay_casting/core/models/models.dart';
+import 'package:bombay_casting/core/services/account_service.dart';
 import 'package:bombay_casting/core/services/auth_service.dart';
+import 'package:bombay_casting/core/utils/phone_utils.dart';
+import 'package:bombay_casting/features/onboarding/first_login_step.dart';
 import 'package:bombay_casting/core/services/push_notification_service.dart';
 import 'package:bombay_casting/core/services/storage_service.dart';
 import 'package:bombay_casting/core/widgets/option_picker.dart';
@@ -20,6 +23,7 @@ import 'package:bombay_casting/features/jobs/providers/job_state.dart';
 import 'package:bombay_casting/features/jobs/utils/apply_quota.dart';
 import 'package:bombay_casting/features/jobs/services/job_cache_service.dart';
 import 'package:bombay_casting/features/messaging/providers/messaging_provider.dart';
+import 'package:bombay_casting/features/notifications/providers/notifications_provider.dart';
 import 'package:bombay_casting/features/profile/providers/profile_provider.dart';
 
 class AppState extends ChangeNotifier {
@@ -36,11 +40,16 @@ class AppState extends ChangeNotifier {
   }
 
   StreamSubscription? _categoriesSub;
-  StreamSubscription<String?>? _pushTapSub;
+  StreamSubscription<PushTapTarget>? _pushTapSub;
   MessagingProvider? _messaging;
+  NotificationsProvider? _notifications;
+  PushTapTarget? pendingPushTap;
+  bool pendingNotificationsOpen = false;
 
   MessagingProvider? get messaging => _messaging;
+  NotificationsProvider? get notifications => _notifications;
   int get unreadMessageCount => _messaging?.unreadTotal ?? 0;
+  int get unreadNotificationCount => _notifications?.unreadCount ?? 0;
 
   void _listenCategories() {
     _categoriesSub = FirebaseFirestore.instance
@@ -93,8 +102,10 @@ class AppState extends ChangeNotifier {
   Locale? get appLocale => _appLocale;
   bool _hasSelectedLanguage = false;
   bool get hasSelectedLanguage => _hasSelectedLanguage;
-  bool _shouldShowLanguageOnboarding = false;
-  bool get shouldShowLanguageOnboarding => _shouldShowLanguageOnboarding;
+  FirstLoginStep _firstLoginStep = FirstLoginStep.none;
+  FirstLoginStep get firstLoginStep => _firstLoginStep;
+  bool get shouldShowFirstLoginSetup =>
+      _firstLoginStep != FirstLoginStep.none;
   bool _localeReady = false;
   bool get localeReady => _localeReady;
 
@@ -113,7 +124,6 @@ class AppState extends ChangeNotifier {
   Future<void> setLocale(Locale locale) async {
     _appLocale = locale;
     _hasSelectedLanguage = true;
-    _shouldShowLanguageOnboarding = false;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('language_code', locale.languageCode);
     await prefs.setBool(_languagePromptKey, true);
@@ -121,12 +131,80 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> markLanguagePromptDone() async {
-    _shouldShowLanguageOnboarding = false;
     if (_hasSelectedLanguage) return;
     _hasSelectedLanguage = true;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_languagePromptKey, true);
     notifyListeners();
+  }
+
+  Future<void> completeMobileOnboarding(String mobile) async {
+    await updateUser(mobile: mobile);
+    final current = profile;
+    if (current != null) {
+      await updateProfile(
+        current.mergeFormSection('personal', {
+          'mobile': mobile,
+          'whatsapp': mobile,
+          'whatsapp_same_as_mobile': true,
+        }),
+      );
+    }
+    await _setFirstLoginStep(FirstLoginStep.language);
+  }
+
+  Future<void> completeLanguageOnboarding(Locale locale) async {
+    await setLocale(locale);
+    await _setFirstLoginStep(FirstLoginStep.photo);
+  }
+
+  Future<void> completePhotoOnboarding() => _completeFirstLoginSetup();
+
+  Future<void> goToPreviousFirstLoginStep() async {
+    if (_firstLoginStep == FirstLoginStep.photo) {
+      await _setFirstLoginStep(FirstLoginStep.language);
+    } else if (_firstLoginStep == FirstLoginStep.language) {
+      await _setFirstLoginStep(FirstLoginStep.mobile);
+    }
+  }
+
+  Future<void> _setFirstLoginStep(FirstLoginStep step) async {
+    _firstLoginStep = step;
+    notifyListeners();
+    try {
+      await _auth.updateUser(
+        onboardingStep: step.storageValue,
+        onboardingCompleted: step == FirstLoginStep.none,
+      );
+    } catch (error) {
+      debugPrint('Failed to persist onboarding step: $error');
+    }
+  }
+
+  Future<void> _completeFirstLoginSetup() async {
+    await markLanguagePromptDone();
+    await _setFirstLoginStep(FirstLoginStep.none);
+  }
+
+  void _resolveFirstLoginStep() {
+    final currentUser = user;
+    if (currentUser == null) {
+      _firstLoginStep = FirstLoginStep.mobile;
+      return;
+    }
+    if (currentUser.onboardingCompleted) {
+      _firstLoginStep = FirstLoginStep.none;
+      return;
+    }
+    var step = FirstLoginStep.fromStorage(
+      currentUser.onboardingStep,
+      completed: false,
+    );
+    if (step == FirstLoginStep.mobile &&
+        PhoneUtils.isValidIndianMobile(currentUser.mobile)) {
+      step = FirstLoginStep.language;
+    }
+    _firstLoginStep = step;
   }
 
   late final AuthProvider _auth;
@@ -143,9 +221,12 @@ class AppState extends ChangeNotifier {
 
   bool get isLoading => _auth.isLoading;
   bool get isAuthenticated => _auth.isAuthenticated;
+  bool get isAccountDeactivated =>
+      _auth.isAuthenticated && _auth.user?.isActive == false;
   String? get lastAuthError => _auth.lastAuthError;
   User? get user => _auth.user;
   Profile? get profile => _profile.profile;
+  bool get isAdmin => user?.role == UserRole.admin;
 
   /// Premium is only valid when the loaded profile belongs to the signed-in user.
   bool get isPremiumUser {
@@ -193,10 +274,15 @@ class AppState extends ChangeNotifier {
   }
   bool get isUploadingPhoto => _profile.isUploadingPhoto;
   bool get isLoadingCreators => _jobs.isLoadingCreators;
+  bool get isLoadingMoreCreators => _jobs.isLoadingMoreCreators;
+  bool get hasMoreCreators => _jobs.hasMoreCreators;
+  Object? get creatorsLoadError => _jobs.creatorsLoadError;
+  bool get isCreatorsFeedEmpty => _jobs.creators.isEmpty;
   List<Job> get jobs => _jobs.jobs;
   bool get isLoadingJobs => _jobs.isLoadingJobs;
   bool get isLoadingMoreJobs => _jobs.isLoadingMoreJobs;
   bool get hasMoreJobs => _jobs.hasMoreJobs;
+  Object? get jobsLoadError => _jobs.jobsLoadError;
   HomeJobFilter get jobFilter => _jobs.jobFilter;
   List<JobListing> get filteredJobListings => _jobs.filteredJobListings;
   CreatorFilter get creatorFilter => _jobs.creatorFilter;
@@ -349,8 +435,16 @@ class AppState extends ChangeNotifier {
     String? name,
     String? email,
     String? mobile,
+    bool? onboardingCompleted,
+    String? onboardingStep,
   }) =>
-      _auth.updateUser(name: name, email: email, mobile: mobile);
+      _auth.updateUser(
+        name: name,
+        email: email,
+        mobile: mobile,
+        onboardingCompleted: onboardingCompleted,
+        onboardingStep: onboardingStep,
+      );
 
   Future<void> uploadProfilePhoto(File file) async {
     final uid = user?.id;
@@ -392,6 +486,12 @@ class AppState extends ChangeNotifier {
   Future<void> loadCreators({bool forceRefresh = false}) =>
       _jobs.loadCreators(currentUserId: user?.id, forceRefresh: forceRefresh);
 
+  Future<void> refreshCreators() =>
+      _jobs.refreshCreators(currentUserId: user?.id);
+
+  Future<void> loadMoreCreators() =>
+      _jobs.loadMoreCreators(currentUserId: user?.id);
+
   Future<Job?> fetchJobById(String id) => _jobs.fetchJobById(id);
 
   Future<CreatorProfile?> fetchCreatorById(String id) =>
@@ -399,6 +499,43 @@ class AppState extends ChangeNotifier {
 
   Future<AgencyProfile?> fetchAgencyById(String id) =>
       _jobs.fetchAgencyById(id);
+
+  Future<void> deactivateAccount() async {
+    await _auth.deactivateAccount();
+    await logout();
+  }
+
+  Future<void> reactivateAccount() async {
+    await _auth.reactivateAccount();
+    final uid = user?.id;
+    if (uid == null) return;
+    await _onSessionReady(SessionBootstrap(uid: uid));
+    notifyListeners();
+  }
+
+  Future<void> deleteAccount() async {
+    final uid = user?.id;
+    if (uid != null) {
+      await PushNotificationService.instance.unregisterToken(uid);
+    }
+    await AccountService().deleteAccount();
+    _pushTapSub?.cancel();
+    _pushTapSub = null;
+    _messaging?.dispose();
+    _messaging = null;
+    _notifications?.dispose();
+    _notifications = null;
+    pendingPushTap = null;
+    pendingNotificationsOpen = false;
+    await _auth.logout();
+    _profile.reset();
+    _jobs.reset();
+    _firstLoginStep = FirstLoginStep.none;
+    homeInnerTabIndex = 0;
+    creatorsInnerTabIndex = 0;
+    jobsInnerTabIndex = 0;
+    notifyListeners();
+  }
 
   Future<void> logout() async {
     final uid = user?.id;
@@ -409,10 +546,14 @@ class AppState extends ChangeNotifier {
     _pushTapSub = null;
     _messaging?.dispose();
     _messaging = null;
+    _notifications?.dispose();
+    _notifications = null;
+    pendingPushTap = null;
+    pendingNotificationsOpen = false;
     await _auth.logout();
     _profile.reset();
     _jobs.reset();
-    _shouldShowLanguageOnboarding = false;
+    _firstLoginStep = FirstLoginStep.none;
     homeInnerTabIndex = 0;
     creatorsInnerTabIndex = 0;
     jobsInnerTabIndex = 0;
@@ -422,46 +563,77 @@ class AppState extends ChangeNotifier {
   Future<void> _onSessionReady(SessionBootstrap bootstrap) async {
     _profile.reset();
     _jobs.reset();
-    if (bootstrap.isNewUser) {
-      if (!_hasSelectedLanguage) {
-        _shouldShowLanguageOnboarding = true;
-        notifyListeners();
-      }
-      await _profile.createDefault(
-        uid: bootstrap.uid,
-        profileImage: bootstrap.googlePhotoUrl ?? '',
-      );
-    } else {
-      await markLanguagePromptDone();
-      await _profile.loadProfile(bootstrap.uid);
-      unawaited(_profile.syncGooglePhoto(bootstrap.googlePhotoUrl));
+    if (user?.isActive == false) {
+      notifyListeners();
+      return;
     }
+    if (bootstrap.isNewUser) {
+      // Don't eagerly write an empty profile doc at login (slow + caused
+      // permission issues). Keep it in memory; it's created lazily on first
+      // save via ProfileProvider.updateProfile.
+      _profile.createLocalDefault(uid: bootstrap.uid);
+    } else {
+      await _profile.loadProfile(bootstrap.uid);
+      if (user?.onboardingCompleted == true) {
+        await markLanguagePromptDone();
+      }
+    }
+    _resolveFirstLoginStep();
+    notifyListeners();
     _jobs.startBackgroundLoads(
       bootstrap.uid,
       isNewUser: bootstrap.isNewUser,
     );
-    _startMessaging(bootstrap.uid);
+    _startInbox(bootstrap.uid, isNewUser: bootstrap.isNewUser);
   }
 
-  void _startMessaging(String uid) {
+  void _startInbox(String uid, {bool isNewUser = false}) {
     _pushTapSub?.cancel();
     _messaging?.dispose();
+    _notifications?.dispose();
     final displayName = user?.name.trim().isNotEmpty == true ? user!.name : 'User';
     _messaging = MessagingProvider(
       userId: uid,
       userName: displayName,
+      isNewUser: isNewUser,
       onChange: notifyListeners,
     );
     _messaging!.start();
-    unawaited(PushNotificationService.instance.registerToken(uid));
-    _pushTapSub = PushNotificationService.instance.onConversationTap.listen(
-      (conversationId) {
-        if (conversationId == null || conversationId.isEmpty) return;
-        _messaging?.queueConversationOpen(conversationId);
-        requestedMainShellTab = 3;
-        notifyListeners();
-      },
+    _notifications = NotificationsProvider(
+      userId: uid,
+      onChange: notifyListeners,
     );
+    _notifications!.start();
+    unawaited(PushNotificationService.instance.registerToken(uid));
+    _pushTapSub = PushNotificationService.instance.onNotificationTap.listen(
+      _handlePushTap,
+    );
+  }
+
+  void _handlePushTap(PushTapTarget target) {
+    if (target.opensConversation) {
+      pendingNotificationsOpen = false;
+      pendingPushTap = null;
+      _messaging?.queueConversationOpen(target.conversationId);
+      requestedMainShellTab = 3;
+      notifyListeners();
+      return;
+    }
+    pendingPushTap = target;
+    pendingNotificationsOpen = true;
+    notifyListeners();
+  }
+
+  PushTapTarget? consumePendingPushTap() {
+    final target = pendingPushTap;
+    pendingPushTap = null;
+    return target;
+  }
+
+  void clearPendingNotificationsOpen() {
+    if (!pendingNotificationsOpen) return;
+    pendingNotificationsOpen = false;
+    notifyListeners();
   }
 
   @override
@@ -470,6 +642,7 @@ class AppState extends ChangeNotifier {
     _deepLinkSub?.cancel();
     _pushTapSub?.cancel();
     _messaging?.dispose();
+    _notifications?.dispose();
     super.dispose();
   }
 }

@@ -22,7 +22,7 @@ class AppliedJobsTabContent extends StatelessWidget {
     final appState = context.watch<AppState>();
     final applications = [...appState.applications]
       ..sort((a, b) => b.appliedAt.compareTo(a.appliedAt));
-    final completionPercent = appState.profile?.completionPercentage ?? 20;
+    final completionPercent = appState.profile?.completionPercentage ?? 0;
     final profileBanner = completionPercent < 100
         ? <Widget>[
             ProfileCompletionBanner(percentage: completionPercent),
@@ -154,25 +154,27 @@ class _AppliedJobCard extends StatelessWidget {
             Row(
               children: [
                 _TextAction(
-                  label: 'Update link',
-                  onTap: () => updateApplicationInterviewLink(
-                    context,
-                    application: application,
-                  ),
-                ),
-                Container(
-                  width: 1,
-                  height: 12,
-                  margin: const EdgeInsets.symmetric(horizontal: 10),
-                  color: AppColors.border,
-                ),
-                _TextAction(
                   label: 'Cancel',
                   onTap: () => confirmAndCancelApplication(
                     context,
                     application: application,
                   ),
                 ),
+                if (job?.requiresVideoSubmission == true) ...[
+                  Container(
+                    width: 1,
+                    height: 12,
+                    margin: const EdgeInsets.symmetric(horizontal: 10),
+                    color: AppColors.border,
+                  ),
+                  _TextAction(
+                    label: 'Update',
+                    onTap: () => updateApplicationInterviewLink(
+                      context,
+                      application: application,
+                    ),
+                  ),
+                ],
               ],
             ),
           ],

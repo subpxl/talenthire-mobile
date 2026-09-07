@@ -21,9 +21,9 @@ class JobDetailStatsBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final genderAge = _genderAgeParts(job);
+    final type = jobProjectTypeLabel(job);
     final location = _locationParts(job);
-    final pay = _payParts(job);
-    final role = _roleParts(job);
     final timing = _timingParts(job, postedAt);
 
     return Container(
@@ -38,25 +38,23 @@ class JobDetailStatsBar extends StatelessWidget {
         child: Row(
           children: [
             _StatCell(
-              icon: Icons.location_on_rounded,
-              iconColor: AppColors.brandRed,
-              primary: location.$1,
-              secondary: location.$2,
-            ),
-            const _StatDivider(),
-            _StatCell(
-              flex: 12,
-              icon: Icons.currency_rupee_rounded,
-              iconColor: _payGreen,
-              primary: pay.$1,
-              secondary: pay.$2,
+              icon: Icons.person_rounded,
+              iconColor: _rolePurple,
+              primary: genderAge.$1,
+              secondary: genderAge.$2,
             ),
             const _StatDivider(),
             _StatCell(
               icon: Icons.movie_creation_rounded,
-              iconColor: _rolePurple,
-              primary: role.$1,
-              secondary: role.$2,
+              iconColor: _payGreen,
+              primary: type,
+            ),
+            const _StatDivider(),
+            _StatCell(
+              icon: Icons.location_on_rounded,
+              iconColor: AppColors.brandRed,
+              primary: location.$1,
+              secondary: location.$2,
             ),
             const _StatDivider(),
             _StatCell(
@@ -68,106 +66,6 @@ class JobDetailStatsBar extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class JobRolesSection extends StatelessWidget {
-  const JobRolesSection({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const AppSectionTitle('Roles'),
-        IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: const [
-              Expanded(
-                child: _RoleCard(
-                  title: 'Lead',
-                  age: '22 – 30 yrs',
-                  meta: 'M/F • On camera',
-                  color: Color(0xFFE91E63),
-                ),
-              ),
-              SizedBox(width: 10),
-              Expanded(
-                child: _RoleCard(
-                  title: 'Supporting',
-                  age: '18 – 28 yrs',
-                  meta: 'M/F • 1+ yr exp',
-                  color: Color(0xFF7E57C2),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _RoleCard extends StatelessWidget {
-  const _RoleCard({
-    required this.title,
-    required this.age,
-    required this.meta,
-    required this.color,
-  });
-
-  final String title;
-  final String age;
-  final String meta;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-      decoration: _cardDecoration,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.person_rounded, size: 20, color: color),
-          const SizedBox(height: 10),
-          Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            age,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w500,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            meta,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -230,7 +128,9 @@ class _JobAboutSectionState extends State<JobAboutSection> {
 }
 
 class JobSubmitSection extends StatelessWidget {
-  const JobSubmitSection({super.key});
+  const JobSubmitSection({super.key, required this.requiresVideo});
+
+  final bool requiresVideo;
 
   @override
   Widget build(BuildContext context) {
@@ -241,17 +141,19 @@ class JobSubmitSection extends StatelessWidget {
         IntrinsicHeight(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: const [
-              Expanded(
-                child: _SubmitCard(
-                  icon: Icons.videocam_rounded,
-                  iconColor: Color(0xFFE91E63),
-                  title: 'YT Short or Insta Reel',
-                  subtitle: 'A short introduction',
+            children: [
+              if (requiresVideo) ...[
+                const Expanded(
+                  child: _SubmitCard(
+                    icon: Icons.videocam_rounded,
+                    iconColor: Color(0xFFE91E63),
+                    title: 'YT Short or Insta Reel',
+                    subtitle: 'A short introduction',
+                  ),
                 ),
-              ),
-              SizedBox(width: 10),
-              Expanded(
+                const SizedBox(width: 10),
+              ],
+              const Expanded(
                 child: _SubmitCard(
                   icon: Icons.verified_rounded,
                   iconColor: Color(0xFF2E7D32),
@@ -366,7 +268,7 @@ class JobDetailMetaFooter extends StatelessWidget {
     final count = appliedCount > 0
         ? appliedCount
         : 15 + (jobId.hashCode.abs() % 155);
-    final actorsLabel = count == 1 ? '1 actor' : '$count actors';
+    final usersLabel = count == 1 ? '1 user' : '$count users';
     final appliedSuffix = count == 1 ? 'has applied' : 'have applied';
 
     return Container(
@@ -387,7 +289,7 @@ class JobDetailMetaFooter extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  actorsLabel,
+                  usersLabel,
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -461,7 +363,7 @@ class _StatCell extends StatelessWidget {
     required this.icon,
     required this.iconColor,
     required this.primary,
-    required this.secondary,
+    this.secondary = '',
     this.secondaryColor = AppColors.textHint,
     this.flex = 10,
   });
@@ -662,19 +564,13 @@ class _FactRow extends StatelessWidget {
   return (city, '');
 }
 
+(String, String) _genderAgeParts(JobListing job) {
+  return (jobGenderLabel(job.gender), jobAgeLabel(job.age));
+}
+
 (String, String) _payParts(JobListing job) {
   final period = job.collabType.trim().isNotEmpty ? job.collabType : 'Project based';
   return (jobPayCompactLabel(job), period);
-}
-
-(String, String) _roleParts(JobListing job) {
-  final role = job.role.trim().isNotEmpty ? job.role.trim() : 'Creator';
-  final secondary = job.platforms.trim().isNotEmpty
-      ? job.platforms.trim()
-      : job.category.trim().isNotEmpty && job.category != role
-          ? job.category.trim()
-          : 'Role';
-  return (role, secondary);
 }
 
 (String, String) _timingParts(JobListing job, DateTime? postedAt) {

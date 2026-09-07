@@ -17,12 +17,6 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin';
     }
 
-    function isPremium() {
-      return isSignedIn()
-        && exists(/databases/$(database)/documents/profiles/$(request.auth.uid))
-        && get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.get('subscription_status', 'free') == 'premium';
-    }
-
     function stringField(data, field, maxLen) {
       return field in data
         && data[field] is string
@@ -79,12 +73,12 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isSignedIn();
 
-      // Influencer self-registration, or agency portal self-registration.
-      allow create: if isOwner(userId) && (
+      allow create: if isAdmin() || (isOwner(userId) && (
         (
           request.resource.data.role == 'influencer'
           && request.resource.data.id == userId
           && request.resource.data.get('is_active', true) == true
+          && !('registration_reminders' in request.resource.data)
           && stringField(request.resource.data, 'name', 80)
           && stringField(request.resource.data, 'email', 254)
           && optionalString(request.resource.data, 'mobile', 20)
@@ -93,11 +87,12 @@ service cloud.firestore {
           request.resource.data.role == 'agency'
           && request.resource.data.uid == userId
           && request.resource.data.ownerId == userId
+          && !('registration_reminders' in request.resource.data)
           && stringField(request.resource.data, 'email', 254)
           && stringField(request.resource.data, 'agencyName', 120)
           && stringField(request.resource.data, 'profileDetails', 2000)
         )
-      );
+      ));
 
       allow update: if isAdmin() || (
         isOwner(userId)
@@ -105,11 +100,11 @@ service cloud.firestore {
         && request.resource.data.role == 'agency'
         && request.resource.data.uid == userId
         && request.resource.data.ownerId == resource.data.ownerId
-        && !changedKeys().hasAny(['role', 'uid', 'ownerId'])
+        && !changedKeys().hasAny(['role', 'uid', 'ownerId', 'registration_reminders'])
       ) || (
         isOwner(userId)
         && request.resource.data.id == userId
-        && !changedKeys().hasAny(['role', 'is_active', 'id', 'created_at'])
+        && !changedKeys().hasAny(['role', 'is_active', 'id', 'created_at', 'registration_reminders'])
         && changedKeys().hasOnly([
           'name',
           'email',
@@ -118,28 +113,43 @@ service cloud.firestore {
           'birth_month',
           'birth_year',
           'updated_at',
-          'fcm_tokens'
+          'fcm_tokens',
+          'onboarding_completed',
+          'onboarding_step'
         ])
         && optionalString(request.resource.data, 'name', 80)
         && optionalString(request.resource.data, 'email', 254)
         && optionalString(request.resource.data, 'mobile', 20)
+        && (!('onboarding_completed' in request.resource.data)
+          || request.resource.data.onboarding_completed is bool)
+        && (!('onboarding_step' in request.resource.data)
+          || (request.resource.data.onboarding_step is string
+            && request.resource.data.onboarding_step.size() <= 20
+            && request.resource.data.onboarding_step in [
+              'mobile', 'language', 'photo', 'done'
+            ]))
+      ) || (
+        // Self-deactivate / reactivate: only is_active (+ updated_at).
+        isOwner(userId)
+        && changedKeys().hasOnly(['is_active', 'updated_at'])
+        && request.resource.data.is_active is bool
       );
 
-      allow delete: if false;
+      allow delete: if isAdmin();
     }
 
     // ── profiles (influencer profiles) ─────────────────────────────────────
     match /profiles/{userId} {
       allow read: if isSignedIn();
 
-      allow create: if isOwner(userId)
+      allow create: if isAdmin() || (isOwner(userId)
         && request.resource.data.user_id == userId
         && request.resource.data.subscription_status == 'free'
         && request.resource.data.get('is_verified', false) == false
         && request.resource.data.get('account_status', 'active') == 'active'
         && request.resource.data.get('free_job_applications_used', 0) == 0
         && optionalString(request.resource.data, 'bio', 2000)
-        && optionalString(request.resource.data, 'contact', 40);
+        && optionalString(request.resource.data, 'contact', 40));
 
       allow update: if isAdmin() || (
         isOwner(userId)
@@ -155,7 +165,7 @@ service cloud.firestore {
         && optionalString(request.resource.data, 'contact', 40)
       );
 
-      allow delete: if false;
+      allow delete: if isAdmin();
     }
 
     // ── saved jobs (per user subcollection) ─────────────────────────────────
@@ -220,16 +230,19 @@ service cloud.firestore {
     // ── jobs ───────────────────────────────────────────────────────────────
     match /jobs/{jobId} {
       allow read: if isSignedIn();
-      allow create: if isAgency()
-        && request.resource.data.agencyId == request.auth.uid
-        && request.resource.data.created_by == request.auth.uid
-        && stringField(request.resource.data, 'title', 200);
+      allow create: if isAdmin()
+        || (
+          isAgency()
+          && request.resource.data.agencyId == request.auth.uid
+          && request.resource.data.created_by == request.auth.uid
+          && stringField(request.resource.data, 'title', 200)
+        );
       allow update: if isAdmin() || (
         isAgency()
         && resource.data.agencyId == request.auth.uid
         && request.resource.data.agencyId == request.auth.uid
       );
-      allow delete: if false;
+      allow delete: if isAdmin();
     }
 
     // ── applications ───────────────────────────────────────────────────────
@@ -238,17 +251,9 @@ service cloud.firestore {
         isSignedIn() && resource.data.user_id == request.auth.uid
       ) || agencyOwnsJob(applicationJobId(resource.data));
 
-      // Signed-in owner can create their own application (free trial or premium).
-      allow create: if isSignedIn()
-        && request.resource.data.user_id == request.auth.uid
-        && appId == request.auth.uid + '_' + request.resource.data.job_id
-        && request.resource.data.status == 'applied'
-        && exists(/databases/$(database)/documents/jobs/$(request.resource.data.job_id))
-        && stringField(request.resource.data, 'job_id', 128)
-        && stringField(request.resource.data, 'job_title', 200)
-        && optionalString(request.resource.data, 'company', 120)
-        && optionalString(request.resource.data, 'script', 4000)
-        && optionalString(request.resource.data, 'youtube_short_url', 500);
+      // Applications must be created via the submitJobApplication callable
+      // so apply quota (3/day for 3 days) is enforced server-side.
+      allow create: if isAdmin();
 
       allow update: if isAdmin() || (
         isAgency()
@@ -272,13 +277,6 @@ service cloud.firestore {
             && resource.data.status in ['applied', 'opened', 'shortlisted', 'interview']
             && request.resource.data.status == 'withdrawn'
           )
-          || (
-            resource.data.status == 'withdrawn'
-            && request.resource.data.status == 'applied'
-            && !changedKeys().hasAny(['user_id', 'job_id', 'id', 'job_title', 'company'])
-            && optionalString(request.resource.data, 'script', 4000)
-            && optionalString(request.resource.data, 'youtube_short_url', 500)
-          )
         )
       );
 
@@ -288,15 +286,35 @@ service cloud.firestore {
     // ── notifications ──────────────────────────────────────────────────────
     match /notifications/{notifId} {
       allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow write: if false;
+
+      allow create: if isAdmin()
+        && request.resource.data.userId is string
+        && request.resource.data.userId.size() > 0
+        && request.resource.data.userId.size() <= 128
+        && stringField(request.resource.data, 'title', 200)
+        && stringField(request.resource.data, 'body', 2000);
+
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid
+        && changedKeys().hasOnly(['read'])
+        && request.resource.data.read is bool;
+
+      allow delete: if false;
     }
 
     // ── reports (admin moderation) ─────────────────────────────────────────
     match /reports/{reportId} {
       allow read: if isAdmin();
       allow create: if isSignedIn()
-        && optionalString(request.resource.data, 'reason', 500)
-        && optionalString(request.resource.data, 'details', 2000);
+        && request.resource.data.reporterId == request.auth.uid
+        && request.resource.data.type in ['creator', 'job', 'agency', 'conversation']
+        && request.resource.data.targetId is string
+        && request.resource.data.targetId.size() > 0
+        && request.resource.data.targetId.size() <= 128
+        && request.resource.data.status == 'pending'
+        && request.resource.data.reason in ['spam', 'inappropriate', 'other']
+        && optionalString(request.resource.data, 'details', 2000)
+        && optionalString(request.resource.data, 'targetLabel', 200);
       allow update: if isAdmin();
       allow delete: if false;
     }
@@ -311,6 +329,20 @@ service cloud.firestore {
     // ── subscriptions (Cashfree billing — server writes only) ─────────────
     match /subscriptions/{userId} {
       allow read: if isOwner(userId);
+      allow write: if false;
+    }
+
+    match /transactions/{txnId} {
+      allow read: if isAdmin() || (
+        isSignedIn() && resource.data.userId == request.auth.uid
+      );
+      allow write: if false;
+    }
+
+    match /payments/{paymentId} {
+      allow read: if isAdmin() || (
+        isSignedIn() && resource.data.userId == request.auth.uid
+      );
       allow write: if false;
     }
 

@@ -6,7 +6,11 @@ import 'package:bombay_casting/app/main_shell.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/features/auth/screens/login_screen.dart';
 import 'package:bombay_casting/features/auth/screens/splash_screen.dart';
+import 'package:bombay_casting/features/onboarding/first_login_step.dart';
+import 'package:bombay_casting/features/onboarding/screens/enter_mobile_screen.dart';
+import 'package:bombay_casting/features/onboarding/screens/onboarding_photo_screen.dart';
 import 'package:bombay_casting/features/onboarding/screens/select_language_screen.dart';
+import 'package:bombay_casting/features/profile/screens/deactivated_account_screen.dart';
 
 class App extends StatelessWidget {
   const App({super.key});
@@ -21,7 +25,7 @@ class App extends StatelessWidget {
 
     return MaterialApp(
       key: ValueKey(
-        'auth_${appState.isLoading}_${appState.isAuthenticated}_${appState.shouldShowLanguageOnboarding}',
+        'auth_${appState.isLoading}_${appState.isAuthenticated}',
       ),
       title: 'Bombay Casting Company',
       debugShowCheckedModeBanner: false,
@@ -37,10 +41,19 @@ class App extends StatelessWidget {
           if (!appState.isAuthenticated) {
             return const LoginScreen();
           }
-          if (appState.shouldShowLanguageOnboarding) {
-            return const LanguageScreen(isOnboarding: true);
+          if (appState.isAccountDeactivated) {
+            return const DeactivatedAccountScreen();
           }
-          return const MainShell();
+          switch (appState.firstLoginStep) {
+            case FirstLoginStep.mobile:
+              return const EnterMobileScreen();
+            case FirstLoginStep.language:
+              return const LanguageScreen(isOnboarding: true);
+            case FirstLoginStep.photo:
+              return const OnboardingPhotoScreen();
+            case FirstLoginStep.none:
+              return const MainShell();
+          }
         },
       ),
     );

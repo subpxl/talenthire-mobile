@@ -24,9 +24,10 @@ class JobFeed {
 
   List<Job> jobs = [];
   HomeJobFilter filter = const HomeJobFilter();
-  bool isLoading = false;
+  bool isLoading = true;
   bool isLoadingMore = false;
   bool hasMore = true;
+  Object? loadError;
 
   DocumentSnapshot<Map<String, dynamic>>? _cursor;
   int _autoFillPages = 0;
@@ -75,6 +76,7 @@ class JobFeed {
     hasMore = true;
     isLoading = false;
     isLoadingMore = false;
+    loadError = null;
     _cacheIsFresh = false;
     _slowNetwork = false;
     _autoFillPages = 0;
@@ -104,6 +106,7 @@ class JobFeed {
     if (reset) {
       isLoading = jobs.isEmpty;
       isLoadingMore = false;
+      loadError = null;
       _autoFillPages = 0;
       _cursor = null;
     } else {
@@ -148,6 +151,7 @@ class JobFeed {
       }
 
       if (requestId == _requestId) {
+        loadError = null;
         if (reset && !fromServer && jobs.length > _nextPageSize) {
           _cursor = null;
           hasMore = true;
@@ -157,9 +161,11 @@ class JobFeed {
       }
     } catch (error) {
       debugPrint('Error loading jobs: $error');
-      if (reset && jobs.isEmpty) {
-        jobs = [];
-        hasMore = false;
+      if (requestId == _requestId) {
+        loadError = error;
+        if (reset && jobs.isEmpty) {
+          hasMore = false;
+        }
       }
     } finally {
       if (requestId == _requestId) {
@@ -167,7 +173,9 @@ class JobFeed {
         isLoadingMore = false;
         _fetchInFlight = false;
         _onChange();
-        maybeFillFilteredFeed();
+        if (loadError == null) {
+          maybeFillFilteredFeed();
+        }
       }
     }
   }

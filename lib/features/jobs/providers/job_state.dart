@@ -4,47 +4,63 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:bombay_casting/core/models/models.dart';
 import 'package:bombay_casting/features/creators/models/creator_profile.dart';
+import 'package:bombay_casting/features/creators/providers/creator_feed_provider.dart';
+import 'package:bombay_casting/features/creators/services/creator_cache_service.dart';
 import 'package:bombay_casting/features/jobs/models/agency_profile.dart';
 import 'package:bombay_casting/features/jobs/models/job_listing.dart';
 import 'package:bombay_casting/features/jobs/providers/job_feed_provider.dart';
 import 'package:bombay_casting/features/jobs/services/job_cache_service.dart';
+import 'package:bombay_casting/core/services/application_service.dart';
 
 class JobState extends ChangeNotifier {
-  JobState({required this._onChange}) {
+  JobState({
+    required this._onChange,
+    ApplicationService? applicationService,
+  })  : applicationService = applicationService ?? ApplicationService() {
     jobFeed = JobFeed(
       firestore: _firestore,
       cache: jobCache,
       onChange: _notify,
     );
+    creatorFeed = CreatorFeed(
+      firestore: _firestore,
+      cache: creatorCache,
+      onChange: _notify,
+    );
   }
 
   final JobCacheService jobCache = JobCacheService();
+  final CreatorCacheService creatorCache = CreatorCacheService();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final VoidCallback _onChange;
+  final ApplicationService applicationService;
   late final JobFeed jobFeed;
-
-  static const _creatorsTtl = Duration(minutes: 15);
-  static const _userIdChunkSize = 10;
+  late final CreatorFeed creatorFeed;
 
   List<Application> applications = [];
   List<Job> savedJobs = [];
   List<CreatorProfile> savedCreators = [];
-  List<CreatorProfile> creators = [];
-  bool isLoadingCreators = false;
-  DateTime? _creatorsLoadedAt;
   int _loadGeneration = 0;
 
   List<Job> get jobs => jobFeed.jobs;
   bool get isLoadingJobs => jobFeed.isLoading;
   bool get isLoadingMoreJobs => jobFeed.isLoadingMore;
   bool get hasMoreJobs => jobFeed.hasMore;
+  Object? get jobsLoadError => jobFeed.loadError;
   HomeJobFilter get jobFilter => jobFeed.filter;
   List<JobListing> get filteredJobListings => jobFeed.filteredListings;
+
+  List<CreatorProfile> get creators => creatorFeed.creators;
+  bool get isLoadingCreators => creatorFeed.isLoading;
+  bool get isLoadingMoreCreators => creatorFeed.isLoadingMore;
+  bool get hasMoreCreators => creatorFeed.hasMore;
+  Object? get creatorsLoadError => creatorFeed.loadError;
 
   CreatorFilter creatorFilter = const CreatorFilter();
   
   void setCreatorFilter(CreatorFilter filter) {
     creatorFilter = filter;
+    creatorFeed.setFilter(filter);
     _notify();
   }
 
@@ -76,7 +92,9 @@ class JobState extends ChangeNotifier {
 
   Future<CreatorProfile?> fetchCreatorById(String id) async {
     if (id.isEmpty) return null;
-    for (final creator in [...creators, ...savedCreators]) {
+    final cached = creatorFeed.byId(id);
+    if (cached != null) return cached;
+    for (final creator in savedCreators) {
       if (creator.id == id) return creator;
     }
 
@@ -156,6 +174,16 @@ class JobState extends ChangeNotifier {
 
   Future<void> loadMoreJobs() => jobFeed.loadMore();
 
+  Future<void> refreshCreators({String? currentUserId}) {
+    creatorFeed.setCurrentUserId(currentUserId);
+    return creatorFeed.refresh();
+  }
+
+  Future<void> loadMoreCreators({String? currentUserId}) {
+    creatorFeed.setCurrentUserId(currentUserId);
+    return creatorFeed.loadMore();
+  }
+
   void startBackgroundLoads(String uid, {required bool isNewUser}) {
     final token = ++_loadGeneration;
     if (isNewUser) {
@@ -173,14 +201,20 @@ class JobState extends ChangeNotifier {
     required bool isNewUser,
   }) async {
     try {
+      creatorFeed.setCurrentUserId(uid);
+      creatorFeed.markAwaitingFirstPage();
       if (isNewUser) {
-        await jobFeed.hydrateAndLoad();
+        await Future.wait([
+          jobFeed.hydrateAndLoad(),
+          creatorFeed.hydrateAndLoad(),
+        ]);
       } else {
         await Future.wait([
           _loadApplications(uid, token: token),
           _loadSavedJobs(uid, token: token),
           _loadSavedCreators(uid, token: token),
           jobFeed.hydrateAndLoad(),
+          creatorFeed.hydrateAndLoad(),
         ]);
       }
     } catch (error) {
@@ -321,29 +355,25 @@ class JobState extends ChangeNotifier {
     String youtubeShortUrl = '',
   }) async {
     if (hasApplied(job.id)) return false;
-    final application = Application(
-      id: '${userId}_${job.id}',
-      userId: userId,
+
+    final result = await applicationService.submit(
       jobId: job.id,
-      jobTitle: job.title,
-      company: job.company,
       script: script,
       youtubeShortUrl: youtubeShortUrl,
     );
-    applications = [...applications, application];
-    _notify();
-    try {
-      await _firestore.collection('applications').doc(application.id).set(
-            application.toJson(),
-          );
-      return true;
-    } catch (error) {
-      debugPrint('Error applying to job: $error');
-      applications =
-          applications.where((item) => item.id != application.id).toList();
-      _notify();
+    if (!result.isSuccess) {
+      debugPrint('Apply rejected: ${result.failure}');
       return false;
     }
+
+    final application = result.application!;
+    applications = [
+      for (final item in applications)
+        if (item.jobId != job.id) item,
+      application,
+    ];
+    _notify();
+    return true;
   }
 
   Future<bool> updateApplicationLink(
@@ -466,128 +496,10 @@ class JobState extends ChangeNotifier {
   Future<void> loadCreators({
     String? currentUserId,
     bool forceRefresh = false,
-  }) async {
-    if (isLoadingCreators) return;
-    final cacheIsFresh = _creatorsLoadedAt != null &&
-        DateTime.now().difference(_creatorsLoadedAt!) < _creatorsTtl;
-    if (!forceRefresh && cacheIsFresh) return;
-
-    isLoadingCreators = true;
-    _notify();
-    try {
-      QuerySnapshot<Map<String, dynamic>> userSnap;
-      try {
-        userSnap = await _firestore
-            .collection('users')
-            .orderBy('created_at', descending: true)
-            .limit(80)
-            .get();
-      } catch (error) {
-        debugPrint('Error ordering creators by created_at: $error');
-        userSnap = await _firestore.collection('users').limit(80).get();
-      }
-      final profileIds = [
-        for (final doc in userSnap.docs) doc.id,
-      ];
-      if (currentUserId != null &&
-          currentUserId.isNotEmpty &&
-          !profileIds.contains(currentUserId)) {
-        profileIds.add(currentUserId);
-      }
-      final profilesById = await _profilesByIds(profileIds);
-      final loaded = <CreatorProfile>[];
-      var fallbackIndex = 1;
-      var includedCurrentUser = false;
-
-      CreatorProfile? creatorFrom({
-        required Map<String, dynamic> data,
-        required String id,
-      }) {
-        final otherProfile = profilesById[id];
-        if (otherProfile == null) return null;
-        data['id'] = data['id'] ?? id;
-        final otherUser = User.fromJson(data);
-        final isCurrentUser = id == currentUserId;
-        if (!isCurrentUser &&
-            otherUser.name.trim().isEmpty &&
-            otherProfile.galleryPhotos.isEmpty &&
-            otherProfile.city.isEmpty) {
-          return null;
-        }
-        final creator = CreatorProfile.fromRecords(
-          user: otherUser,
-          profile: otherProfile,
-          fallbackIndex: fallbackIndex,
-        );
-        fallbackIndex += 4;
-        return creator;
-      }
-
-      for (final doc in userSnap.docs) {
-        final creator = creatorFrom(data: Map<String, dynamic>.from(doc.data()), id: doc.id);
-        if (creator == null) continue;
-        if (doc.id == currentUserId) includedCurrentUser = true;
-        loaded.add(creator);
-        if (loaded.length >= 40) break;
-      }
-
-      if (currentUserId != null &&
-          currentUserId.isNotEmpty &&
-          !includedCurrentUser) {
-        final already = loaded.any((item) => item.id == currentUserId);
-        if (!already) {
-          final selfDoc =
-              await _firestore.collection('users').doc(currentUserId).get();
-          if (selfDoc.exists) {
-            final creator = creatorFrom(
-              data: Map<String, dynamic>.from(selfDoc.data()!),
-              id: selfDoc.id,
-            );
-            if (creator != null) loaded.insert(0, creator);
-          }
-        }
-      }
-      loaded.sort((a, b) {
-        final aTime = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-        final bTime = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-        return bTime.compareTo(aTime);
-      });
-      creators = loaded;
-      _creatorsLoadedAt = DateTime.now();
-    } catch (error) {
-      debugPrint('Error loading creators: $error');
-    } finally {
-      isLoadingCreators = false;
-      _notify();
-    }
-  }
-
-  Future<Map<String, Profile>> _profilesByIds(List<String> ids) async {
-    if (ids.isEmpty) return {};
-    final chunks = <List<String>>[];
-    for (var i = 0; i < ids.length; i += _userIdChunkSize) {
-      chunks.add(
-        ids.sublist(
-          i,
-          i + _userIdChunkSize > ids.length ? ids.length : i + _userIdChunkSize,
-        ),
-      );
-    }
-    final snapshots = await Future.wait([
-      for (final chunk in chunks)
-        _firestore
-            .collection('profiles')
-            .where(FieldPath.documentId, whereIn: chunk)
-            .get(),
-    ]);
-    return {
-      for (final snapshot in snapshots)
-        for (final doc in snapshot.docs)
-          doc.id: Profile.fromJson({
-            ...Map<String, dynamic>.from(doc.data()),
-            'user_id': doc.id,
-          }),
-    };
+  }) {
+    creatorFeed.setCurrentUserId(currentUserId);
+    if (forceRefresh) return creatorFeed.refresh();
+    return creatorFeed.hydrateAndLoad();
   }
 
   void reset() {
@@ -595,10 +507,8 @@ class JobState extends ChangeNotifier {
     applications = [];
     savedJobs = [];
     savedCreators = [];
-    creators = [];
-    isLoadingCreators = false;
-    _creatorsLoadedAt = null;
     jobFeed.reset();
+    creatorFeed.reset();
     _notify();
   }
 }

@@ -1,5 +1,6 @@
 import 'package:bombay_casting/core/widgets/app_success_toast.dart';
 import 'package:bombay_casting/core/utils/app_strings.dart';
+import 'package:bombay_casting/core/utils/input_validators.dart';
 import 'package:bombay_casting/core/utils/legal_links.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -21,7 +22,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _nameController = TextEditingController();
 
   bool _isLoading = false;
-  bool _isRegisterMode = true;
+  bool _isRegisterMode = false;
   bool _showEmailForm = false;
   bool _obscurePassword = true;
   bool _googleLoading = false;
@@ -152,10 +153,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             validator: (value) {
                               if (!_isRegisterMode) return null;
-                              if (value == null || value.trim().isEmpty) {
-                                return context.enterYourName;
-                              }
-                              return null;
+                              return InputValidators.nameError(value) == null
+                                  ? null
+                                  : context.enterYourName;
                             },
                           ),
                           const SizedBox(height: 18),
@@ -168,10 +168,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             prefixIcon: const Icon(Icons.mail_outline),
                           ),
                           validator: (value) {
-                            if (value == null || !value.contains('@')) {
-                              return context.enterValidEmail;
-                            }
-                            return null;
+                            return InputValidators.emailError(value) == null
+                                ? null
+                                : context.enterValidEmail;
                           },
                         ),
                         const SizedBox(height: 18),

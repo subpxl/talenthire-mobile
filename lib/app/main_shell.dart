@@ -25,6 +25,7 @@ class _MainShellState extends State<MainShell> {
   late final PageController _pageController;
   bool _openingDeepLink = false;
   bool _openingPendingMessage = false;
+  bool _openingPendingNotification = false;
 
   @override
   void initState() {
@@ -93,6 +94,29 @@ class _MainShellState extends State<MainShell> {
   void _showMissing(String message) {
     if (!mounted) return;
     showAppToast(context, message, type: AppToastType.error);
+  }
+
+  Future<void> _openPendingNotification() async {
+    if (!mounted || _openingPendingNotification) return;
+    _openingPendingNotification = true;
+    try {
+      final appState = context.read<AppState>();
+      final target = appState.consumePendingPushTap();
+      appState.clearPendingNotificationsOpen();
+      if (!mounted) return;
+
+      if (target != null && target.opensJob) {
+        final job = await appState.fetchJobById(target.jobId);
+        if (!mounted) return;
+        if (job != null) {
+          AppNavigation.openJobDetail(context, JobDetailData.fromJob(job));
+          return;
+        }
+      }
+      AppNavigation.openNotifications(context);
+    } finally {
+      _openingPendingNotification = false;
+    }
   }
 
   Future<void> _openPendingMessage() async {
@@ -164,7 +188,13 @@ class _MainShellState extends State<MainShell> {
       WidgetsBinding.instance.addPostFrameCallback((_) => _openPendingMessage());
     }
 
-    final unreadCount = context.watch<AppState>().unreadMessageCount;
+    final shouldOpenNotifications =
+        context.watch<AppState>().pendingNotificationsOpen;
+    if (shouldOpenNotifications && !_openingPendingNotification) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _openPendingNotification(),
+      );
+    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -185,7 +215,7 @@ class _MainShellState extends State<MainShell> {
       bottomNavigationBar: AppBottomNav(
         currentIndex: _currentIndex,
         onTap: _onTabTapped,
-        messageBadgeCount: unreadCount > 0 ? unreadCount : 3,
+        messageBadgeCount: context.watch<AppState>().unreadMessageCount,
       ),
     );
   }

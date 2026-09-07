@@ -5,6 +5,7 @@ import 'package:bombay_casting/features/creators/screens/saved_creators_screen.d
 import 'package:bombay_casting/features/creators/widgets/creator_masonry_grid.dart';
 import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
+import 'package:bombay_casting/core/widgets/app_feed_status.dart';
 import 'package:bombay_casting/core/widgets/app_screen_layout.dart';
 import 'package:bombay_casting/core/widgets/app_search_filters.dart';
 import 'package:bombay_casting/core/widgets/app_tab_bar.dart';
@@ -22,6 +23,8 @@ class _CreatorsScreenState extends State<CreatorsScreen> {
   final _searchController = TextEditingController();
   final _scrollController = ScrollController();
 
+  static const _loadMoreOffset = 420.0;
+
   static const _tabs = [
     AppTabItem(label: 'All', indicatorWidth: 24),
     AppTabItem(label: 'Saved', indicatorWidth: 40),
@@ -34,6 +37,23 @@ class _CreatorsScreenState extends State<CreatorsScreen> {
       if (!mounted) return;
       context.read<AppState>().loadCreators();
     });
+  }
+
+  bool _onScrollNotification(ScrollNotification notification) {
+    final appState = context.read<AppState>();
+    if (appState.creatorsInnerTabIndex != 0) return false;
+    if (!appState.hasMoreCreators || appState.isLoadingMoreCreators) {
+      return false;
+    }
+    if (notification is! ScrollUpdateNotification &&
+        notification is! OverscrollNotification) {
+      return false;
+    }
+    if (notification.metrics.pixels >=
+        notification.metrics.maxScrollExtent - _loadMoreOffset) {
+      appState.loadMoreCreators();
+    }
+    return false;
   }
 
   @override
@@ -73,43 +93,46 @@ class _CreatorsScreenState extends State<CreatorsScreen> {
         child: RefreshIndicator(
           color: AppColors.primary,
           onRefresh: () => selectedTab == 0
-              ? context.read<AppState>().loadCreators(forceRefresh: true)
+              ? context.read<AppState>().refreshCreators()
               : context.read<AppState>().refreshSavedCreators(),
-          child: CustomScrollView(
-            controller: _scrollController,
-            cacheExtent: 1200,
-            physics: const AlwaysScrollableScrollPhysics(
-              parent: BouncingScrollPhysics(),
-            ),
-            slivers: [
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.screenH,
-                    0,
-                    AppSpacing.screenH,
-                    0,
-                  ),
-                  child: AppTabBar(
-                    tabs: _tabs,
-                    selectedIndex: selectedTab,
-                    onChanged: _onTabChanged,
-                  ),
-                ),
+          child: NotificationListener<ScrollNotification>(
+            onNotification: _onScrollNotification,
+            child: CustomScrollView(
+              controller: _scrollController,
+              cacheExtent: 1200,
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
               ),
-              if (selectedTab == 0)
-                SliverPersistentHeader(
-                  pinned: true,
-                  delegate: StickyBarDelegate(
-                    extent: AppSearchAndChips.heightFor(_searchPadding),
-                    child: _buildSearchAndChips(context),
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.screenH,
+                      0,
+                      AppSpacing.screenH,
+                      0,
+                    ),
+                    child: AppTabBar(
+                      tabs: _tabs,
+                      selectedIndex: selectedTab,
+                      onChanged: _onTabChanged,
+                    ),
                   ),
                 ),
-              if (selectedTab == 0)
-                ..._buildAllSlivers(context)
-              else
-                ...savedCreatorsSlivers(context),
-            ],
+                if (selectedTab == 0)
+                  SliverPersistentHeader(
+                    pinned: true,
+                    delegate: StickyBarDelegate(
+                      extent: AppSearchAndChips.heightFor(_searchPadding),
+                      child: _buildSearchAndChips(context),
+                    ),
+                  ),
+                if (selectedTab == 0)
+                  ..._buildAllSlivers(context)
+                else
+                  ...savedCreatorsSlivers(context),
+              ],
+            ),
           ),
         ),
       ),
@@ -182,40 +205,49 @@ class _CreatorsScreenState extends State<CreatorsScreen> {
         .toList();
     final filtersActive =
         query.trim().isNotEmpty || appState.creatorFilter.isActive;
+    final feedFailed =
+        appState.isCreatorsFeedEmpty && appState.creatorsLoadError != null;
+    final feedLoading =
+        appState.isCreatorsFeedEmpty && appState.isLoadingCreators;
+    final l10n = AppLocalizations.of(context)!;
 
     return [
       SliverPadding(
         padding: EdgeInsets.fromLTRB(
           AppSpacing.screenH,
-          creators.isEmpty ? 24 : 4,
+          creators.isEmpty || feedFailed || feedLoading ? 24 : 4,
           AppSpacing.screenH,
           AppSpacing.scrollBottom,
         ),
-        sliver: creators.isEmpty
+        sliver: feedLoading || feedFailed || creators.isEmpty
             ? SliverToBoxAdapter(
-                child: appState.isLoadingCreators
-                    ? const Center(
-                        child: SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      )
-                    : Text(
-                        filtersActive
-                            ? AppLocalizations.of(context)!
-                                .noCreatorsMatchYourSearch
-                            : AppLocalizations.of(context)!.noCreatorsToShowYet,
-                        style: context.bodyMedium,
-                      ),
+                child: AppFeedStatus(
+                  isLoading: feedLoading,
+                  errorMessage: feedFailed ? l10n.couldNotLoadCreators : null,
+                  emptyMessage: filtersActive
+                      ? l10n.noCreatorsMatchYourSearch
+                      : l10n.noCreatorsToShowYet,
+                  onRetry: feedFailed
+                      ? () => context.read<AppState>().refreshCreators()
+                      : null,
+                  retryLabel: l10n.tryAgain,
+                  padding: EdgeInsets.zero,
+                ),
               )
             : CreatorMasonrySliver(
-                key: ValueKey<String>(
-                  creators.map((creator) => creator.id).join(','),
-                ),
                 creators: creators,
               ),
       ),
+      if (appState.isLoadingMoreCreators)
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.only(
+              top: AppSpacing.md,
+              bottom: AppSpacing.scrollBottom,
+            ),
+            child: AppFeedStatus.spinner,
+          ),
+        ),
     ];
   }
 }

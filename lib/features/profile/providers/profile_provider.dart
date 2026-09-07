@@ -15,22 +15,31 @@ class ProfileProvider extends ChangeNotifier {
   Profile? profile;
   bool isUploadingPhoto = false;
 
+  /// Whether the profile document is known to exist in Firestore.
+  /// Drives create-vs-update behaviour in [updateProfile] so we never write
+  /// eager empty placeholder docs at login.
+  bool _remoteExists = false;
+
   void _notify() {
     notifyListeners();
     _onChange();
   }
 
-  Future<void> createDefault({
+  /// Sets an in-memory default profile for a brand new user WITHOUT writing to
+  /// Firestore. The document is created lazily on the first real save via
+  /// [updateProfile]. This keeps first login fast.
+  void createLocalDefault({
     required String uid,
     String profileImage = '',
-  }) async {
+  }) {
     profile = Profile(userId: uid, profileImage: profileImage);
-    await _firestore.collection('profiles').doc(uid).set(profile!.toJson());
+    _remoteExists = false;
     _notify();
   }
 
   Future<void> loadProfile(String uid) async {
     profile = null;
+    _remoteExists = false;
     _notify();
     try {
       final profileDoc = await _firestore.collection('profiles').doc(uid).get();
@@ -38,40 +47,46 @@ class ProfileProvider extends ChangeNotifier {
         final data = Map<String, dynamic>.from(profileDoc.data()!);
         data['user_id'] = uid;
         profile = Profile.fromJson(data);
+        _remoteExists = true;
       } else {
+        // No document yet — keep an in-memory default and create it lazily on
+        // the first save. Avoids a redundant write on every login.
         profile = Profile(userId: uid);
-        await _firestore.collection('profiles').doc(uid).set(profile!.toJson());
+        _remoteExists = false;
       }
     } catch (error) {
       debugPrint('Error loading profile: $error');
       profile = Profile(userId: uid);
+      _remoteExists = false;
     }
     _notify();
-  }
-
-  Future<void> syncGooglePhoto(String? googlePhoto) async {
-    if (googlePhoto == null ||
-        googlePhoto.isEmpty ||
-        profile == null ||
-        (profile!.profileImage).isNotEmpty) {
-      return;
-    }
-    await updateProfile(profile!.copyWith(profileImage: googlePhoto));
   }
 
   Future<void> updateProfile(Profile updated, {String? userId}) async {
     profile = updated;
     _notify();
     if (userId == null) return;
-    final data = updated.toJson()
-      ..remove('subscription_status')
-      ..remove('is_verified')
-      ..remove('account_status')
-      ..remove('free_job_applications_used');
-    await _firestore.collection('profiles').doc(userId).set(
-          data,
-          SetOptions(merge: true),
-        );
+    final ref = _firestore.collection('profiles').doc(userId);
+
+    if (_remoteExists) {
+      // Document already exists → merge only the mutable fields. The
+      // subscription / verification / account fields are server-owned and must
+      // never be touched here (the `update` security rule forbids them).
+      final data = updated.toJson()
+        ..remove('subscription_status')
+        ..remove('is_verified')
+        ..remove('account_status')
+        ..remove('free_job_applications_used');
+      await ref.set(data, SetOptions(merge: true));
+    } else {
+      // First write for this user → create a full, rules-valid document so it
+      // satisfies the stricter `create` security rule. toJson() already carries
+      // the required defaults (subscription_status 'free', is_verified false,
+      // account_status 'active', free_job_applications_used 0).
+      final data = updated.toJson()..['user_id'] = userId;
+      await ref.set(data, SetOptions(merge: true));
+      _remoteExists = true;
+    }
   }
 
   Future<void> uploadProfilePhoto({
@@ -194,6 +209,7 @@ class ProfileProvider extends ChangeNotifier {
   void reset() {
     profile = null;
     isUploadingPhoto = false;
+    _remoteExists = false;
     _notify();
   }
 }

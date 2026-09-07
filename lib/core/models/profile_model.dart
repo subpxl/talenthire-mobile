@@ -102,13 +102,10 @@ class Profile {
   int get completionPercentage {
     var score = 0;
 
-    // Profile photo (20)
-    if (profileImage.trim().isNotEmpty) score += 20;
+    if (profileImage.trim().isNotEmpty) score += 15;
 
-    // Personal details (40)
     final personal = formSection('personal');
-    final hasGender =
-        gender.isNotEmpty || _hasText(personal['gender']);
+    final hasGender = gender.isNotEmpty || _hasText(personal['gender']);
     final hasAge = age != null || _hasText(personal['age']);
     final hasLocation = city.isNotEmpty ||
         state.isNotEmpty ||
@@ -116,27 +113,40 @@ class Profile {
     final hasLang = languages.isNotEmpty ||
         _hasList(personal['language']) ||
         _hasList(personal['languages']);
-    final hasAbout =
-        bio.trim().isNotEmpty || _hasText(personal['about']);
-    if (hasGender) score += 8;
-    if (hasAge) score += 8;
-    if (hasLocation) score += 8;
-    if (hasLang) score += 8;
-    if (hasAbout) score += 8;
+    final hasAbout = bio.trim().isNotEmpty || _hasText(personal['about']);
+    if (hasGender) score += 7;
+    if (hasAge) score += 7;
+    if (hasLocation) score += 7;
+    if (hasLang) score += 7;
+    if (hasAbout) score += 7;
 
-    // Social links (20)
     final social = formSection('social');
     if (platformMetrics.isNotEmpty ||
         contact.trim().isNotEmpty ||
         _hasText(social['handle'])) {
-      score += 20;
+      score += 15;
     }
 
-    // Content creator form (20)
     final creator = formSection('creator');
-    if (_hasList(creator['collab_types'])) score += 7;
-    if (_hasList(creator['platforms'])) score += 7;
-    if (_hasList(creator['niches']) || niches.isNotEmpty) score += 6;
+    if (_hasList(creator['collab_types'])) score += 5;
+    if (_hasList(creator['platforms'])) score += 5;
+    if (_hasList(creator['niches']) || niches.isNotEmpty) score += 5;
+
+    final verification = formSection('verification');
+    if (_hasText(verification['pan_number']) ||
+        _hasText(verification['pan_card']) ||
+        _hasText(verification['photo']) ||
+        _hasText(verification['voter_id']) ||
+        _hasList(verification['other_documents'])) {
+      score += 10;
+    }
+
+    final videos = formSection('videos');
+    if (_hasText(videos['introduction_link']) ||
+        _hasText(videos['previous_experience']) ||
+        _hasText(videos['other_video_link'])) {
+      score += 10;
+    }
 
     return score.clamp(0, 100);
   }
@@ -153,6 +163,32 @@ class Profile {
   }
 
   factory Profile.fromJson(Map<String, dynamic> json) {
+    var formData = mapFrom(json['form_data']);
+    final videos = Map<String, dynamic>.from(mapFrom(formData['videos']));
+
+    void putIfEmpty(String key, dynamic value) {
+      if (_hasText(videos[key])) return;
+      final text = value?.toString().trim() ?? '';
+      if (text.isNotEmpty) videos[key] = text;
+    }
+
+    putIfEmpty(
+      'introduction_link',
+      json['short_intro_video_link'] ?? json['shortIntroVideoLink'],
+    );
+    putIfEmpty(
+      'previous_experience',
+      json['previous_works_video_link'] ?? json['previousWorksVideoLink'],
+    );
+    putIfEmpty(
+      'other_video_link',
+      json['achievements_video_link'] ?? json['achievementsVideoLink'],
+    );
+
+    if (videos.isNotEmpty) {
+      formData = {...formData, 'videos': videos};
+    }
+
     return Profile(
       userId: json['user_id']?.toString() ?? json['userId']?.toString() ?? '',
       profileImage: (json['profile_image'] ?? '').toString(),
@@ -178,7 +214,7 @@ class Profile {
               )
               .toList()
           : const [],
-      formData: mapFrom(json['form_data']),
+      formData: formData,
       profileCompleted: json['profile_completed'] == true,
       subscriptionStatus: enumFromString(
         SubscriptionStatus.values,
@@ -195,7 +231,9 @@ class Profile {
     );
   }
 
-  Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toJson() {
+    final videos = formSection('videos');
+    return {
         'user_id': userId,
         'profile_image': profileImage,
         'photos': photos,
@@ -212,11 +250,18 @@ class Profile {
         'niches': niches,
         'platform_metrics': platformMetrics.map((item) => item.toJson()).toList(),
         'form_data': formData,
+        'short_intro_video_link':
+            (videos['introduction_link'] ?? '').toString(),
+        'previous_works_video_link':
+            (videos['previous_experience'] ?? '').toString(),
+        'achievements_video_link':
+            (videos['other_video_link'] ?? '').toString(),
         'profile_completed': profileCompleted,
         'subscription_status': subscriptionStatus.name,
         'account_status': accountStatus.name,
         'free_job_applications_used': freeJobApplicationsUsed,
       };
+  }
 
   Profile copyWith({
     String? profileImage,

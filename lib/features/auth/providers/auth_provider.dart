@@ -7,12 +7,10 @@ class SessionBootstrap {
   const SessionBootstrap({
     required this.uid,
     this.isNewUser = false,
-    this.googlePhotoUrl,
   });
 
   final String uid;
   final bool isNewUser;
-  final String? googlePhotoUrl;
 }
 
 typedef AuthSessionLoader = Future<void> Function(SessionBootstrap bootstrap);
@@ -34,6 +32,11 @@ class AuthProvider extends ChangeNotifier {
   bool isAuthenticated = false;
   String? lastAuthError;
   User? user;
+
+  /// Whether the `users/{uid}` document is known to exist in Firestore.
+  /// Drives create-vs-update behaviour in [updateUser] so a partial merge is
+  /// never rejected as a failed create.
+  bool _userDocExists = false;
 
   void _notify() {
     notifyListeners();
@@ -65,11 +68,19 @@ class AuthProvider extends ChangeNotifier {
     }
 
     final firebaseUser = credential!.user!;
-    await _createOrFetchUser(
+    final ready = await _createOrFetchUser(
       uid: firebaseUser.uid,
       name: firebaseUser.displayName ?? '',
       email: firebaseUser.email ?? '',
     );
+    if (!ready) {
+      await authService.signOut();
+      user = null;
+      _userDocExists = false;
+      isAuthenticated = false;
+      _notify();
+      return false;
+    }
     isAuthenticated = true;
     _notify();
     return true;
@@ -91,11 +102,19 @@ class AuthProvider extends ChangeNotifier {
     }
 
     final firebaseUser = credential!.user!;
-    await _createOrFetchUser(
+    final ready = await _createOrFetchUser(
       uid: firebaseUser.uid,
       name: firebaseUser.displayName ?? email.split('@').first,
       email: firebaseUser.email ?? email.trim(),
     );
+    if (!ready) {
+      await authService.signOut();
+      user = null;
+      _userDocExists = false;
+      isAuthenticated = false;
+      _notify();
+      return false;
+    }
     isAuthenticated = true;
     _notify();
     return true;
@@ -119,17 +138,25 @@ class AuthProvider extends ChangeNotifier {
     }
 
     final firebaseUser = credential!.user!;
-    await _createOrFetchUser(
+    final ready = await _createOrFetchUser(
       uid: firebaseUser.uid,
       name: name.trim().isNotEmpty ? name.trim() : email.split('@').first,
       email: firebaseUser.email ?? email.trim(),
     );
+    if (!ready) {
+      await authService.signOut();
+      user = null;
+      _userDocExists = false;
+      isAuthenticated = false;
+      _notify();
+      return false;
+    }
     isAuthenticated = true;
     _notify();
     return true;
   }
 
-  Future<void> _createOrFetchUser({
+  Future<bool> _createOrFetchUser({
     required String uid,
     required String name,
     required String email,
@@ -139,47 +166,73 @@ class AuthProvider extends ChangeNotifier {
       final userDoc = await _firestore.collection('users').doc(uid).get();
       final isNewUser = !userDoc.exists;
       if (isNewUser) {
-        user = User(id: uid, name: name, email: email, mobile: mobile);
+        user = User(
+          id: uid,
+          name: name,
+          email: email,
+          mobile: mobile,
+          onboardingCompleted: false,
+          onboardingStep: 'mobile',
+        );
         await Future.wait([
-          _firestore.collection('users').doc(uid).set(user!.toJson()),
+          _firestore
+              .collection('users')
+              .doc(uid)
+              .set(user!.toJson())
+              .then((_) => _userDocExists = true),
           _onSessionReady(
             SessionBootstrap(
               uid: uid,
               isNewUser: true,
-              googlePhotoUrl: authService.currentUser?.photoURL,
             ),
           ),
         ]);
       } else {
+        _userDocExists = true;
         final data = Map<String, dynamic>.from(userDoc.data()!);
         data['id'] = data['id']?.toString().isNotEmpty == true ? data['id'] : uid;
         user = User.fromJson(data);
         await _onSessionReady(
-          SessionBootstrap(
-            uid: uid,
-            googlePhotoUrl: authService.currentUser?.photoURL,
-          ),
+          SessionBootstrap(uid: uid),
         );
       }
+      return true;
     } catch (error) {
       debugPrint('Error creating/fetching user: $error');
       lastAuthError = 'Failed to load account data.';
+      return false;
     }
   }
 
   Future<void> _loadExistingSession(String uid) async {
     try {
-      final userDoc = await _firestore.collection('users').doc(uid).get();
-      if (userDoc.exists) {
-        final data = Map<String, dynamic>.from(userDoc.data()!);
-        data['id'] = data['id']?.toString().isNotEmpty == true ? data['id'] : uid;
-        user = User.fromJson(data);
+      final firebaseUser = authService.currentUser;
+      if (firebaseUser == null) {
+        isAuthenticated = false;
+        return;
       }
-      await _onSessionReady(SessionBootstrap(uid: uid));
+
+      final email = firebaseUser.email ?? '';
+      final ready = await _createOrFetchUser(
+        uid: uid,
+        name: firebaseUser.displayName ??
+            (email.isNotEmpty ? email.split('@').first : ''),
+        email: email,
+      );
+      if (!ready) {
+        await authService.signOut();
+        user = null;
+        _userDocExists = false;
+        isAuthenticated = false;
+        return;
+      }
       isAuthenticated = true;
     } catch (error) {
       debugPrint('Error loading user data: $error');
       lastAuthError = 'Failed to load app data.';
+      await authService.signOut();
+      user = null;
+      _userDocExists = false;
       isAuthenticated = false;
     }
   }
@@ -188,24 +241,70 @@ class AuthProvider extends ChangeNotifier {
     String? name,
     String? email,
     String? mobile,
+    bool? onboardingCompleted,
+    String? onboardingStep,
   }) async {
     if (user == null) return;
     user = user!.copyWith(
       name: name,
       email: email,
       mobile: mobile,
+      onboardingCompleted: onboardingCompleted,
+      onboardingStep: onboardingStep,
       updatedAt: DateTime.now(),
     );
     _notify();
+    final ref = _firestore.collection('users').doc(user!.id);
+
+    if (!_userDocExists) {
+      // Document doesn't exist yet → write the full, rules-valid user object so
+      // it satisfies the stricter `create` security rule (role, id, name,
+      // email, ...). A partial merge here would be rejected as a failed create.
+      await ref.set(user!.toJson(), SetOptions(merge: true));
+      _userDocExists = true;
+      return;
+    }
+
+    // Document exists → merge only the changed fields (matches the `update`
+    // security rule's allowed key set).
+    final data = <String, dynamic>{
+      'updated_at': user!.updatedAt.toIso8601String(),
+    };
+    if (name != null) data['name'] = name;
+    if (email != null) data['email'] = email;
+    if (mobile != null) data['mobile'] = mobile;
+    if (onboardingCompleted != null) {
+      data['onboarding_completed'] = onboardingCompleted;
+    }
+    if (onboardingStep != null) data['onboarding_step'] = onboardingStep;
+    await ref.set(data, SetOptions(merge: true));
+  }
+
+  Future<void> deactivateAccount() async {
+    await _setIsActive(false);
+  }
+
+  Future<void> reactivateAccount() async {
+    await _setIsActive(true);
+  }
+
+  Future<void> _setIsActive(bool isActive) async {
+    if (user == null) return;
+    final updatedAt = DateTime.now();
     await _firestore.collection('users').doc(user!.id).set(
-          user!.toJson(),
-          SetOptions(merge: true),
-        );
+      {
+        'is_active': isActive,
+        'updated_at': updatedAt.toIso8601String(),
+      },
+      SetOptions(merge: true),
+    );
+    user = user!.copyWith(isActive: isActive, updatedAt: updatedAt);
   }
 
   Future<void> logout() async {
     await authService.signOut();
     user = null;
+    _userDocExists = false;
     isAuthenticated = false;
     _notify();
   }

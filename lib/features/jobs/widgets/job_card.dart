@@ -59,7 +59,7 @@ class JobCard extends StatelessWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              job.title,
+                              titleCaseWords(job.title),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(

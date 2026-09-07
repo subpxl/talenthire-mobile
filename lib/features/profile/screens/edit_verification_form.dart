@@ -11,6 +11,8 @@ import 'package:bombay_casting/core/widgets/app_primary_button.dart';
 import 'package:bombay_casting/core/widgets/app_form_fields.dart';
 import 'package:bombay_casting/core/widgets/app_success_toast.dart';
 import 'package:bombay_casting/core/widgets/option_picker.dart';
+import 'package:bombay_casting/core/utils/input_validators.dart';
+import 'package:flutter/services.dart';
 
 class EditVerificationFormScreen extends StatefulWidget {
   const EditVerificationFormScreen({super.key});
@@ -30,6 +32,7 @@ class _EditVerificationFormScreenState
   _DocPick? _voterId;
   final List<_ExtraDoc> _otherDocs = [];
   bool _saving = false;
+  String? _panError;
 
   @override
   void initState() {
@@ -128,7 +131,15 @@ class _EditVerificationFormScreenState
 
   Future<void> _save() async {
     if (_saving) return;
-    setState(() => _saving = true);
+    final panError = InputValidators.panError(_panController.text);
+    if (panError != null) {
+      setState(() => _panError = panError);
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _panError = null;
+    });
     try {
       final panUrl = await _upload(_panCard);
       final photoUrl = await _upload(_photo);
@@ -211,6 +222,18 @@ class _EditVerificationFormScreenState
                       controller: _panController,
                       hint: 'ABCDE1234F',
                       textCapitalization: TextCapitalization.characters,
+                      errorText: _panError,
+                      maxLength: 10,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
+                        LengthLimitingTextInputFormatter(10),
+                        TextInputFormatter.withFunction((oldValue, newValue) {
+                          return newValue.copyWith(
+                            text: newValue.text.toUpperCase(),
+                            selection: newValue.selection,
+                          );
+                        }),
+                      ],
                     ),
                     const SizedBox(height: 16),
                     GridView.count(

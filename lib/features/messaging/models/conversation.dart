@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
-import 'package:bombay_casting/l10n/app_localizations.dart';
 
 class ChatMessage {
   const ChatMessage({
@@ -8,12 +7,14 @@ class ChatMessage {
     required this.isMine,
     required this.time,
     this.id = '',
+    this.createdAtMillis,
   });
 
   final String id;
   final String text;
   final bool isMine;
   final String time;
+  final int? createdAtMillis;
 
   factory ChatMessage.fromRtdb(
     Map<String, dynamic> data, {
@@ -25,11 +26,47 @@ class ChatMessage {
       text: (data['text'] ?? '').toString(),
       isMine: data['sender_id'] == currentUserId,
       time: _formatMessageTime(createdAt),
+      createdAtMillis: createdAt,
     );
+  }
+
+  factory ChatMessage.localNow({
+    required String text,
+    required bool isMine,
+  }) {
+    final now = DateTime.now();
+    return ChatMessage(
+      id: 'local_${now.millisecondsSinceEpoch}',
+      text: text,
+      isMine: isMine,
+      time: _formatConversationTime(now),
+      createdAtMillis: now.millisecondsSinceEpoch,
+    );
+  }
+
+  factory ChatMessage.fromStored(Map<String, dynamic> data) {
+    final createdAt = (data['created_at'] as num?)?.toInt();
+    return ChatMessage(
+      id: (data['id'] ?? '').toString(),
+      text: (data['text'] ?? '').toString(),
+      isMine: true,
+      time: _formatMessageTime(createdAt),
+      createdAtMillis: createdAt,
+    );
+  }
+
+  Map<String, dynamic> toStored() {
+    return {
+      'id': id,
+      'text': text,
+      'created_at': createdAtMillis,
+    };
   }
 }
 
 class ConversationThread {
+  static const companyWelcomeId = 'company_welcome';
+
   const ConversationThread({
     required this.id,
     required this.name,
@@ -40,6 +77,8 @@ class ConversationThread {
     this.imageIndex = 1,
     this.imageUrl = '',
     this.unreadCount = 0,
+    this.lastSenderId = '',
+    this.currentUserId = '',
     this.isVerified = false,
     this.messages = const [],
   });
@@ -52,13 +91,53 @@ class ConversationThread {
   final int imageIndex;
   final String imageUrl;
   final int unreadCount;
+  final String lastSenderId;
+  final String currentUserId;
   final bool isVerified;
   final List<ChatMessage> messages;
   final Map<String, dynamic> raw;
 
-  static const welcomeId = 'welcome';
+  bool get isCompanyWelcome => id == companyWelcomeId;
 
-  bool get isWelcome => id == welcomeId;
+  /// Shown once after registration. Copy is localized in UI.
+  factory ConversationThread.companyWelcome({
+    required bool unread,
+    List<ChatMessage> replies = const [],
+  }) {
+    final time = _formatConversationTime(DateTime.now());
+    final lastReply = replies.isNotEmpty ? replies.last : null;
+    final body = ChatMessage(
+      id: '${companyWelcomeId}_body',
+      text:
+          'Hi there! Welcome to Bombay Casting Company.\n\nBrowse UGC opportunities, apply to brands you love, and chat with agencies right here. Complete your profile to stand out and land your next collab.\n\nWe\'re excited to have you on board!',
+      isMine: false,
+      time: time,
+    );
+    return ConversationThread(
+      id: companyWelcomeId,
+      name: 'Bombay Casting Company',
+      lastMessage: lastReply?.text ??
+          'Welcome! Browse UGC jobs and start your next collab.',
+      time: lastReply?.time ?? time,
+      avatarColor: AppColors.primary,
+      unreadCount: unread ? 1 : 0,
+      lastSenderId: lastReply != null ? 'local' : companyWelcomeId,
+      currentUserId: 'local',
+      isVerified: true,
+      messages: [body, ...replies],
+      raw: const {
+        'participants': <String>[],
+        'is_company_welcome': true,
+      },
+    );
+  }
+
+  /// Count pill only when the other person sent messages we haven't opened.
+  bool get hasIncomingUnread {
+    if (unreadCount <= 0) return false;
+    if (lastSenderId.isEmpty || currentUserId.isEmpty) return true;
+    return lastSenderId != currentUserId;
+  }
 
   factory ConversationThread.fromFirestore(
     String currentUserId,
@@ -82,6 +161,7 @@ class ConversationThread {
         ? (unread[currentUserId] as num?)?.toInt() ?? 0
         : 0;
     final updatedAt = DateTime.tryParse('${data['updated_at']}');
+    final lastSenderId = (data['last_sender_id'] ?? '').toString();
 
     return ConversationThread(
       id: (data['id'] ?? '').toString(),
@@ -90,30 +170,12 @@ class ConversationThread {
       time: _formatConversationTime(updatedAt),
       avatarColor: _colorForName(name),
       unreadCount: unreadCount,
+      lastSenderId: lastSenderId,
+      currentUserId: currentUserId,
       isVerified: isAgency,
       raw: data,
     );
   }
-}
-
-ConversationThread welcomeConversation(AppLocalizations l10n) {
-  return ConversationThread(
-    id: ConversationThread.welcomeId,
-    name: l10n.bombayCastingCompany,
-    lastMessage: l10n.companyWelcomeMessagePreview,
-    time: l10n.today,
-    avatarColor: AppColors.primary,
-    unreadCount: 1,
-    isVerified: true,
-    messages: [
-      ChatMessage(
-        text: l10n.companyWelcomeMessageBody,
-        isMine: false,
-        time: l10n.today,
-      ),
-    ],
-    raw: const {},
-  );
 }
 
 Color _colorForName(String name) {

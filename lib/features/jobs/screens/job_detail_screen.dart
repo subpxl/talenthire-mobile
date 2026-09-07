@@ -8,11 +8,12 @@ import 'package:bombay_casting/core/navigation/app_navigation.dart';
 import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/core/deep_links/deep_link_target.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
+import 'package:bombay_casting/core/services/report_service.dart';
 import 'package:bombay_casting/core/widgets/app_screen_layout.dart';
-import 'package:bombay_casting/core/widgets/placeholder_avatar.dart';
 import 'package:bombay_casting/core/widgets/app_success_toast.dart';
-import 'package:bombay_casting/core/widgets/report_dialog.dart';
+import 'package:bombay_casting/core/widgets/placeholder_avatar.dart';
 import 'package:bombay_casting/core/widgets/share_link_button.dart';
+import 'package:bombay_casting/core/widgets/verified_tick.dart';
 import 'package:bombay_casting/features/jobs/widgets/apply_job_sheet.dart';
 import 'package:bombay_casting/features/jobs/widgets/job_detail_sections.dart';
 
@@ -55,13 +56,16 @@ class JobDetailScreen extends StatelessWidget {
             onSelected: (value) async {
               if (value == 'report') {
                 final l10n = AppLocalizations.of(context)!;
-                final result = await showReportDialog(
+                await ReportService.instance.submitFromDialog(
                   context,
-                  title: l10n.reportJob,
+                  dialogTitle: l10n.reportJob,
+                  successMessage: l10n.jobReported,
+                  target: ReportTarget(
+                    type: ReportType.job,
+                    targetId: profile.jobId,
+                    targetLabel: listing.title,
+                  ),
                 );
-                if (result != null && context.mounted) {
-                  showAppSuccessToast(context, l10n.jobReported);
-                }
               }
             },
             itemBuilder: (context) => [
@@ -113,24 +117,25 @@ class JobDetailScreen extends StatelessWidget {
               postedAt: firebaseJob?.postedAt,
             ),
             const SizedBox(height: AppSpacing.lg),
-            const JobRolesSection(),
-            const SizedBox(height: AppSpacing.lg),
             JobAboutSection(job: listing),
             const SizedBox(height: AppSpacing.lg),
-            const JobSubmitSection(),
+            JobSubmitSection(requiresVideo: firebaseJob?.requiresVideoSubmission ?? listing.isAudition),
             const SizedBox(height: AppSpacing.lg),
             JobDetailMetaFooter(
               appliedCount: firebaseJob?.applied ?? 0,
               jobId: profile.jobId,
               onReport: () async {
                 final l10n = AppLocalizations.of(context)!;
-                final result = await showReportDialog(
+                await ReportService.instance.submitFromDialog(
                   context,
-                  title: l10n.reportJob,
+                  dialogTitle: l10n.reportJob,
+                  successMessage: l10n.jobReported,
+                  target: ReportTarget(
+                    type: ReportType.job,
+                    targetId: profile.jobId,
+                    targetLabel: listing.title,
+                  ),
                 );
-                if (result != null && context.mounted) {
-                  showAppSuccessToast(context, l10n.jobReported);
-                }
               },
             ),
           ],
@@ -205,17 +210,28 @@ class JobDetailScreen extends StatelessWidget {
       );
       return;
     }
-    final result = await showApplyJobSheet(
-      context,
-      jobTitle: job.title,
-      company: job.company,
-      pay: job.payLabel,
-    );
-    if (result == null || !context.mounted) return;
+
+    String script = '';
+    String youtubeShortUrl = '';
+
+    if (job.requiresVideoSubmission) {
+      final result = await showApplyJobSheet(
+        context,
+        jobTitle: job.title,
+        company: job.company,
+        pay: job.payLabel,
+        auditionScript: job.auditionScript,
+        referenceVideoLink: job.interviewVideoLink,
+      );
+      if (result == null || !context.mounted) return;
+      script = result.script;
+      youtubeShortUrl = result.youtubeShortUrl;
+    }
+
     final sent = await appState.applyToJob(
       job,
-      script: result.script,
-      youtubeShortUrl: result.youtubeShortUrl,
+      script: script,
+      youtubeShortUrl: youtubeShortUrl,
     );
     if (!context.mounted) return;
     showAppToast(
@@ -234,18 +250,14 @@ class JobDetailScreen extends StatelessWidget {
           children: [
             Flexible(
               child: Text(
-                profile.name,
+                titleCaseWords(profile.name),
                 style: const TextStyle(
-                  fontSize: 20,
+                  fontSize: 17,
                   fontWeight: FontWeight.w700,
                   color: AppColors.textPrimary,
                 ),
               ),
             ),
-            if (profile.isVerified) ...[
-              const SizedBox(width: 6),
-              const Icon(Icons.verified, color: AppColors.chatGreen, size: 18),
-            ],
           ],
         ),
         if (company.isNotEmpty) ...[
@@ -269,22 +281,23 @@ class JobDetailScreen extends StatelessWidget {
                       ),
               );
             },
-            child: Text.rich(
-              TextSpan(
-                text: 'by ',
-                style: context.bodyMedium,
-                children: [
-                  TextSpan(
-                    text: company,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    titleCaseWords(company),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: AppColors.brandRed,
                       fontWeight: FontWeight.w600,
-                      decoration: TextDecoration.underline,
-                      decorationColor: AppColors.brandRed,
                     ),
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 4),
+                const VerifiedTick(size: 16),
+              ],
             ),
           ),
         ],
@@ -308,6 +321,7 @@ JobListing _listingFor(JobDetailData profile, Job? job) {
     tags: profile.tags,
     gender: profile.gender,
     age: profile.age,
+    projectTag: profile.projectTag,
     description: profile.description,
     category: profile.category,
   );
@@ -328,6 +342,7 @@ class JobDetailData {
   final String description;
   final String gender;
   final String age;
+  final String projectTag;
   final String category;
   final String offerType;
   final String budget;
@@ -348,6 +363,7 @@ class JobDetailData {
     this.description = '',
     this.gender = '',
     this.age = '',
+    this.projectTag = '',
     this.category = '',
     this.offerType = '',
     this.budget = '',
@@ -383,6 +399,7 @@ class JobDetailData {
       description: job.description,
       gender: job.gender,
       age: job.age,
+      projectTag: job.projectTag,
       category: job.category,
       offerType: job.collabType,
       budget: job.pay.toLowerCase().contains('not specified') ? 'Undisclosed' : job.pay,
@@ -391,43 +408,16 @@ class JobDetailData {
       createdBy: createdBy ?? '',
     );
   }
-
-  factory JobDetailData.fromMessageContact(MessageContactModel contact) {
-    return JobDetailData(
-      name: contact.name,
-      details: contact.details,
-      location: contact.location,
-      postedLabel: contact.seenStatus,
-      isVerified: contact.isVerified,
-      avatarColor: contact.avatarColor,
-      imageIndex: contact.imageIndex,
-      description: 'Looking for creators for upcoming campaign.',
-      gender: 'Any',
-      age: 'Any',
-      category: 'Influencer',
-      offerType: 'Paid collaboration',
-      budget: '₹ 15,000 - ₹ 40,000',
-      tags: const ['instagram', 'youtube'],
-    );
-  }
 }
 
-class MessageContactModel {
-  final String name;
-  final String seenStatus;
-  final String details;
-  final String location;
-  final bool isVerified;
-  final Color avatarColor;
-  final int imageIndex;
-
-  const MessageContactModel({
-    required this.name,
-    required this.seenStatus,
-    required this.details,
-    required this.location,
-    required this.avatarColor,
-    this.isVerified = false,
-    this.imageIndex = 1,
-  });
+String titleCaseWords(String value) {
+  final trimmed = value.trim();
+  if (trimmed.isEmpty) return trimmed;
+  return trimmed
+      .split(RegExp(r'\s+'))
+      .map((word) {
+        if (word.isEmpty) return word;
+        return '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}';
+      })
+      .join(' ');
 }

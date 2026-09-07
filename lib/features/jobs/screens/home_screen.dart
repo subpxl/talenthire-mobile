@@ -5,6 +5,7 @@ import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/features/jobs/screens/applied_jobs_screen.dart';
 import 'package:bombay_casting/features/jobs/screens/saved_jobs_screen.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
+import 'package:bombay_casting/core/widgets/app_feed_status.dart';
 import 'package:bombay_casting/core/widgets/app_screen_layout.dart';
 import 'package:bombay_casting/core/widgets/app_tab_bar.dart';
 import 'package:bombay_casting/core/navigation/app_navigation.dart';
@@ -66,7 +67,7 @@ class _HomeAllTabState extends State<_HomeAllTab> {
   Future<void> _refresh() async {
     await Future.wait([
       context.read<AppState>().refreshJobs(),
-      context.read<AppState>().loadCreators(forceRefresh: true),
+      context.read<AppState>().refreshCreators(),
     ]);
   }
 
@@ -75,7 +76,7 @@ class _HomeAllTabState extends State<_HomeAllTab> {
     final appState = context.watch<AppState>();
     final recommendedJobs = listingsForJobs(appState.jobs).take(5).toList();
     final topCreators = appState.creators.take(6).toList();
-    final completionPercent = appState.profile?.completionPercentage ?? 20;
+    final completionPercent = appState.profile?.completionPercentage ?? 0;
 
     return AppScrollBody(
       onRefresh: _refresh,
@@ -90,7 +91,19 @@ class _HomeAllTabState extends State<_HomeAllTab> {
           const SizedBox(height: AppSpacing.lg),
           const AppSectionTitle('Recommended jobs'),
           const SizedBox(height: AppSpacing.sm),
-          if (recommendedJobs.isEmpty)
+          if (appState.jobs.isEmpty &&
+              (appState.isLoadingJobs || appState.jobsLoadError != null))
+            AppFeedStatus(
+              isLoading: appState.isLoadingJobs,
+              errorMessage: appState.jobsLoadError != null
+                  ? AppLocalizations.of(context)!.couldNotLoadJobs
+                  : null,
+              onRetry: appState.jobsLoadError != null
+                  ? () => context.read<AppState>().refreshJobs()
+                  : null,
+              retryLabel: AppLocalizations.of(context)!.tryAgain,
+            )
+          else if (recommendedJobs.isEmpty)
             Text(
               AppLocalizations.of(context)!.noJobsYetPullDownToRefresh,
               style: context.bodyMedium,
@@ -104,7 +117,20 @@ class _HomeAllTabState extends State<_HomeAllTab> {
           const SizedBox(height: AppSpacing.lg),
           const AppSectionTitle('Top artists'),
           const SizedBox(height: AppSpacing.sm),
-          if (topCreators.isEmpty)
+          if (appState.isCreatorsFeedEmpty &&
+              (appState.isLoadingCreators ||
+                  appState.creatorsLoadError != null))
+            AppFeedStatus(
+              isLoading: appState.isLoadingCreators,
+              errorMessage: appState.creatorsLoadError != null
+                  ? AppLocalizations.of(context)!.couldNotLoadCreators
+                  : null,
+              onRetry: appState.creatorsLoadError != null
+                  ? () => context.read<AppState>().refreshCreators()
+                  : null,
+              retryLabel: AppLocalizations.of(context)!.tryAgain,
+            )
+          else if (topCreators.isEmpty)
             Text(
               AppLocalizations.of(context)!.noCreatorsToShowYet,
               style: context.bodyMedium,
@@ -140,6 +166,7 @@ class _HomeNotificationBell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final unreadCount = context.watch<AppState>().unreadNotificationCount;
     return IconButton(
       tooltip: 'Notifications',
       onPressed: () => AppNavigation.openNotifications(context),
@@ -150,18 +177,19 @@ class _HomeNotificationBell extends StatelessWidget {
             Icons.notifications_outlined,
             color: AppColors.textPrimary,
           ),
-          Positioned(
-            right: 1,
-            top: 1,
-            child: Container(
-              width: 8,
-              height: 8,
-              decoration: const BoxDecoration(
-                color: AppColors.brandRed,
-                shape: BoxShape.circle,
+          if (unreadCount > 0)
+            Positioned(
+              right: 1,
+              top: 1,
+              child: Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: AppColors.brandRed,
+                  shape: BoxShape.circle,
+                ),
               ),
             ),
-          ),
         ],
       ),
     );

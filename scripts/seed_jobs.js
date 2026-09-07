@@ -9,24 +9,36 @@ import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const repoRoot = resolve(here, '..');
 const dataPath = resolve(here, 'data', 'jobs.json');
-const imageRoot = resolve(repoRoot, 'assets', 'jobs');
+const imageRoot = resolve(here, 'job-posters');
 const defaultStorageBucket = 'talenthire-d86a1.firebasestorage.app';
 const requiredFields = [
   'id', 'title', 'summary', 'description', 'company', 'location_type',
   'location', 'status', 'posted_at', 'application_deadline', 'created_by',
-  'salary', 'tags', 'applied', 'views', 'level', 'urgent', 'requirements',
-  'is_audition', 'image_url', 'image_path', 'category', 'platforms',
-  'collaboration_type', 'compensation', 'deliverables', 'is_verified',
-  'source_image',
+  'agencyId', 'salary', 'tags', 'applied', 'views', 'level', 'urgent',
+  'requirements', 'is_audition', 'isAudition', 'image_url', 'image_path',
+  'banner_url', 'bannerUrl', 'category', 'artist_type', 'artistType',
+  'platforms', 'collaboration_type', 'compensation', 'deliverables',
+  'is_verified', 'source_image', 'pay_min', 'pay_max', 'min_followers',
+  'gender', 'gender_required', 'age', 'age_min', 'age_max',
+  'job_youtube_link', 'jobYoutubeLink', 'interview_video_link',
+  'audition_script', 'auditionScript', 'projectId', 'projectName',
+  'projectTag', 'initials',
 ];
 const stringFields = requiredFields.filter((field) => ![
   'tags', 'platforms', 'deliverables', 'applied', 'views', 'urgent',
-  'is_audition', 'is_verified',
+  'is_audition', 'isAudition', 'is_verified', 'pay_min', 'pay_max',
+  'min_followers', 'age_min', 'age_max', 'gender_required',
+  'job_youtube_link', 'jobYoutubeLink', 'interview_video_link',
+  'audition_script', 'auditionScript',
 ].includes(field));
-const booleanFields = ['urgent', 'is_audition', 'is_verified'];
-const integerFields = ['applied', 'views'];
+const booleanFields = ['urgent', 'is_audition', 'isAudition', 'is_verified'];
+const integerFields = ['applied', 'views', 'pay_min', 'pay_max', 'min_followers'];
+const nullableIntegerFields = ['age_min', 'age_max'];
+const nullableStringFields = [
+  'gender_required', 'job_youtube_link', 'jobYoutubeLink',
+  'interview_video_link', 'audition_script', 'auditionScript',
+];
 const arrayFields = ['tags', 'platforms', 'deliverables'];
 
 function usage() {
@@ -134,6 +146,26 @@ async function loadAndValidate() {
     for (const field of integerFields) {
       assert(Number.isInteger(job[field]) && job[field] >= 0, `${label}.${field} must be a non-negative integer`, errors);
     }
+    for (const field of nullableIntegerFields) {
+      assert(
+        job[field] === null || (Number.isInteger(job[field]) && job[field] >= 0),
+        `${label}.${field} must be null or a non-negative integer`,
+        errors,
+      );
+    }
+    for (const field of nullableStringFields) {
+      assert(
+        job[field] === null || typeof job[field] === 'string',
+        `${label}.${field} must be null or a string`,
+        errors,
+      );
+    }
+    assert(job.is_audition === job.isAudition, `${label}.is_audition must match isAudition`, errors);
+    assert(job.artist_type === job.artistType, `${label}.artist_type must match artistType`, errors);
+    assert(job.category === job.artist_type, `${label}.category must match artist_type`, errors);
+    assert(job.banner_url === job.bannerUrl, `${label}.banner_url must match bannerUrl`, errors);
+    assert(job.audition_script === job.auditionScript, `${label}.audition_script must match auditionScript`, errors);
+    assert(job.job_youtube_link === job.jobYoutubeLink, `${label}.job_youtube_link must match jobYoutubeLink`, errors);
     for (const field of arrayFields) {
       assert(Array.isArray(job[field]) && job[field].every((item) => typeof item === 'string' && item.length > 0),
         `${label}.${field} must be an array of non-empty strings`, errors);
@@ -148,9 +180,18 @@ async function loadAndValidate() {
       `${label}.image_path must be job-images/${job.id}/poster.jpeg`, errors);
     assert(job.image_url === '', `${label}.image_url must be empty before upload`, errors);
     assert(job.created_by === '', `${label}.created_by must be empty for ownerless seed data`, errors);
+    assert(job.agencyId === '', `${label}.agencyId must be empty for ownerless seed data`, errors);
+    assert(job.projectId === '', `${label}.projectId must be empty for ownerless seed data`, errors);
     assert(['remote', 'online', 'onsite'].includes(job.location_type), `${label}.location_type is invalid`, errors);
     assert(['draft', 'published', 'closed', 'cancelled'].includes(job.status), `${label}.status is invalid`, errors);
-    assert(['beginner', 'intermediate', 'experienced', 'all levels'].includes(job.level), `${label}.level is invalid`, errors);
+    assert(typeof job.level === 'string', `${label}.level must be a string`, errors);
+    assert(typeof job.initials === 'string', `${label}.initials must be a string`, errors);
+    assert(typeof job.projectName === 'string', `${label}.projectName must be a string`, errors);
+    assert(typeof job.projectTag === 'string', `${label}.projectTag must be a string`, errors);
+    assert(typeof job.age === 'string', `${label}.age must be a string`, errors);
+    assert(typeof job.gender === 'string', `${label}.gender must be a string`, errors);
+    assert(job.banner_url === '', `${label}.banner_url must be empty before upload`, errors);
+    assert(job.bannerUrl === '', `${label}.bannerUrl must be empty before upload`, errors);
     assert(job.title?.trim().length >= 5, `${label}.title is too short`, errors);
     assert(job.summary?.trim().length >= 10, `${label}.summary is too short`, errors);
     assert(job.description?.trim().length >= 20, `${label}.description is too short`, errors);
@@ -203,6 +244,8 @@ function firestoreData(job, url) {
   return {
     ...data,
     image_url: url,
+    banner_url: url,
+    bannerUrl: url,
     posted_at: Timestamp.fromDate(new Date(data.posted_at)),
     application_deadline: Timestamp.fromDate(new Date(data.application_deadline)),
     seed_source: 'scripts/seed_jobs',

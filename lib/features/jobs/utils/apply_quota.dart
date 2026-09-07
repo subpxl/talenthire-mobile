@@ -1,6 +1,6 @@
 import 'package:bombay_casting/core/models/models.dart';
 
-/// Free apply window:
+/// Free apply window (enforced server-side by `submitJobApplication`):
 /// - Days 1–3 from account creation: 3 applications per calendar day
 /// - 4th apply on the same day: daily-limit popup (tomorrow or pay ₹1)
 /// - Day 4+: must subscribe (₹1 modal)

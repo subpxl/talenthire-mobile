@@ -52,16 +52,13 @@ class _PremiumPageState extends State<PremiumPage> {
       final result = await _paymentService.launchUpiMandate(
         session: session,
         upiApp: UpiAppOption.byId(_selectedUpiAppId),
-        onFailure: (message) {
-          if (!mounted) return;
-          _showMessage(message.isEmpty ? 'Payment failed. Try again.' : message);
-        },
       );
 
       if (!mounted) return;
-
-      if (result == PremiumPaymentResult.failure ||
-          result == PremiumPaymentResult.cancelled) {
+      if (!result.isSuccess) {
+        if (result == PremiumPaymentResult.failure) {
+          _showMessage('Payment failed. Try again.');
+        }
         return;
       }
 
@@ -76,7 +73,10 @@ class _PremiumPageState extends State<PremiumPage> {
         // local state catches up, then show a friendly message.
         await context.read<AppState>().refreshProfile();
         if (!mounted) return;
-        _showMessage('You are already a Premium member!', type: AppToastType.success);
+        _showMessage(
+          'You are already a Premium member!',
+          type: AppToastType.success,
+        );
       } else {
         _showMessage(error.message ?? 'Could not start payment.');
       }
@@ -231,10 +231,7 @@ class _PremiumPageState extends State<PremiumPage> {
         shape: BoxShape.circle,
         border: Border.all(color: Colors.white, width: 3),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 8,
-          ),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 8),
         ],
         color: color,
       ),
@@ -354,9 +351,9 @@ class _PremiumPageState extends State<PremiumPage> {
             onTap: _isProcessing
                 ? null
                 : () => setState(() {
-                      _selectedUpiAppId = UpiAppOption.phonePe.id;
-                      _othersMenuOpen = false;
-                    }),
+                    _selectedUpiAppId = UpiAppOption.phonePe.id;
+                    _othersMenuOpen = false;
+                  }),
           ),
           const SizedBox(height: 4),
           if (_othersMenuOpen) ...[
@@ -382,9 +379,9 @@ class _PremiumPageState extends State<PremiumPage> {
                       onTap: _isProcessing
                           ? null
                           : () => setState(() {
-                                _selectedUpiAppId = otherApps[i].id;
-                                _othersMenuOpen = false;
-                              }),
+                              _selectedUpiAppId = otherApps[i].id;
+                              _othersMenuOpen = false;
+                            }),
                     ),
                   ],
                 ],
@@ -438,13 +435,6 @@ class _PremiumPageState extends State<PremiumPage> {
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            'Opens ${selected.label} for UPI Autopay approval',
-            style: const TextStyle(
-              fontSize: 12,
-              color: AppColors.textSecondary,
-            ),
-          ),
           const SizedBox(height: 12),
           AppPrimaryButton(
             label: AppLocalizations.of(context)!.payNow1,
@@ -454,7 +444,9 @@ class _PremiumPageState extends State<PremiumPage> {
           if (widget.showApplyTomorrow) ...[
             const SizedBox(height: 6),
             TextButton(
-              onPressed: _isProcessing ? null : () => Navigator.maybePop(context),
+              onPressed: _isProcessing
+                  ? null
+                  : () => Navigator.maybePop(context),
               child: const Text(
                 'Apply tomorrow',
                 style: TextStyle(
@@ -507,7 +499,9 @@ class _UpiAppTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: isSelected ? AppColors.primary.withValues(alpha: 0.06) : Colors.transparent,
+      color: isSelected
+          ? AppColors.primary.withValues(alpha: 0.06)
+          : Colors.transparent,
       borderRadius: BorderRadius.circular(AppRadius.sm),
       child: InkWell(
         onTap: onTap,

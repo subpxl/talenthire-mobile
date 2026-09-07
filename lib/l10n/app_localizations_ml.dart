@@ -87,6 +87,25 @@ class AppLocalizationsMl extends AppLocalizations {
   String get noJobsYetPullDownToRefresh => 'No jobs yet. Pull down to refresh.';
 
   @override
+  String get couldNotLoadJobs =>
+      'Could not load jobs. Check your connection and try again.';
+
+  @override
+  String get couldNotLoadCreators =>
+      'Could not load creators. Check your connection and try again.';
+
+  @override
+  String get couldNotLoadMessages =>
+      'Could not load messages. Check your connection and try again.';
+
+  @override
+  String get couldNotLoadNotifications =>
+      'Could not load notifications. Check your connection and try again.';
+
+  @override
+  String get tryAgain => 'Try again';
+
+  @override
   String get job => 'Job';
 
   @override
@@ -170,6 +189,36 @@ class AppLocalizationsMl extends AppLocalizations {
   String get reportOtherRequired => 'Please describe the issue';
 
   @override
+  String get reportFailed => 'Could not submit report. Please try again.';
+
+  @override
+  String get adminReports => 'Reports';
+
+  @override
+  String get reportTypeCreator => 'Creator';
+
+  @override
+  String get reportTypeJob => 'Job';
+
+  @override
+  String get reportTypeAgency => 'Agency';
+
+  @override
+  String get reportTypeConversation => 'Conversation';
+
+  @override
+  String get reportStatusPending => 'Pending';
+
+  @override
+  String get reportStatusResolved => 'Resolved';
+
+  @override
+  String get noReportsYet => 'No reports yet';
+
+  @override
+  String get reportReporter => 'Reporter';
+
+  @override
   String get agenciesMessageYouAfterYouApply =>
       'Agencies message you after you apply';
 
@@ -201,10 +250,6 @@ class AppLocalizationsMl extends AppLocalizations {
 
   @override
   String get contactUs => 'Contact us';
-
-  @override
-  String get paymentsAreNotAvailableYetYouCanGoBackAndKeepUsingTheApp =>
-      'Payments are not available yet. You can go back and keep using the app.';
 
   @override
   String get for1DayThen299month => 'For 3 days, then ₹299/Month';

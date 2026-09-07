@@ -88,6 +88,25 @@ class AppLocalizationsMr extends AppLocalizations {
       'अद्याप नोकर्‍या नाहीत. रिफ्रेश करण्यासाठी खाली ओढा.';
 
   @override
+  String get couldNotLoadJobs =>
+      'नोकऱ्या लोड करता आल्या नाहीत. कनेक्शन तपासा आणि पुन्हा प्रयत्न करा.';
+
+  @override
+  String get couldNotLoadCreators =>
+      'क्रिएटर्स लोड करता आले नाहीत. कनेक्शन तपासा आणि पुन्हा प्रयत्न करा.';
+
+  @override
+  String get couldNotLoadMessages =>
+      'संदेश लोड करता आले नाहीत. कनेक्शन तपासा आणि पुन्हा प्रयत्न करा.';
+
+  @override
+  String get couldNotLoadNotifications =>
+      'सूचना लोड करता आल्या नाहीत. कनेक्शन तपासा आणि पुन्हा प्रयत्न करा.';
+
+  @override
+  String get tryAgain => 'पुन्हा प्रयत्न करा';
+
+  @override
   String get job => 'नोकरी';
 
   @override
@@ -174,6 +193,36 @@ class AppLocalizationsMr extends AppLocalizations {
   String get reportOtherRequired => 'Please describe the issue';
 
   @override
+  String get reportFailed => 'Could not submit report. Please try again.';
+
+  @override
+  String get adminReports => 'Reports';
+
+  @override
+  String get reportTypeCreator => 'Creator';
+
+  @override
+  String get reportTypeJob => 'Job';
+
+  @override
+  String get reportTypeAgency => 'Agency';
+
+  @override
+  String get reportTypeConversation => 'Conversation';
+
+  @override
+  String get reportStatusPending => 'Pending';
+
+  @override
+  String get reportStatusResolved => 'Resolved';
+
+  @override
+  String get noReportsYet => 'No reports yet';
+
+  @override
+  String get reportReporter => 'Reporter';
+
+  @override
   String get agenciesMessageYouAfterYouApply =>
       'तुम्ही अर्ज केल्यानंतर एजन्सी तुम्हाला मेसेज करतात';
 
@@ -205,10 +254,6 @@ class AppLocalizationsMr extends AppLocalizations {
 
   @override
   String get contactUs => 'आमच्याशी संपर्क साधा';
-
-  @override
-  String get paymentsAreNotAvailableYetYouCanGoBackAndKeepUsingTheApp =>
-      'पेमेंट अद्याप उपलब्ध नाही. तुम्ही परत जाऊन अ‍ॅप वापरणे सुरू ठेवू शकता.';
 
   @override
   String get for1DayThen299month => '3 दिवसांसाठी, नंतर ₹299/महिना';

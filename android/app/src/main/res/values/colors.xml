@@ -2,4 +2,5 @@
 <resources>
     <!-- Keep the native launch surface aligned with the light in-app splash. -->
     <color name="splash_background">#FFFFFF</color>
+    <color name="notification_color">#DC1C38</color>
 </resources>

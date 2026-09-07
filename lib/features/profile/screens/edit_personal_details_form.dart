@@ -4,10 +4,12 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/core/utils/phone_utils.dart';
+import 'package:bombay_casting/core/utils/input_validators.dart';
 import 'package:bombay_casting/core/widgets/app_filter_widgets.dart';
 import 'package:bombay_casting/core/widgets/app_form_fields.dart';
 import 'package:bombay_casting/core/widgets/option_picker.dart';
 import 'package:bombay_casting/core/widgets/app_primary_button.dart';
+import 'package:bombay_casting/core/widgets/app_success_toast.dart';
 import 'package:bombay_casting/core/widgets/searchable_option_picker.dart';
 
 class EditPersonalFieldsScreen extends StatefulWidget {
@@ -32,6 +34,8 @@ class _EditPersonalFieldsScreenState extends State<EditPersonalFieldsScreen> {
   bool _whatsappSameAsMobile = true;
   String? _mobileError;
   String? _whatsappError;
+  String? _nameError;
+  bool _saving = false;
 
   static final _phoneInputFormatters = [
     FilteringTextInputFormatter.digitsOnly,
@@ -44,6 +48,7 @@ class _EditPersonalFieldsScreenState extends State<EditPersonalFieldsScreen> {
     _mobileController.addListener(_syncWhatsappFromMobile);
     _mobileController.addListener(_clearMobileError);
     _whatsappController.addListener(_clearWhatsappError);
+    _nameController.addListener(_clearNameError);
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
@@ -165,12 +170,17 @@ class _EditPersonalFieldsScreenState extends State<EditPersonalFieldsScreen> {
     _mobileController.removeListener(_syncWhatsappFromMobile);
     _mobileController.removeListener(_clearMobileError);
     _whatsappController.removeListener(_clearWhatsappError);
+    _nameController.removeListener(_clearNameError);
     _nameController.dispose();
     _emailController.dispose();
     _mobileController.dispose();
     _whatsappController.dispose();
     _aboutController.dispose();
     super.dispose();
+  }
+
+  void _clearNameError() {
+    if (_nameError != null) setState(() => _nameError = null);
   }
 
   void _clearMobileError() {
@@ -225,7 +235,12 @@ class _EditPersonalFieldsScreenState extends State<EditPersonalFieldsScreen> {
   }
 
   Future<void> _save() async {
-    if (!_validatePhones()) return;
+    if (_saving) return;
+    final nameError = InputValidators.nameError(_nameController.text);
+    if (nameError != null || !_validatePhones()) {
+      setState(() => _nameError = nameError);
+      return;
+    }
 
     final parts = _selectedLocation.split(',');
     final name = _nameController.text.trim();
@@ -234,40 +249,54 @@ class _EditPersonalFieldsScreenState extends State<EditPersonalFieldsScreen> {
     final whatsapp = _whatsappSameAsMobile
         ? mobile
         : PhoneUtils.normalizeIndianMobile(_whatsappController.text);
-    await context.read<AppState>().updateUser(
-          name: name,
-          mobile: mobile,
+    setState(() => _saving = true);
+    try {
+      await context.read<AppState>().updateUser(
+            name: name,
+            mobile: mobile,
+          );
+      if (!mounted) return;
+      await saveProfileSection(
+        context: context,
+        section: 'personal',
+        data: {
+          'name': name,
+          'email': email,
+          'gender': _selectedGender,
+          'mobile': mobile,
+          'whatsapp': whatsapp,
+          'whatsapp_same_as_mobile': _whatsappSameAsMobile,
+          'age': _selectedAge,
+          'location': _selectedLocation,
+          'language': _selectedLanguages.toList(),
+          'categories': _selectedCategories.toList(),
+          'about': _aboutController.text.trim(),
+        },
+        extra: (profile) => profile.copyWith(
+          bio: _aboutController.text.trim(),
+          gender: _selectedGender,
+          age: int.tryParse(_selectedAge.replaceAll(RegExp(r'[^0-9]'), '')),
+          city: parts.first.trim(),
+          state: parts.length > 1
+              ? parts.sublist(1).join(',').trim()
+              : profile.state,
+          languages: _selectedLanguages.toList(),
+          talent: _selectedCategories.isEmpty
+              ? profile.talent
+              : _selectedCategories.join(', '),
+        ),
+      );
+    } catch (_) {
+      if (mounted) {
+        showAppToast(
+          context,
+          AppLocalizations.of(context)!.couldNotSaveDocuments,
+          type: AppToastType.error,
         );
-    if (!mounted) return;
-    await saveProfileSection(
-      context: context,
-      section: 'personal',
-      data: {
-        'name': name,
-        'email': email,
-        'gender': _selectedGender,
-        'mobile': mobile,
-        'whatsapp': whatsapp,
-        'whatsapp_same_as_mobile': _whatsappSameAsMobile,
-        'age': _selectedAge,
-        'location': _selectedLocation,
-        'language': _selectedLanguages.toList(),
-        'categories': _selectedCategories.toList(),
-        'about': _aboutController.text.trim(),
-      },
-      extra: (profile) => profile.copyWith(
-        bio: _aboutController.text.trim(),
-        gender: _selectedGender,
-        age: int.tryParse(_selectedAge.replaceAll(RegExp(r'[^0-9]'), '')),
-        city: parts.first.trim(),
-        state:
-            parts.length > 1 ? parts.sublist(1).join(',').trim() : profile.state,
-        languages: _selectedLanguages.toList(),
-        talent: _selectedCategories.isEmpty
-            ? profile.talent
-            : _selectedCategories.join(', '),
-      ),
-    );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -304,6 +333,7 @@ class _EditPersonalFieldsScreenState extends State<EditPersonalFieldsScreen> {
                       controller: _nameController,
                       textCapitalization: TextCapitalization.words,
                       labelAsPlaceholder: true,
+                      errorText: _nameError,
                     ),
                     AppReadOnlyField(
                       label: 'Email',
@@ -438,7 +468,8 @@ class _EditPersonalFieldsScreenState extends State<EditPersonalFieldsScreen> {
           const SizedBox(height: 10),
           AppPrimaryButton(
             label: AppLocalizations.of(context)!.update,
-            onPressed: _save,
+            onPressed: _saving ? null : _save,
+            loading: _saving,
           ),
         ],
       ),
