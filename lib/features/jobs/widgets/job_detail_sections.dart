@@ -1,4 +1,3 @@
-import 'package:bombay_casting/core/models/models.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/core/widgets/app_screen_layout.dart';
 import 'package:bombay_casting/features/jobs/models/job_listing.dart';
@@ -22,7 +21,7 @@ class JobDetailStatsBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final genderAge = _genderAgeParts(job);
-    final type = jobProjectTypeLabel(job);
+    final type = jobArtistTypeLabel(job);
     final location = _locationParts(job);
     final timing = _timingParts(job, postedAt);
 
@@ -546,22 +545,14 @@ class _FactRow extends StatelessWidget {
 }
 
 (String, String) _locationParts(JobListing job) {
+  final work = jobWorkTypeLabel(job);
   final location = job.location.trim();
   if (location.isEmpty || isRemoteJobCity(location)) {
-    final type = switch (job.locationType) {
-      LocationType.online => 'Online',
-      LocationType.onsite => 'Onsite',
-      LocationType.remote => 'Remote',
-    };
-    return (type, location.isEmpty ? 'Open' : 'Nationwide');
+    return (work, '');
   }
   final city = shortJobCity(location);
-  final comma = location.indexOf(',');
-  if (comma > 0) {
-    final region = location.substring(comma + 1).trim();
-    if (region.isNotEmpty) return (city, region);
-  }
-  return (city, '');
+  if (city.toLowerCase() == work.toLowerCase()) return (city, '');
+  return (city, work);
 }
 
 (String, String) _genderAgeParts(JobListing job) {
@@ -574,8 +565,12 @@ class _FactRow extends StatelessWidget {
 }
 
 (String, String) _timingParts(JobListing job, DateTime? postedAt) {
-  if (postedAt != null) {
-    return (jobApplyByLabel(postedAt), jobDaysLeftLabel(postedAt));
+  final posted = postedAt ?? job.postedAt;
+  if (posted != null) {
+    return (
+      jobApplyByLabel(posted, deadline: job.applicationDeadline),
+      jobDaysLeftLabel(posted, deadline: job.applicationDeadline),
+    );
   }
   final seen = job.seenStatus.trim();
   if (seen.isEmpty) return ('Open now', '');
@@ -608,6 +603,33 @@ const _cardDecoration = BoxDecoration(
 
 List<_Fact> _aboutFacts(JobListing job) {
   final facts = <_Fact>[];
+  final type = jobArtistTypeLabel(job);
+  if (type.isNotEmpty) {
+    facts.add(
+      _Fact(
+        icon: Icons.movie_creation_rounded,
+        color: _payGreen,
+        label: 'Type',
+        value: type,
+      ),
+    );
+  }
+  facts.add(
+    _Fact(
+      icon: Icons.person_rounded,
+      color: _rolePurple,
+      label: 'Gender',
+      value: jobGenderLabel(job.gender),
+    ),
+  );
+  facts.add(
+    _Fact(
+      icon: Icons.work_outline_rounded,
+      color: _rolePurple,
+      label: 'Work',
+      value: jobWorkTypeLabel(job),
+    ),
+  );
   if (job.location.trim().isNotEmpty) {
     facts.add(
       _Fact(
@@ -615,6 +637,20 @@ List<_Fact> _aboutFacts(JobListing job) {
         color: _rolePurple,
         label: 'Location',
         value: job.location,
+      ),
+    );
+  }
+  final posted = job.postedAt;
+  if (posted != null || job.applicationDeadline != null) {
+    facts.add(
+      _Fact(
+        icon: Icons.event_rounded,
+        color: _timeAmber,
+        label: 'Apply before',
+        value: jobApplyByLabel(
+          posted ?? job.applicationDeadline ?? DateTime.now(),
+          deadline: job.applicationDeadline,
+        ),
       ),
     );
   }

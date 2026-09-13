@@ -13,7 +13,7 @@ import 'package:bombay_casting/features/creators/widgets/creator_card.dart';
 import 'package:bombay_casting/features/jobs/models/job_listing.dart';
 import 'package:bombay_casting/features/jobs/widgets/job_card.dart';
 import 'package:bombay_casting/features/jobs/widgets/profile_completion_banner.dart';
-import 'package:bombay_casting/features/jobs/widgets/recent_jobs_carousel.dart';
+import 'package:bombay_casting/features/jobs/widgets/home_banner_carousel.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -73,7 +73,7 @@ class _HomeAllTab extends StatelessWidget {
             ProfileCompletionBanner(percentage: completionPercent),
             const SizedBox(height: AppSpacing.md),
           ],
-          const RecentJobsCarousel(),
+          const HomeBannerCarousel(),
           const SizedBox(height: AppSpacing.lg),
           const AppSectionTitle('Recommended jobs'),
           const SizedBox(height: AppSpacing.sm),

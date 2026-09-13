@@ -12,7 +12,7 @@ class OnboardingStepScaffold extends StatelessWidget {
     required this.child,
     required this.actionLabel,
     required this.onAction,
-    this.icon = Icons.person_outline,
+    this.icon,
     this.actionEnabled = true,
     this.actionLoading = false,
     this.onSkip,
@@ -25,7 +25,7 @@ class OnboardingStepScaffold extends StatelessWidget {
   final Widget child;
   final String actionLabel;
   final VoidCallback? onAction;
-  final IconData icon;
+  final IconData? icon;
   final bool actionEnabled;
   final bool actionLoading;
   final VoidCallback? onSkip;
@@ -67,16 +67,18 @@ class OnboardingStepScaffold extends StatelessWidget {
             children: [
               _StepDots(activeIndex: step.setupIndex),
               const SizedBox(height: 28),
-              Container(
-                width: 64,
-                height: 64,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.primaryLight,
+              if (icon != null) ...[
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.primaryLight,
+                  ),
+                  child: Icon(icon, size: 30, color: AppColors.primary),
                 ),
-                child: Icon(icon, size: 30, color: AppColors.primary),
-              ),
-              const SizedBox(height: 22),
+                const SizedBox(height: 22),
+              ],
               Text(
                 title,
                 textAlign: TextAlign.center,

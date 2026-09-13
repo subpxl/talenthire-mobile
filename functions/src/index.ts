@@ -45,6 +45,7 @@ export {
   sendRegistrationReminder24Hour,
 } from './registrationReminders';
 export {submitJobApplication} from './submitJobApplication';
+export {backfillAgencyApplications} from './backfillAgencyApplications';
 export {deleteAccount} from './deleteAccount';
 export {syncCreatorFeedCard} from './syncCreatorFeedCard';
 
@@ -2064,3 +2065,68 @@ export const verifyCashfreePayment = callable().https.onCall(async (data, contex
     return {success: true, status: order.order_status, purpose: purposeRaw};
   });
 
+/**
+ * Fires when an agency creates or updates a job.
+ * Sends a push notification to all influencer users the moment the job
+ * status transitions to 'published' for the first time.
+ *
+ * Push delivery is handled by the existing onNotificationCreated trigger —
+ * this function only writes the notification docs.
+ */
+export const onJobPublished = functions
+  .region(FUNCTION_REGION)
+  .firestore.document('jobs/{jobId}')
+  .onWrite(async (change) => {
+    const before = change.before.data();
+    const after = change.after.data();
+
+    // Ignore deletes.
+    if (!after) return null;
+
+    // Only act when status just became 'published'.
+    if (after.status !== 'published') return null;
+    if (before?.status === 'published') return null; // already published — skip edits
+
+    const jobId = change.after.id;
+    const jobTitle = String(
+      after.title || after.job_title || after.jobTitle || 'New Job',
+    ).trim();
+    const agencyName = String(
+      after.agency_name || after.agencyName || after.created_by_name || 'An agency',
+    ).trim();
+
+    // Fetch all influencer users (the mobile-app audience).
+    const usersSnap = await db
+      .collection('users')
+      .where('role', '==', 'influencer')
+      .get();
+
+    if (usersSnap.empty) return null;
+
+    const createdAt = admin.firestore.FieldValue.serverTimestamp();
+    const userIds = usersSnap.docs.map((d) => d.id);
+    const chunkSize = 400; // Firestore batch limit is 500
+
+    for (let i = 0; i < userIds.length; i += chunkSize) {
+      const batch = db.batch();
+      for (const uid of userIds.slice(i, i + chunkSize)) {
+        const ref = db.collection('notifications').doc();
+        batch.set(ref, {
+          userId: uid,
+          type: 'new_job',
+          title: `New job: ${jobTitle}`,
+          body: `${agencyName} is looking for talent. Tap to apply!`,
+          jobId,
+          read: false,
+          created_at: createdAt,
+          // pushed will be set to true by onNotificationCreated after FCM send
+        });
+      }
+      await batch.commit();
+    }
+
+    console.log(
+      `onJobPublished: sent new_job notifications for job ${jobId} to ${userIds.length} users`,
+    );
+    return null;
+  });

@@ -35,6 +35,7 @@ class Job {
     this.location = '',
     this.status = JobStatus.published,
     DateTime? postedAt,
+    this.applicationDeadline,
     this.createdBy = '',
     this.salary = '',
     List<String>? tags,
@@ -71,6 +72,7 @@ class Job {
   final String location;
   final JobStatus status;
   final DateTime postedAt;
+  final DateTime? applicationDeadline;
   final String createdBy;
   final String salary;
   final List<String> tags;
@@ -107,7 +109,7 @@ class Job {
   String get collabTypeLabel {
     switch (collaborationType.trim().toLowerCase()) {
       case 'paid':
-        return 'Paid collab';
+        return 'Paid';
       case 'barter':
         return 'Barter';
       case 'audition':
@@ -132,7 +134,7 @@ class Job {
     if (compensation.trim().isNotEmpty) return compensation.trim();
     if (salary.trim().isNotEmpty) return salary.trim();
     if (payMin > 0 || payMax > 0) return _formatPayRange(payMin, payMax);
-    return 'Not specified';
+    return 'Undisclosed';
   }
 
   String get platformsLabel => platforms
@@ -188,8 +190,15 @@ class Job {
   }
 
   factory Job.fromJson(Map<String, dynamic> json) {
-    final category = (json['category'] ?? '').toString();
-    final collaborationType = (json['collaboration_type'] ?? '').toString();
+    final category = _firstText(json, const [
+      'category',
+      'artist_type',
+      'artistType',
+    ]);
+    final collaborationType = _firstText(json, const [
+      'collaboration_type',
+      'collaborationType',
+    ]);
     final salary = (json['salary'] ?? '').toString();
     final compensation = (json['compensation'] ?? json['salary'] ?? '').toString();
     final pay = _jobPayRange(
@@ -198,20 +207,29 @@ class Job {
       compensation: compensation,
       salary: salary,
     );
+    final locationType = locationTypeFromString(
+      _firstText(json, const ['location_type', 'locationType'], orElse: 'remote'),
+    );
+    final location = _firstText(json, const ['location']);
     return Job(
       id: json['id']?.toString() ?? '',
       title: (json['title'] ?? '').toString(),
       summary: (json['summary'] ?? '').toString(),
       description: (json['description'] ?? '').toString(),
       company: (json['company'] ?? '').toString(),
-      locationType: locationTypeFromString(
-        (json['location_type'] ?? 'remote').toString(),
-      ),
-      location: (json['location'] ?? '').toString(),
+      locationType: locationType,
+      location: location.isNotEmpty
+          ? location
+          : (locationType == LocationType.onsite ? '' : 'Remote'),
       status: jobStatusFromString((json['status'] ?? 'published').toString()),
       postedAt: parseFlexibleDate(json['posted_at']) ??
           parseFlexibleDate(json['created_at']) ??
+          parseFlexibleDate(json['createdAt']) ??
           DateTime.now(),
+      applicationDeadline: parseFlexibleDate(json['application_deadline']) ??
+          parseFlexibleDate(json['applicationDeadline']) ??
+          parseFlexibleDate(json['apply_before']) ??
+          parseFlexibleDate(json['applyBefore']),
       createdBy: (json['created_by'] ?? json['agencyId'] ?? '').toString(),
       salary: salary,
       tags: stringList(json['tags']),
@@ -251,6 +269,7 @@ class Job {
         'location': location,
         'status': status.name,
         'posted_at': postedAt.toIso8601String(),
+        'application_deadline': applicationDeadline?.toIso8601String(),
         'created_by': createdBy,
         'salary': salary,
         'tags': tags,
@@ -278,15 +297,23 @@ class Job {
       };
 }
 
-String _jobGender(Map<String, dynamic> json) {
-  for (final key in ['gender', 'gender_required', 'genderRequired']) {
+String _firstText(
+  Map<String, dynamic> json,
+  List<String> keys, {
+  String orElse = '',
+}) {
+  for (final key in keys) {
     final value = json[key];
     if (value == null) continue;
     final text = value.toString().trim();
     if (text.isEmpty || text.toLowerCase() == 'null') continue;
     return text;
   }
-  return '';
+  return orElse;
+}
+
+String _jobGender(Map<String, dynamic> json) {
+  return _firstText(json, const ['gender', 'gender_required', 'genderRequired']);
 }
 
 String _jobAge(Map<String, dynamic> json) {
@@ -374,19 +401,21 @@ int _jobMinFollowers(Map<String, dynamic> json, String category) {
   if (parsed.length >= 2) return (parsed.first, parsed.last);
   if (parsed.length == 1) return (parsed.first, parsed.first);
 
-  switch (collaborationType.trim().toLowerCase()) {
-    case 'paid':
-      return (15000, 40000);
-    default:
-      return (0, 0);
-  }
+  return (0, 0);
 }
 
 List<int> _rupeeAmounts(String text) {
-  return RegExp(r'₹\s*([\d,]+)')
+  final fromSymbol = RegExp(r'₹\s*([\d,]+)')
       .allMatches(text)
       .map((match) => int.tryParse(match.group(1)!.replaceAll(',', '')) ?? 0)
       .where((value) => value > 0)
+      .toList();
+  if (fromSymbol.isNotEmpty) return fromSymbol;
+
+  return RegExp(r'\d[\d,]*')
+      .allMatches(text)
+      .map((match) => int.tryParse(match.group(0)!.replaceAll(',', '')) ?? 0)
+      .where((value) => value >= 1000)
       .toList();
 }
 

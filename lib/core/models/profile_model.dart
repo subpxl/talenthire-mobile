@@ -305,6 +305,7 @@ class Profile {
     List<String>? niches,
     List<SocialPlatformMetric>? platformMetrics,
     Map<String, dynamic>? formData,
+    bool? profileCompleted,
   }) {
     return Profile(
       userId: userId,
@@ -324,7 +325,7 @@ class Profile {
       niches: niches ?? this.niches,
       platformMetrics: platformMetrics ?? this.platformMetrics,
       formData: formData ?? this.formData,
-      profileCompleted: profileCompleted,
+      profileCompleted: profileCompleted ?? this.profileCompleted,
       subscriptionStatus: subscriptionStatus,
       accountStatus: accountStatus,
       freeJobApplicationsUsed: freeJobApplicationsUsed,

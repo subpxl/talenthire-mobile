@@ -27,7 +27,6 @@ function payRange(job) {
   const parsed = rupeeAmounts(`${job.compensation} ${job.salary}`);
   if (parsed.length >= 2) return [parsed[0], parsed[parsed.length - 1]];
   if (parsed.length === 1) return [parsed[0], parsed[0]];
-  if (job.collaboration_type === 'paid') return [15000, 40000];
   return [0, 0];
 }
 

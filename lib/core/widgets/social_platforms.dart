@@ -99,6 +99,13 @@ class SocialPlatformInfo {
       )
       .toList(growable: false);
 
+  /// First-login onboarding: Instagram, Facebook, YouTube only.
+  static List<SocialPlatformInfo> get onboardingLinkFormPlatforms => [
+        forName('Instagram'),
+        forName('Facebook'),
+        forName('YouTube'),
+      ];
+
   static const other = SocialPlatformInfo(
     name: 'Other',
     icon: Icons.add_rounded,

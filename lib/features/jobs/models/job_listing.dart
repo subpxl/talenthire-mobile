@@ -30,6 +30,8 @@ class JobListing {
     this.isAudition = false,
     this.description = '',
     this.tags = const [],
+    this.postedAt,
+    this.applicationDeadline,
   });
 
   final String title;
@@ -59,6 +61,8 @@ class JobListing {
   final bool isAudition;
   final String description;
   final List<String> tags;
+  final DateTime? postedAt;
+  final DateTime? applicationDeadline;
 
   static const _avatarColors = [
     Color(0xFF7986CB),
@@ -72,7 +76,9 @@ class JobListing {
     return JobListing(
       title: job.title,
       details: job.detailsLine,
-      location: job.location.isEmpty ? 'Remote' : job.location,
+      location: job.location.trim().isEmpty
+          ? jobWorkTypeLabelFor(job.locationType)
+          : job.location,
       seenStatus: 'Posted ${job.timeAgo}',
       avatarColor: _avatarColors[index % _avatarColors.length],
       imageIndex: job.fallbackImageIndex,
@@ -97,6 +103,8 @@ class JobListing {
       isAudition: job.isAudition,
       description: job.description,
       tags: job.tags,
+      postedAt: job.postedAt,
+      applicationDeadline: job.applicationDeadline,
     );
   }
 }
@@ -135,7 +143,7 @@ bool isRemoteJobCity(String location) {
   return city.isEmpty || city == 'remote' || city == 'any';
 }
 
-const _applyWindowDays = 14;
+const _applyWindowDays = 30;
 const _shortMonthNames = [
   'Jan',
   'Feb',
@@ -151,37 +159,117 @@ const _shortMonthNames = [
   'Dec',
 ];
 
-DateTime jobApplyBy(DateTime postedAt) {
-  return postedAt.add(const Duration(days: _applyWindowDays));
+DateTime jobApplyBy(DateTime postedAt, {DateTime? deadline}) {
+  return deadline ?? postedAt.add(const Duration(days: _applyWindowDays));
 }
 
-String jobApplyByLabel(DateTime postedAt) {
-  final date = jobApplyBy(postedAt);
+String jobApplyByLabel(DateTime postedAt, {DateTime? deadline}) {
+  final date = jobApplyBy(postedAt, deadline: deadline).toLocal();
   return '${date.day} ${_shortMonthNames[date.month - 1]}';
 }
 
 String jobPayCompactLabel(JobListing job) {
   if (job.payMin > 0 || job.payMax > 0) {
-    final minLabel = _compactRupee(job.payMin > 0 ? job.payMin : job.payMax);
-    final maxLabel = _compactRupee(job.payMax > 0 ? job.payMax : job.payMin);
-    if (job.payMin == job.payMax || job.payMax <= 0 || job.payMin <= 0) {
-      return minLabel;
-    }
-    return '$minLabel–$maxLabel';
+    return _formatCompactPayRange(
+      job.payMin > 0 ? job.payMin : job.payMax,
+      job.payMax > 0 ? job.payMax : job.payMin,
+    );
   }
 
   final raw = job.pay.trim();
-  if (raw.isEmpty || raw.toLowerCase().contains('not specified')) {
-    return 'Undisclosed';
+  if (raw.isNotEmpty) {
+    final shortLabel = _shortPayFromText(raw);
+    if (shortLabel != null) return shortLabel;
   }
-  return raw
-      .replaceAll('\$', '')
+
+  return 'Undisclosed';
+}
+
+String? _shortPayFromText(String raw) {
+  final lower = raw.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+
+  if (lower == 'barter' || lower.contains('barter')) return 'Barter';
+  if (lower == 'unpaid' || lower.contains('unpaid')) return 'Unpaid';
+  if (_isUndisclosedPayText(lower)) return 'Undisclosed';
+
+  final amounts = _parsePayAmounts(raw);
+  if (amounts.isNotEmpty) {
+    if (amounts.length == 1) return _compactRupee(amounts.first);
+    return _formatCompactPayRange(amounts.first, amounts.last);
+  }
+
+  if (lower.length > 14 || !_looksLikeAmountText(lower)) return 'Undisclosed';
+  return raw.length <= 14 ? raw : 'Undisclosed';
+}
+
+bool _isUndisclosedPayText(String lower) {
+  const patterns = [
+    'undisclosed',
+    'not specified',
+    'negotiable',
+    'experience',
+    'project-based',
+    'project based',
+    'campaign-based',
+    'campaign based',
+    'paid collaboration',
+    'paid collab',
+    'to be disclosed',
+    'based on',
+    'tbd',
+    'on request',
+  ];
+  return patterns.any(lower.contains);
+}
+
+bool _looksLikeAmountText(String lower) => RegExp(r'\d').hasMatch(lower);
+
+List<int> _parsePayAmounts(String text) {
+  final cleaned = text
       .replaceAll('₹', '')
+      .replaceAll('\$', '')
       .replaceAll(RegExp(r'\bUSD\b', caseSensitive: false), '')
-      .replaceAll(RegExp(r'\bINR\b', caseSensitive: false), '')
-      .replaceAll(' - ', '–')
-      .replaceAll(RegExp(r'\s+'), '')
-      .trim();
+      .replaceAll(RegExp(r'\bINR\b', caseSensitive: false), '');
+
+  final suffixMatches = RegExp(
+    r'(\d+(?:,\d{3})*(?:\.\d+)?)\s*(k|l|cr)\b',
+    caseSensitive: false,
+  ).allMatches(cleaned);
+  if (suffixMatches.isNotEmpty) {
+    return suffixMatches
+        .map((match) {
+          final base = int.tryParse(match.group(1)!.replaceAll(',', '')) ?? 0;
+          if (base <= 0) return 0;
+          switch (match.group(2)!.toLowerCase()) {
+            case 'k':
+              return base * 1000;
+            case 'l':
+              return base * 100000;
+            case 'cr':
+              return base * 10000000;
+            default:
+              return base;
+          }
+        })
+        .where((value) => value > 0)
+        .toList();
+  }
+
+  return RegExp(r'\d[\d,]*')
+      .allMatches(cleaned)
+      .map((match) => int.tryParse(match.group(0)!.replaceAll(',', '')) ?? 0)
+      .where((value) => value > 0)
+      .toList();
+}
+
+String _formatCompactPayRange(int min, int max) {
+  final lo = min <= max ? min : max;
+  final hi = max >= min ? max : min;
+  if (lo <= 0 && hi <= 0) return 'Undisclosed';
+  if (lo == hi || hi <= 0 || lo <= 0) {
+    return _compactRupee(lo > 0 ? lo : hi);
+  }
+  return '${_compactRupee(lo)}–${_compactRupee(hi)}';
 }
 
 String _compactRupee(int value) {
@@ -208,7 +296,11 @@ String _compactRupee(int value) {
 
 String jobGenderLabel(String gender) {
   final value = gender.trim();
-  if (value.isEmpty || value.toLowerCase() == 'null') return 'Any';
+  if (value.isEmpty ||
+      value.toLowerCase() == 'null' ||
+      value.toLowerCase() == 'any') {
+    return 'Any';
+  }
   if (value.contains('/')) {
     return value
         .split('/')
@@ -218,6 +310,26 @@ String jobGenderLabel(String gender) {
   }
   return _titleCase(value);
 }
+
+String jobArtistTypeLabel(JobListing job) {
+  for (final value in [job.role, job.category]) {
+    final text = value.trim();
+    if (text.isNotEmpty && text.toLowerCase() != 'creator') return text;
+  }
+  final fromProject = _compactProjectType(job.projectTag);
+  if (fromProject != null) return fromProject;
+  return 'Talent';
+}
+
+String jobWorkTypeLabelFor(LocationType type) {
+  return switch (type) {
+    LocationType.online => 'Online',
+    LocationType.onsite => 'Onsite',
+    LocationType.remote => 'Remote',
+  };
+}
+
+String jobWorkTypeLabel(JobListing job) => jobWorkTypeLabelFor(job.locationType);
 
 String jobAgeLabel(String age) {
   final value = age.trim();
@@ -280,9 +392,11 @@ String _titleCase(String value) {
   return '${value[0].toUpperCase()}${value.substring(1).toLowerCase()}';
 }
 
-String jobDaysLeftLabel(DateTime postedAt) {
-  final remaining = jobApplyBy(postedAt)
-      .difference(DateTime.now())
+String jobDaysLeftLabel(DateTime postedAt, {DateTime? deadline}) {
+  final end = jobApplyBy(postedAt, deadline: deadline).toLocal();
+  final now = DateTime.now();
+  final remaining = DateTime(end.year, end.month, end.day)
+      .difference(DateTime(now.year, now.month, now.day))
       .inDays;
   if (remaining < 0) return 'Closed';
   if (remaining == 0) return 'Last day';
@@ -521,7 +635,7 @@ class HomeJobFilter {
 const jobListings = [
   JobListing(
     title: 'FTII Casting Call',
-    details: 'Paid collab · Film & TV',
+    details: 'Paid · Film & TV',
     location: 'Pune, Maharashtra',
     seenStatus: 'Posted 14 min ago',
     avatarColor: Color(0xFF7986CB),
@@ -547,7 +661,7 @@ const jobListings = [
   ),
   JobListing(
     title: 'YouTube Host Audition',
-    details: 'Paid collab · Lifestyle',
+    details: 'Paid · Lifestyle',
     location: 'Bengaluru, Karnataka',
     seenStatus: 'Posted 1 hr ago',
     avatarColor: Color(0xFF4DB6AC),
@@ -555,7 +669,7 @@ const jobListings = [
   ),
   JobListing(
     title: 'Product Review Campaign',
-    details: 'Paid collab · Beauty',
+    details: 'Paid · Beauty',
     location: 'Delhi NCR',
     seenStatus: 'Posted 1 hr ago',
     avatarColor: Color(0xFF9575CD),
@@ -563,7 +677,7 @@ const jobListings = [
   ),
   JobListing(
     title: 'Fashion Lookbook Shoot',
-    details: 'Paid collab · Fashion',
+    details: 'Paid · Fashion',
     location: 'Jaipur, Rajasthan',
     seenStatus: 'Posted 8 days ago',
     avatarColor: Color(0xFF7986CB),
@@ -579,7 +693,7 @@ const jobListings = [
   ),
   JobListing(
     title: 'Tech Unboxing Series',
-    details: 'Paid collab · Gadgets',
+    details: 'Paid · Gadgets',
     location: 'Pune, Maharashtra',
     seenStatus: 'Posted 8 days ago',
     avatarColor: Color(0xFFFFB74D),
@@ -587,7 +701,7 @@ const jobListings = [
   ),
   JobListing(
     title: 'Festival Campaign Shoot',
-    details: 'Paid collab · Lifestyle',
+    details: 'Paid · Lifestyle',
     location: 'Ahmedabad, Gujarat',
     seenStatus: 'Posted 8 days ago',
     avatarColor: Color(0xFF4DB6AC),

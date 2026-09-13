@@ -251,7 +251,12 @@ service cloud.firestore {
     match /applications/{appId} {
       allow read: if isAdmin() || (
         isSignedIn() && resource.data.user_id == request.auth.uid
-      ) || agencyOwnsJob(applicationJobId(resource.data));
+      ) || (
+        isAgency() && (
+          resource.data.get('agency_id', '') == request.auth.uid
+          || agencyOwnsJob(applicationJobId(resource.data))
+        )
+      );
 
       // Applications must be created via the submitJobApplication callable
       // so apply quota (3/day for 3 days) is enforced server-side.
@@ -262,6 +267,22 @@ service cloud.firestore {
         && agencyOwnsJob(applicationJobId(resource.data))
         && applicationJobId(request.resource.data) == applicationJobId(resource.data)
         && request.resource.data.user_id == resource.data.user_id
+        && (
+          changedKeys().hasOnly(['status', 'updated_at'])
+          || (
+            changedKeys().hasOnly([
+              'recruiter_note',
+              'recruiterNote',
+              'fit_status',
+              'fitStatus',
+              'updated_at'
+            ])
+            && !('recruiter_note' in request.resource.data)
+            && !('recruiterNote' in request.resource.data)
+            && !('fit_status' in request.resource.data)
+            && !('fitStatus' in request.resource.data)
+          )
+        )
       ) || (
         isSignedIn()
         && resource.data.user_id == request.auth.uid
@@ -283,6 +304,19 @@ service cloud.firestore {
       );
 
       allow delete: if false;
+    }
+
+    // Agency-only application notes (recruiter notes, fit rating) — not visible to talent.
+    match /application_agency_meta/{appId} {
+      function linkedApplication() {
+        return get(/databases/$(database)/documents/applications/$(appId)).data;
+      }
+
+      allow read, write: if isAdmin() || (
+        isAgency()
+        && exists(/databases/$(database)/documents/applications/$(appId))
+        && agencyOwnsJob(applicationJobId(linkedApplication()))
+      );
     }
 
     // ── notifications ──────────────────────────────────────────────────────
@@ -336,7 +370,10 @@ service cloud.firestore {
 
     match /transactions/{txnId} {
       allow read: if isAdmin() || (
-        isSignedIn() && resource.data.userId == request.auth.uid
+        isSignedIn() && (
+          resource.data.userId == request.auth.uid
+          || resource.data.get('user_id', '') == request.auth.uid
+        )
       );
       allow write: if false;
     }

@@ -26,8 +26,8 @@ class AppVersionService {
 
   static final AppVersionService instance = AppVersionService._();
 
-  /// Current production APK on device / Play: versionName 1.0.0, versionCode 18.
-  static const currentMinBuild = 19;
+  /// Current production APK on device / Play: versionName 1.0.0, versionCode 22.
+  static const currentMinBuild = 22;
   static const currentMinVersion = '1.0.0';
 
   static const minAndroidBuildKey = 'min_android_build';
@@ -98,8 +98,9 @@ class AppVersionService {
     } catch (error, stackTrace) {
       debugPrint('Remote Config version check failed: $error\n$stackTrace');
       return StoreUpdateInfo(
-        updateRequired: false,
+        updateRequired: installedBuild < currentMinBuild,
         installedVersion: installedVersion,
+        storeVersion: '$currentMinVersion+$currentMinBuild',
         storeListingUrl: Platform.isAndroid ? _androidStoreUrl : null,
         message: _defaultMessage,
       );

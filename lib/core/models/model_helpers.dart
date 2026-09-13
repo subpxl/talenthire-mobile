@@ -8,17 +8,46 @@ T enumFromString<T extends Enum>(List<T> values, String value, T fallback) {
 DateTime? parseFlexibleDate(dynamic value) {
   if (value == null) return null;
   if (value is DateTime) return value;
-  try {
-    if (value is Object && value.runtimeType.toString() == 'Timestamp') {
-      return (value as dynamic).toDate() as DateTime;
-    }
-    if (value is Map && value['seconds'] != null) {
+  if (value is num) return _dateFromEpoch(value);
+  if (value is Map) {
+    final seconds = value['seconds'] ?? value['_seconds'];
+    if (seconds is num) {
+      final nanos = value['nanoseconds'] ?? value['_nanoseconds'] ?? 0;
+      final extraMs = nanos is num ? nanos.toInt() ~/ 1000000 : 0;
       return DateTime.fromMillisecondsSinceEpoch(
-        (value['seconds'] as num).toInt() * 1000,
+        seconds.toInt() * 1000 + extraMs,
+        isUtc: true,
       );
     }
+  }
+  try {
+    final toDate = (value as dynamic).toDate;
+    if (toDate is Function) {
+      final date = toDate();
+      if (date is DateTime) return date;
+    }
   } catch (_) {}
-  return DateTime.tryParse(value.toString());
+  try {
+    final seconds = (value as dynamic).seconds;
+    if (seconds is num) return _dateFromEpoch(seconds);
+  } catch (_) {}
+  final text = value.toString().trim();
+  if (text.isEmpty || text.toLowerCase() == 'null') return null;
+  return DateTime.tryParse(text);
+}
+
+DateTime? _dateFromEpoch(num value) {
+  final n = value.toInt();
+  if (n >= 100000000000000) {
+    return DateTime.fromMicrosecondsSinceEpoch(n, isUtc: true);
+  }
+  if (n >= 100000000000) {
+    return DateTime.fromMillisecondsSinceEpoch(n, isUtc: true);
+  }
+  if (n >= 1000000000) {
+    return DateTime.fromMillisecondsSinceEpoch(n * 1000, isUtc: true);
+  }
+  return null;
 }
 
 Map<String, dynamic> mapFrom(dynamic value) {

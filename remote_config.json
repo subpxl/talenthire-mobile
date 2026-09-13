@@ -3,14 +3,14 @@
   "parameters": {
     "min_android_build": {
       "defaultValue": {
-        "value": "18"
+        "value": "22"
       },
-      "description": "Minimum Android versionCode allowed to use the app. Current production APK is 1.0.0+18.",
+      "description": "Minimum Android versionCode allowed to use the app. Current production APK is 1.0.0+22.",
       "valueType": "NUMBER"
     },
     "min_ios_build": {
       "defaultValue": {
-        "value": "18"
+        "value": "22"
       },
       "description": "Minimum iOS CFBundleVersion allowed to use the app.",
       "valueType": "NUMBER"

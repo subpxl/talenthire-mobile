@@ -195,6 +195,9 @@ class JobState extends ChangeNotifier {
     }
     jobFeed.markAwaitingFirstPage();
     unawaited(_runBackgroundLoads(token, uid, isNewUser: isNewUser));
+    // Start real-time listener immediately so new agency-posted jobs
+    // appear without any pull-to-refresh.
+    jobFeed.startRealtimeListener();
   }
 
   Future<void> _runBackgroundLoads(
@@ -206,7 +209,10 @@ class JobState extends ChangeNotifier {
     if (!isNewUser) {
       sessionCached = await sessionCache.read(uid);
       if (sessionCached != null && token == _loadGeneration) {
-        applications = sessionCached.applications;
+        applications = _dedupeApplicationsByJobId(
+          sessionCached.applications,
+          uid: uid,
+        );
         savedJobs = sessionCached.savedJobs;
         savedCreators = sessionCached.savedCreators;
         for (final job in savedJobs) {
@@ -287,13 +293,36 @@ class JobState extends ChangeNotifier {
           .where('user_id', isEqualTo: uid)
           .get();
       if (token != _loadGeneration) return;
-      applications = snapshot.docs.map((doc) {
+      final byJobId = <String, Application>{};
+      final updatedAtByJobId = <String, DateTime?>{};
+      for (final doc in snapshot.docs) {
         final data = Map<String, dynamic>.from(doc.data());
         if ((data['id']?.toString() ?? '').isEmpty) data['id'] = doc.id;
-        return Application.fromJson(data);
-      }).where((item) =>
-          item.status != ApplicationStatus.withdrawn &&
-          item.jobId.trim().isNotEmpty).toList();
+        final application = Application.fromJson(data);
+        if (application.status == ApplicationStatus.withdrawn) continue;
+        final jobId = application.jobId.trim();
+        if (jobId.isEmpty) continue;
+
+        final updatedAt = parseFlexibleDate(data['updated_at']);
+        final existing = byJobId[jobId];
+        if (existing == null) {
+          byJobId[jobId] = application;
+          updatedAtByJobId[jobId] = updatedAt;
+          continue;
+        }
+
+        final preferred = _pickPreferredApplication(
+          uid: uid,
+          jobId: jobId,
+          current: existing,
+          candidate: application,
+          currentUpdatedAt: updatedAtByJobId[jobId],
+          candidateUpdatedAt: updatedAt,
+        );
+        byJobId[jobId] = preferred.application;
+        updatedAtByJobId[jobId] = preferred.updatedAt;
+      }
+      applications = byJobId.values.toList();
       await _resolveApplicationJobs(token);
     } catch (error) {
       debugPrint('Error loading applications: $error');
@@ -376,6 +405,63 @@ class JobState extends ChangeNotifier {
       if (token != _loadGeneration) return;
       savedCreators = [];
     }
+  }
+
+  List<Application> _dedupeApplicationsByJobId(
+    List<Application> items, {
+    required String uid,
+  }) {
+    final byJobId = <String, Application>{};
+    for (final item in items) {
+      if (item.status == ApplicationStatus.withdrawn) continue;
+      final jobId = item.jobId.trim();
+      if (jobId.isEmpty) continue;
+      final existing = byJobId[jobId];
+      if (existing == null) {
+        byJobId[jobId] = item;
+        continue;
+      }
+      byJobId[jobId] = _pickPreferredApplication(
+        uid: uid,
+        jobId: jobId,
+        current: existing,
+        candidate: item,
+      ).application;
+    }
+    return byJobId.values.toList();
+  }
+
+  ({Application application, DateTime? updatedAt}) _pickPreferredApplication({
+    required String uid,
+    required String jobId,
+    required Application current,
+    required Application candidate,
+    DateTime? currentUpdatedAt,
+    DateTime? candidateUpdatedAt,
+  }) {
+    final canonicalId = '${uid}_$jobId';
+    final currentIsCanonical = current.id == canonicalId;
+    final candidateIsCanonical = candidate.id == canonicalId;
+    if (candidateIsCanonical && !currentIsCanonical) {
+      return (application: candidate, updatedAt: candidateUpdatedAt);
+    }
+    if (currentIsCanonical && !candidateIsCanonical) {
+      return (application: current, updatedAt: currentUpdatedAt);
+    }
+
+    if (currentUpdatedAt != null && candidateUpdatedAt != null) {
+      if (candidateUpdatedAt.isAfter(currentUpdatedAt)) {
+        return (application: candidate, updatedAt: candidateUpdatedAt);
+      }
+      if (currentUpdatedAt.isAfter(candidateUpdatedAt)) {
+        return (application: current, updatedAt: currentUpdatedAt);
+      }
+    }
+
+    if (candidate.appliedAt.isAfter(current.appliedAt)) {
+      return (application: candidate, updatedAt: candidateUpdatedAt);
+    }
+    return (application: current, updatedAt: currentUpdatedAt);
   }
 
   bool hasApplied(String jobId) {
@@ -548,6 +634,7 @@ class JobState extends ChangeNotifier {
     applications = [];
     savedJobs = [];
     savedCreators = [];
+    jobFeed.stopRealtimeListener();
     jobFeed.reset();
     creatorFeed.reset();
     unawaited(sessionCache.clear());

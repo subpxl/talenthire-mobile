@@ -1,4 +1,3 @@
-import 'package:bombay_casting/core/models/models.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/features/jobs/models/job_listing.dart';
 import 'package:flutter/material.dart';
@@ -15,7 +14,8 @@ class JobHighlightsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final applyBy = postedAt;
+    final postedAt = this.postedAt ?? job.postedAt;
+    final deadline = job.applicationDeadline;
     return IntrinsicHeight(
       child: Row(
         children: [
@@ -23,6 +23,7 @@ class JobHighlightsRow extends StatelessWidget {
             icon: Icons.location_on_rounded,
             iconColor: AppColors.brandRed,
             label: _locationCopy(job),
+            caption: _workCaption(job),
           ),
           const _HighlightDivider(),
           _HighlightCell(
@@ -41,8 +42,12 @@ class JobHighlightsRow extends StatelessWidget {
           _HighlightCell(
             icon: Icons.schedule_rounded,
             iconColor: const Color(0xFFC77800),
-            label: applyBy != null ? jobApplyByLabel(applyBy) : _timingCopy(job),
-            caption: applyBy != null ? jobDaysLeftLabel(applyBy) : '',
+            label: postedAt != null
+                ? jobApplyByLabel(postedAt, deadline: deadline)
+                : _timingCopy(job),
+            caption: postedAt != null
+                ? jobDaysLeftLabel(postedAt, deadline: deadline)
+                : '',
             captionColor: AppColors.brandRed,
           ),
         ],
@@ -130,26 +135,28 @@ class _HighlightCell extends StatelessWidget {
   }
 }
 
+String _workCaption(JobListing job) {
+  final location = job.location.trim();
+  if (location.isEmpty || isRemoteJobCity(location)) return '';
+  return jobWorkTypeLabel(job);
+}
+
 String _locationCopy(JobListing job) {
   final location = job.location.trim();
   if (location.isEmpty || isRemoteJobCity(location)) {
-    return switch (job.locationType) {
-      LocationType.online => 'Online',
-      LocationType.onsite => 'Onsite',
-      LocationType.remote => 'Remote',
-    };
+    return jobWorkTypeLabel(job);
   }
   return shortJobCity(location);
 }
 
 String _roleCopy(JobListing job) {
-  final role = job.role.trim();
-  if (role.isNotEmpty) return role;
+  final type = jobArtistTypeLabel(job);
+  if (type.isNotEmpty) return type;
   for (final tag in job.tags) {
     final value = tag.trim();
     if (value.isNotEmpty) return value;
   }
-  return 'Creator';
+  return jobWorkTypeLabel(job);
 }
 
 String _timingCopy(JobListing job) {

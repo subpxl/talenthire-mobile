@@ -5,6 +5,7 @@ import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/core/utils/app_links.dart';
 import 'package:bombay_casting/core/widgets/app_screen_layout.dart';
 import 'package:bombay_casting/features/jobs/screens/job_detail_screen.dart';
+import 'package:bombay_casting/features/jobs/widgets/application_analytics_summary.dart';
 import 'package:bombay_casting/features/jobs/widgets/application_progress_tracker.dart';
 import 'package:bombay_casting/features/jobs/widgets/manage_application_sheet.dart';
 import 'package:bombay_casting/features/jobs/widgets/profile_completion_banner.dart';
@@ -37,6 +38,8 @@ class AppliedJobsTabContent extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             ...profileBanner,
+            ApplicationAnalyticsSummary(applications: applications),
+            const SizedBox(height: AppSpacing.md),
             Text(
               AppLocalizations.of(context)!.noAppliedJobsYet,
               style: context.bodyMedium,
@@ -50,6 +53,8 @@ class AppliedJobsTabContent extends StatelessWidget {
       onRefresh: () => context.read<AppState>().refreshApplications(),
       header: [
         ...profileBanner,
+        ApplicationAnalyticsSummary(applications: applications),
+        const SizedBox(height: AppSpacing.md),
         const AppSectionTitle('Applied'),
       ],
       itemCount: applications.length,
@@ -58,7 +63,10 @@ class AppliedJobsTabContent extends StatelessWidget {
           padding: EdgeInsets.only(
             bottom: index < applications.length - 1 ? AppSpacing.md : 0,
           ),
-          child: _AppliedJobCard(application: applications[index]),
+          child: _AppliedJobCard(
+            key: ValueKey(applications[index].jobId),
+            application: applications[index],
+          ),
         );
       },
     );
@@ -66,7 +74,7 @@ class AppliedJobsTabContent extends StatelessWidget {
 }
 
 class _AppliedJobCard extends StatelessWidget {
-  const _AppliedJobCard({required this.application});
+  const _AppliedJobCard({super.key, required this.application});
 
   final Application application;
 

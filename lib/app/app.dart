@@ -8,7 +8,10 @@ import 'package:bombay_casting/features/auth/screens/login_screen.dart';
 import 'package:bombay_casting/features/auth/screens/splash_screen.dart';
 import 'package:bombay_casting/features/onboarding/first_login_step.dart';
 import 'package:bombay_casting/features/onboarding/screens/enter_mobile_screen.dart';
+import 'package:bombay_casting/features/onboarding/screens/onboarding_category_screen.dart';
+import 'package:bombay_casting/features/onboarding/screens/onboarding_creator_screen.dart';
 import 'package:bombay_casting/features/onboarding/screens/onboarding_photo_screen.dart';
+import 'package:bombay_casting/features/onboarding/screens/onboarding_social_screen.dart';
 import 'package:bombay_casting/features/onboarding/screens/select_language_screen.dart';
 import 'package:bombay_casting/features/profile/screens/deactivated_account_screen.dart';
 
@@ -51,6 +54,12 @@ class App extends StatelessWidget {
               return const LanguageScreen(isOnboarding: true);
             case FirstLoginStep.photo:
               return const OnboardingPhotoScreen();
+            case FirstLoginStep.category:
+              return const OnboardingCategoryScreen();
+            case FirstLoginStep.creator:
+              return const OnboardingCreatorScreen();
+            case FirstLoginStep.social:
+              return const OnboardingSocialScreen();
             case FirstLoginStep.none:
               return const MainShell();
           }

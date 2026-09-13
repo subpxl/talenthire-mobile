@@ -25,6 +25,7 @@ class ApplicationProgressTracker extends StatelessWidget {
         return 1;
       case ApplicationStatus.opened:
         return 2;
+      case ApplicationStatus.inReview:
       case ApplicationStatus.interview:
         return 3;
       case ApplicationStatus.shortlisted:

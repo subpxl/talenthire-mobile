@@ -37,9 +37,11 @@ class AppState extends ChangeNotifier {
     _loadLocale();
     _listenCategories();
     _listenDeepLinks();
+    _listenBanners();
   }
 
   StreamSubscription? _categoriesSub;
+  StreamSubscription? _bannersSub;
   StreamSubscription<PushTapTarget>? _pushTapSub;
   MessagingProvider? _messaging;
   NotificationsProvider? _notifications;
@@ -71,6 +73,18 @@ class AppState extends ChangeNotifier {
           }
         }
       }
+    }, onError: (_) {});
+  }
+
+  void _listenBanners() {
+    _bannersSub = FirebaseFirestore.instance
+        .collection('banners')
+        .where('isActive', isEqualTo: true)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .listen((snapshot) {
+      _homeBanners = snapshot.docs.map((doc) => HomeBanner.fromFirestore(doc)).toList();
+      notifyListeners();
     }, onError: (_) {});
   }
 
@@ -158,13 +172,37 @@ class AppState extends ChangeNotifier {
     await _setFirstLoginStep(FirstLoginStep.photo);
   }
 
-  Future<void> completePhotoOnboarding() => _completeFirstLoginSetup();
+  Future<void> completePhotoOnboarding() =>
+      _setFirstLoginStep(FirstLoginStep.category);
+
+  Future<void> completeCategoryOnboarding() =>
+      _setFirstLoginStep(FirstLoginStep.creator);
+
+  Future<void> completeCreatorOnboarding() =>
+      _setFirstLoginStep(FirstLoginStep.social);
+
+  Future<void> completeSocialOnboarding() => _completeFirstLoginSetup();
 
   Future<void> goToPreviousFirstLoginStep() async {
-    if (_firstLoginStep == FirstLoginStep.photo) {
-      await _setFirstLoginStep(FirstLoginStep.language);
-    } else if (_firstLoginStep == FirstLoginStep.language) {
-      await _setFirstLoginStep(FirstLoginStep.mobile);
+    switch (_firstLoginStep) {
+      case FirstLoginStep.social:
+        await _setFirstLoginStep(FirstLoginStep.creator);
+        break;
+      case FirstLoginStep.creator:
+        await _setFirstLoginStep(FirstLoginStep.category);
+        break;
+      case FirstLoginStep.category:
+        await _setFirstLoginStep(FirstLoginStep.photo);
+        break;
+      case FirstLoginStep.photo:
+        await _setFirstLoginStep(FirstLoginStep.language);
+        break;
+      case FirstLoginStep.language:
+        await _setFirstLoginStep(FirstLoginStep.mobile);
+        break;
+      case FirstLoginStep.mobile:
+      case FirstLoginStep.none:
+        break;
     }
   }
 
@@ -278,6 +316,10 @@ class AppState extends ChangeNotifier {
   bool get hasMoreCreators => _jobs.hasMoreCreators;
   Object? get creatorsLoadError => _jobs.creatorsLoadError;
   bool get isCreatorsFeedEmpty => _jobs.creators.isEmpty;
+  
+  List<HomeBanner> _homeBanners = [];
+  List<HomeBanner> get homeBanners => _homeBanners;
+  
   List<Job> get jobs => _jobs.jobs;
   bool get isLoadingJobs => _jobs.isLoadingJobs;
   bool get isLoadingMoreJobs => _jobs.isLoadingMoreJobs;
@@ -639,6 +681,7 @@ class AppState extends ChangeNotifier {
   @override
   void dispose() {
     _categoriesSub?.cancel();
+    _bannersSub?.cancel();
     _deepLinkSub?.cancel();
     _pushTapSub?.cancel();
     _messaging?.dispose();

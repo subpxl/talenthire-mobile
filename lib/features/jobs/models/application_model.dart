@@ -3,11 +3,32 @@ import 'package:bombay_casting/core/models/model_helpers.dart';
 enum ApplicationStatus {
   applied,
   opened,
+  inReview,
   shortlisted,
   interview,
   selected,
   rejected,
   withdrawn,
+}
+
+ApplicationStatus applicationStatusFromString(String value) {
+  final normalized = value.trim().toLowerCase().replaceAll('-', '_');
+  if (normalized.isEmpty || normalized == 'pending') {
+    return ApplicationStatus.applied;
+  }
+  if (normalized == 'in_review' || normalized == 'inreview') {
+    return ApplicationStatus.inReview;
+  }
+  return enumFromString(
+    ApplicationStatus.values,
+    value,
+    ApplicationStatus.applied,
+  );
+}
+
+String applicationStatusToString(ApplicationStatus status) {
+  if (status == ApplicationStatus.inReview) return 'in_review';
+  return status.name;
 }
 
 class Application {
@@ -40,10 +61,8 @@ class Application {
       jobId: (json['job_id'] ?? '').toString(),
       jobTitle: (json['job_title'] ?? '').toString(),
       company: (json['company'] ?? '').toString(),
-      status: enumFromString(
-        ApplicationStatus.values,
+      status: applicationStatusFromString(
         (json['status'] ?? 'applied').toString(),
-        ApplicationStatus.applied,
       ),
       script: (json['script'] ?? '').toString(),
       youtubeShortUrl: (json['youtube_short_url'] ?? '').toString(),
@@ -57,7 +76,7 @@ class Application {
         'job_id': jobId,
         'job_title': jobTitle,
         'company': company,
-        'status': status.name,
+        'status': applicationStatusToString(status),
         'script': script,
         'youtube_short_url': youtubeShortUrl,
         'applied_at': appliedAt.toIso8601String(),

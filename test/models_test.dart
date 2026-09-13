@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:bombay_casting/core/models/models.dart';
 import 'package:bombay_casting/features/creators/models/creator_profile.dart';
@@ -29,11 +30,79 @@ void main() {
       expect(job.platforms, ['Instagram']);
       expect(job.deliverables, hasLength(2));
       expect(job.isVerified, isTrue);
-      expect(job.collabTypeLabel, 'Paid collab');
+      expect(job.collabTypeLabel, 'Paid');
       expect(job.roleLabel, 'Beauty');
       expect(job.payLabel, '₹8,000');
       expect(job.payMin, 8000);
       expect(job.payMax, 8000);
+    });
+
+    test('parses application_deadline from firestore fields', () {
+      final job = Job.fromJson({
+        'id': 'job-deadline',
+        'title': 'Casting call',
+        'posted_at': '2026-09-10T10:00:00.000Z',
+        'application_deadline': '2026-10-10T18:29:59.999Z',
+      });
+
+      expect(job.applicationDeadline, DateTime.parse('2026-10-10T18:29:59.999Z'));
+      expect(
+        job.toJson()['application_deadline'],
+        DateTime.parse('2026-10-10T18:29:59.999Z').toIso8601String(),
+      );
+    });
+
+    test('parses firestore timestamp maps and job-post aliases', () {
+      final deadline = DateTime.utc(2026, 11, 2, 18, 29, 59);
+      final job = Job.fromJson({
+        'id': 'job-post-fields',
+        'title': 'Lead Actor',
+        'artist_type': 'Actor',
+        'locationType': 'onsite',
+        'location': 'Mumbai, Maharashtra',
+        'gender_required': 'female',
+        'createdAt': {'_seconds': 1757491200, '_nanoseconds': 0},
+        'application_deadline': {
+          'seconds': deadline.millisecondsSinceEpoch ~/ 1000,
+          'nanoseconds': 0,
+        },
+      });
+
+      expect(job.category, 'Actor');
+      expect(job.locationType, LocationType.onsite);
+      expect(job.location, 'Mumbai, Maharashtra');
+      expect(job.gender, 'female');
+      expect(
+        job.applicationDeadline?.toUtc(),
+        DateTime.utc(2026, 11, 2, 18, 29, 59),
+      );
+
+      final listing = JobListing.fromJob(job, 0);
+      expect(jobArtistTypeLabel(listing), 'Actor');
+      expect(jobWorkTypeLabel(listing), 'Onsite');
+      expect(jobGenderLabel(listing.gender), 'Female');
+      expect(shortJobCity(listing.location), 'Mumbai');
+      expect(
+        jobApplyByLabel(job.postedAt, deadline: job.applicationDeadline),
+        isNot('24 Sep'),
+      );
+    });
+
+    test('reads Timestamp.toDate style application deadlines', () {
+      final job = Job.fromJson({
+        'id': 'job-timestamp',
+        'title': 'Onsite model call',
+        'posted_at': '2026-09-10T10:00:00.000Z',
+        'application_deadline': _FakeTimestamp(
+          DateTime.utc(2026, 12, 1, 18, 29, 59),
+        ),
+      });
+
+      expect(job.applicationDeadline, DateTime.utc(2026, 12, 1, 18, 29, 59));
+      expect(
+        jobApplyByLabel(job.postedAt, deadline: job.applicationDeadline),
+        isNot('24 Sep'),
+      );
     });
 
     // Removed test: 'uses job fields for role type and pay instead of placeholders'
@@ -54,6 +123,88 @@ void main() {
       expect(job.followersLabel, '25K+ preferred');
       expect(job.payMin, 20000);
       expect(job.payMax, 60000);
+    });
+
+    test('parses plain numeric pay ranges from compensation text', () {
+      final job = Job.fromJson({
+        'id': 'job-pay-text',
+        'title': 'Lead role',
+        'compensation': '600000-800000',
+      });
+
+      expect(job.payMin, 600000);
+      expect(job.payMax, 800000);
+      expect(jobPayCompactLabel(JobListing.fromJob(job, 0)), '6L–8L');
+    });
+  });
+
+  group('jobPayCompactLabel', () {
+    JobListing sampleListing({
+      String pay = '',
+      int payMin = 0,
+      int payMax = 0,
+    }) {
+      return JobListing(
+        title: 'Campaign',
+        details: 'Paid · Lifestyle',
+        location: 'Mumbai, Maharashtra',
+        seenStatus: 'Posted 1 hr ago',
+        avatarColor: const Color(0xFF7986CB),
+        imageIndex: 1,
+        pay: pay,
+        payMin: payMin,
+        payMax: payMax,
+      );
+    }
+
+    test('prefers pay bounds over descriptive compensation text', () {
+      expect(
+        jobPayCompactLabel(
+          sampleListing(
+            pay: 'Paid collaboration',
+            payMin: 600000,
+            payMax: 800000,
+          ),
+        ),
+        '6L–8L',
+      );
+    });
+
+    test('shortens undisclosed descriptive pay text', () {
+      expect(
+        jobPayCompactLabel(
+          sampleListing(pay: 'To be disclosed based on experience'),
+        ),
+        'Undisclosed',
+      );
+    });
+
+    test('parses numeric pay text without rupee symbol', () {
+      expect(
+        jobPayCompactLabel(sampleListing(pay: '600000-800000')),
+        '6L–8L',
+      );
+    });
+  });
+
+  group('Job apply-by date', () {
+    test('uses the stored application deadline instead of postedAt + 14 days', () {
+      final postedAt = DateTime(2026, 9, 10);
+      final deadline = DateTime(2026, 10, 10, 23, 59, 59);
+
+      expect(jobApplyBy(postedAt, deadline: deadline), deadline);
+      expect(jobApplyByLabel(postedAt, deadline: deadline), '10 Oct');
+      expect(
+        jobApplyByLabel(postedAt),
+        isNot('24 Sep'),
+      );
+    });
+
+    test('falls back to 30 days after posting when no deadline is stored', () {
+      final postedAt = DateTime(2026, 9, 10);
+
+      expect(jobApplyBy(postedAt), DateTime(2026, 10, 10));
+      expect(jobApplyByLabel(postedAt), '10 Oct');
     });
   });
 
@@ -90,7 +241,12 @@ void main() {
 
     test('pay slider excludes jobs outside the selected range', () {
       const filter = HomeJobFilter(payStart: 15000, payEnd: 40000);
-      expect(filter.matchesJob(job(collaborationType: 'paid')), isTrue);
+      expect(
+        filter.matchesJob(
+          job(collaborationType: 'paid', payMin: 20000, payMax: 30000),
+        ),
+        isTrue,
+      );
       expect(filter.matchesJob(job(collaborationType: 'audition')), isFalse);
       expect(
         filter.matchesJob(
@@ -224,4 +380,12 @@ void main() {
       expect(creator(title: 'Dancer').matchesTalent('Actor'), isFalse);
     });
   });
+}
+
+class _FakeTimestamp {
+  const _FakeTimestamp(this._date);
+
+  final DateTime _date;
+
+  DateTime toDate() => _date;
 }

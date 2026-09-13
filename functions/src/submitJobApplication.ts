@@ -143,10 +143,15 @@ export const submitJobApplication = callable().https.onCall(async (data, context
     ).slice(0, 120);
     const appliedAt = now.toISOString();
 
+    const agencyId = String(
+      job.agencyId ?? job.agency_id ?? job.created_by ?? '',
+    ).slice(0, 128);
+
     const payload = {
       id: applicationId,
       user_id: userId,
       job_id: jobId,
+      agency_id: agencyId,
       job_title: jobTitle,
       company,
       status: 'applied',
@@ -163,9 +168,24 @@ export const submitJobApplication = callable().https.onCall(async (data, context
         applied_at: appliedAt,
         job_title: jobTitle,
         company,
+        agency_id: agencyId,
       });
     } else {
       await db().collection('applications').doc(applicationId).set(payload);
+    }
+
+    try {
+      await db()
+        .collection('jobs')
+        .doc(jobId)
+        .update({
+          applied: admin.firestore.FieldValue.increment(1),
+        });
+    } catch (error) {
+      functions.logger.warn('Could not increment job applicant count', {
+        jobId,
+        error,
+      });
     }
 
     return {application: payload};

@@ -37,6 +37,7 @@ class JobFeed {
   bool _fetchInFlight = false;
   bool _cacheIsFresh = false;
   bool _slowNetwork = false;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _realtimeSub;
 
   int get _nextPageSize => _slowNetwork ? slowPageSize : pageSize;
 
@@ -72,7 +73,36 @@ class JobFeed {
 
   Future<void> loadMore() => fetchPage(reset: false);
 
+  /// Starts a real-time listener on the newest [limit] published jobs.
+  /// Any new job posted by an agency appears immediately in the feed
+  /// without requiring a manual pull-to-refresh.
+  void startRealtimeListener({int limit = 40}) {
+    _realtimeSub?.cancel();
+    _realtimeSub = _publishedQuery()
+        .limit(limit)
+        .snapshots()
+        .listen(_onRealtimeSnapshot, onError: (_) {});
+  }
+
+  void stopRealtimeListener() {
+    _realtimeSub?.cancel();
+    _realtimeSub = null;
+  }
+
+  void _onRealtimeSnapshot(
+    QuerySnapshot<Map<String, dynamic>> snapshot,
+  ) {
+    final incoming = snapshot.docs
+        .map(_jobFromDoc)
+        .where((job) => job.status == JobStatus.published)
+        .toList();
+    if (incoming.isEmpty) return;
+    _mergeJobs(incoming);
+    _onChange();
+  }
+
   void reset() {
+    stopRealtimeListener();
     _requestId++;
     jobs = [];
     _jobsById.clear();

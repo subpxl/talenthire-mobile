@@ -24,12 +24,15 @@ class JobCard extends StatelessWidget {
       builder: (context, data, _) {
         final saved = data.saved;
         final firebaseJob = data.firebaseJob;
+        final listing = firebaseJob != null
+            ? JobListing.fromJob(firebaseJob, job.imageIndex)
+            : job;
         return GestureDetector(
           onTap: () => AppNavigation.openJobDetail(
             context,
             firebaseJob != null
                 ? JobDetailData.fromJob(firebaseJob)
-                : JobDetailData.fromJobListing(job),
+                : JobDetailData.fromJobListing(listing),
           ),
           child: DecoratedBox(
             decoration: BoxDecoration(
@@ -47,8 +50,8 @@ class JobCard extends StatelessWidget {
                   child: PlaceholderProfileImage(
                     aspectRatio: 0.9,
                     borderRadius: 0,
-                    imageIndex: job.imageIndex,
-                    imageUrl: job.imageUrl,
+                    imageIndex: listing.imageIndex,
+                    imageUrl: listing.imageUrl,
                   ),
                 ),
                 Padding(
@@ -59,7 +62,7 @@ class JobCard extends StatelessWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              titleCaseWords(job.title),
+                              titleCaseWords(listing.title),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
@@ -91,10 +94,7 @@ class JobCard extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 10),
-                      JobHighlightsRow(
-                        job: job,
-                        postedAt: firebaseJob?.postedAt,
-                      ),
+                      JobHighlightsRow(job: listing),
                       const SizedBox(height: 12),
                       Container(
                         width: double.infinity,

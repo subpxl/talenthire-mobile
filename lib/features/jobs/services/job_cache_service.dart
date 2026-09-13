@@ -11,7 +11,7 @@ import 'package:bombay_casting/core/services/cache_ttl.dart';
 class JobCacheService {
   JobCacheService();
 
-  static const fileName = 'jobs_feed_cache.json';
+  static const fileName = 'jobs_feed_cache_v2.json';
   static const ttl = CacheTtl.feed;
   static const maxJobs = 80;
 

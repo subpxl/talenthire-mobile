@@ -347,6 +347,9 @@ JobListing _listingFor(JobDetailData profile, Job? job) {
     projectTag: profile.projectTag,
     description: profile.description,
     category: profile.category,
+    postedAt: profile.postedAt,
+    applicationDeadline: profile.applicationDeadline,
+    locationType: profile.locationType,
   );
 }
 
@@ -372,6 +375,9 @@ class JobDetailData {
   final List<String> tags;
   final String company;
   final String createdBy;
+  final DateTime? postedAt;
+  final DateTime? applicationDeadline;
+  final LocationType locationType;
 
   const JobDetailData({
     required this.name,
@@ -393,6 +399,9 @@ class JobDetailData {
     this.tags = const [],
     this.company = '',
     this.createdBy = '',
+    this.postedAt,
+    this.applicationDeadline,
+    this.locationType = LocationType.remote,
   });
 
   factory JobDetailData.fromJob(Job job, {int index = 0}) {
@@ -423,7 +432,7 @@ class JobDetailData {
       gender: job.gender,
       age: job.age,
       projectTag: job.projectTag,
-      category: job.category,
+      category: job.role.trim().isNotEmpty ? job.role : job.category,
       offerType: job.collabType,
       budget: job.pay.toLowerCase().contains('not specified')
           ? 'Undisclosed'
@@ -431,6 +440,9 @@ class JobDetailData {
       tags: job.tags,
       company: company ?? job.company,
       createdBy: createdBy ?? '',
+      postedAt: job.postedAt,
+      applicationDeadline: job.applicationDeadline,
+      locationType: job.locationType,
     );
   }
 }
