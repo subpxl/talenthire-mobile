@@ -82,6 +82,7 @@ service cloud.firestore {
           && stringField(request.resource.data, 'name', 80)
           && stringField(request.resource.data, 'email', 254)
           && optionalString(request.resource.data, 'mobile', 20)
+          && optionalString(request.resource.data, 'referred_by_code', 64)
         )
         || (
           request.resource.data.role == 'agency'
@@ -104,7 +105,14 @@ service cloud.firestore {
       ) || (
         isOwner(userId)
         && request.resource.data.id == userId
-        && !changedKeys().hasAny(['role', 'is_active', 'id', 'created_at', 'registration_reminders'])
+        && !changedKeys().hasAny([
+          'role',
+          'is_active',
+          'id',
+          'created_at',
+          'registration_reminders',
+          'referred_by_code'
+        ])
         && changedKeys().hasOnly([
           'name',
           'email',
@@ -382,6 +390,12 @@ service cloud.firestore {
       allow read: if isAdmin() || (
         isSignedIn() && resource.data.userId == request.auth.uid
       );
+      allow write: if false;
+    }
+
+    // ── affiliate conversions (Kamao webhook audit — server writes only) ──
+    match /affiliate_conversions/{bccUserId} {
+      allow read: if isAdmin();
       allow write: if false;
     }
 

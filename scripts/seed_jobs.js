@@ -1,17 +1,16 @@
 #!/usr/bin/env node
 
-import { createHash } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
-import { getStorage } from 'firebase-admin/storage';
+import { createSpacesClient, publicObjectUrl, uploadBuffer } from './lib/spaces.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const dataPath = resolve(here, 'data', 'jobs.json');
 const imageRoot = resolve(here, 'job-posters');
-const defaultStorageBucket = 'talenthire-d86a1.firebasestorage.app';
+const defaultSpacesBucket = 'talenthire-media';
 const requiredFields = [
   'id', 'title', 'summary', 'description', 'company', 'location_type',
   'location', 'status', 'posted_at', 'application_deadline', 'created_by',
@@ -49,11 +48,11 @@ Dry-run validation is the default and does not contact Firebase.
   --apply             Upload images and write Firestore documents
   --overwrite         Replace existing job documents (requires --apply)
   --project <id>      Expected Firebase project ID
-  --bucket <name>     Firebase Storage bucket name
+  --bucket <name>     DigitalOcean Spaces bucket name
   --help              Show this help
 
 Apply mode requires GOOGLE_APPLICATION_CREDENTIALS. Project and bucket may be supplied through
-GCLOUD_PROJECT/FIREBASE_PROJECT_ID and FIREBASE_STORAGE_BUCKET.`;
+GCLOUD_PROJECT/FIREBASE_PROJECT_ID and DO_SPACES_BUCKET.`;
 }
 
 function parseArgs(argv) {
@@ -76,7 +75,7 @@ function parseArgs(argv) {
     throw new Error('--overwrite is only valid together with --apply');
   }
   options.project ||= process.env.FIREBASE_PROJECT_ID || process.env.GCLOUD_PROJECT || '';
-  options.bucket ||= process.env.FIREBASE_STORAGE_BUCKET || defaultStorageBucket;
+  options.bucket ||= process.env.DO_SPACES_BUCKET || defaultSpacesBucket;
   return options;
 }
 
@@ -230,15 +229,6 @@ async function loadAndValidate() {
   return validated;
 }
 
-function deterministicToken(projectId, jobId) {
-  const hex = createHash('sha256').update(`${projectId}:${jobId}:poster`).digest('hex').slice(0, 32);
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20)}`;
-}
-
-function downloadUrl(bucket, objectPath, token) {
-  return `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(bucket)}/o/${encodeURIComponent(objectPath)}?alt=media&token=${token}`;
-}
-
 function firestoreData(job, url) {
   const { localImagePath, imageBytes, dimensions, source_image: sourceImage, ...data } = job;
   return {
@@ -271,13 +261,12 @@ async function initializeFirebase(options) {
     throw new Error(`Project mismatch: --project is ${projectId}, credentials are for ${serviceAccount.project_id}`);
   }
   if (!options.bucket) {
-    throw new Error('Storage bucket is required via --bucket or FIREBASE_STORAGE_BUCKET');
+    throw new Error('Spaces bucket is required via --bucket or DO_SPACES_BUCKET');
   }
   if (!/^[a-z0-9][a-z0-9._-]+$/i.test(options.bucket)) throw new Error(`Invalid bucket name: ${options.bucket}`);
   const app = getApps()[0] || initializeApp({
     credential: cert(serviceAccount),
     projectId,
-    storageBucket: options.bucket,
   });
   const accessToken = await app.options.credential.getAccessToken();
   if (!accessToken?.access_token) throw new Error('Could not obtain a Google access token');
@@ -292,51 +281,28 @@ async function initializeFirebase(options) {
   if (projectMetadata.projectId !== projectId || !projectMetadata.projectNumber) {
     throw new Error(`Google Cloud returned inconsistent metadata for project ${projectId}`);
   }
-  const bucket = getStorage(app).bucket(options.bucket);
-  const [exists] = await bucket.exists();
-  if (!exists) throw new Error(`Storage bucket does not exist or is inaccessible: ${options.bucket}`);
-  const [metadata] = await bucket.getMetadata();
-  if (String(metadata.projectNumber) !== String(projectMetadata.projectNumber)) {
-    throw new Error(
-      `Bucket project mismatch: ${options.bucket} belongs to project number ${metadata.projectNumber}, `
-      + `${projectId} is ${projectMetadata.projectNumber}`,
-    );
-  }
-  return { projectId, bucket, db: getFirestore(app) };
+  const spacesClient = createSpacesClient();
+  return { projectId, bucket: options.bucket, spacesClient, db: getFirestore(app) };
 }
 
 async function applySeed(jobs, options) {
-  const { projectId, bucket, db } = await initializeFirebase(options);
+  const { projectId, bucket, spacesClient, db } = await initializeFirebase(options);
   const refs = jobs.map((job) => db.collection('jobs').doc(job.id));
   const snapshots = await db.getAll(...refs);
   const existingIds = new Set(snapshots.filter((snapshot) => snapshot.exists).map((snapshot) => snapshot.id));
   const selected = options.overwrite ? jobs : jobs.filter((job) => !existingIds.has(job.id));
   const skipped = jobs.length - selected.length;
   console.log(`Target project: ${projectId}`);
-  console.log(`Target bucket: gs://${bucket.name}`);
+  console.log(`Target bucket: ${bucket} (DO Spaces)`);
   console.log(`Existing documents: ${existingIds.size}; selected: ${selected.length}; skipped: ${skipped}`);
 
   const prepared = [];
   const errors = [];
   for (const [index, job] of selected.entries()) {
     try {
-      const token = deterministicToken(projectId, job.id);
-      const file = bucket.file(job.image_path);
-      await bucket.upload(job.localImagePath, {
-        destination: job.image_path,
-        resumable: false,
-        validation: 'crc32c',
-        metadata: {
-          contentType: 'image/jpeg',
-          cacheControl: 'public,max-age=31536000,immutable',
-          metadata: {
-            firebaseStorageDownloadTokens: token,
-            seedJobId: job.id,
-            sourceImage: basename(job.localImagePath),
-          },
-        },
-      });
-      prepared.push({ job, data: firestoreData(job, downloadUrl(bucket.name, file.name, token)) });
+      const imageBytes = await readFile(job.localImagePath);
+      const url = await uploadBuffer(spacesClient, imageBytes, job.image_path, 'image/jpeg');
+      prepared.push({ job, data: firestoreData(job, url) });
       console.log(`[${index + 1}/${selected.length}] uploaded ${job.image_path}`);
     } catch (error) {
       errors.push({ id: job.id, phase: 'upload', message: error.message });
@@ -359,7 +325,7 @@ async function applySeed(jobs, options) {
       console.error(`[firestore:error] batch at ${offset}: ${error.message}`);
     }
   }
-  return { projectId, bucket: bucket.name, total: jobs.length, selected: selected.length, skipped, uploaded: prepared.length, written, errors };
+  return { projectId, bucket, total: jobs.length, selected: selected.length, skipped, uploaded: prepared.length, written, errors };
 }
 
 async function main() {

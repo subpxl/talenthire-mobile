@@ -11,6 +11,7 @@ import 'package:bombay_casting/features/jobs/screens/agency_detail_screen.dart';
 import 'package:bombay_casting/features/jobs/screens/job_detail_screen.dart';
 import 'package:bombay_casting/features/messaging/screens/message_detail_screen.dart';
 import 'package:bombay_casting/features/notifications/screens/notifications_screen.dart';
+import 'package:bombay_casting/core/services/analytics_service.dart';
 import 'package:bombay_casting/features/jobs/utils/apply_quota.dart';
 
 class AppNavigation {
@@ -24,9 +25,15 @@ class AppNavigation {
     BuildContext context, {
     bool showApplyTomorrow = false,
   }) {
+    AnalyticsService.instance.track(
+      () => AnalyticsService.instance.logPremiumView(
+        source: showApplyTomorrow ? 'apply_limit' : 'general',
+      ),
+    );
     Navigator.of(context).push(
       AppModalRoute(
         page: PremiumPage(showApplyTomorrow: showApplyTomorrow),
+        routeName: '/premium',
       ),
     );
   }
@@ -48,19 +55,28 @@ class AppNavigation {
 
   static void openAgencyDetail(BuildContext context, AgencyProfile agency) {
     Navigator.of(context).push(
-      AppPageRoute(page: AgencyDetailScreen(agency: agency)),
+      AppPageRoute(
+        page: AgencyDetailScreen(agency: agency),
+        routeName: '/agency_detail',
+      ),
     );
   }
 
   static void openJobDetail(BuildContext context, JobDetailData profile) {
     Navigator.of(context).push(
-      AppPageRoute(page: JobDetailScreen(profile: profile)),
+      AppPageRoute(
+        page: JobDetailScreen(profile: profile),
+        routeName: '/job_detail',
+      ),
     );
   }
 
   static void openCreatorProfile(BuildContext context, CreatorProfile creator) {
     Navigator.of(context).push(
-      AppPageRoute(page: CreatorProfileScreen(creator: creator)),
+      AppPageRoute(
+        page: CreatorProfileScreen(creator: creator),
+        routeName: '/creator_profile',
+      ),
     );
   }
 
@@ -69,13 +85,19 @@ class AppNavigation {
     ConversationThread conversation,
   ) {
     Navigator.of(context).push(
-      AppPageRoute(page: MessageDetailScreen(conversation: conversation)),
+      AppPageRoute(
+        page: MessageDetailScreen(conversation: conversation),
+        routeName: '/message_detail',
+      ),
     );
   }
 
   static void openNotifications(BuildContext context) {
     Navigator.of(context).push(
-      AppPageRoute(page: const NotificationsScreen()),
+      AppPageRoute(
+        page: const NotificationsScreen(),
+        routeName: '/notifications',
+      ),
     );
   }
 

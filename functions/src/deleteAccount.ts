@@ -1,6 +1,7 @@
 import * as functions from 'firebase-functions/v1';
 import * as admin from 'firebase-admin';
 import {callable} from './callable';
+import {deletePrefix} from './spaces';
 const BATCH_SIZE = 400;
 
 function db(): admin.firestore.Firestore {
@@ -41,7 +42,7 @@ async function deleteUserSubcollection(
 
 async function deleteUserStorage(userId: string): Promise<void> {
   try {
-    await admin.storage().bucket().deleteFiles({prefix: `users/${userId}/`});
+    await deletePrefix(`users/${userId}/`);
   } catch (error) {
     functions.logger.warn('deleteAccount: storage cleanup failed', {
       userId,

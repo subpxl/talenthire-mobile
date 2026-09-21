@@ -3,8 +3,9 @@ import 'package:bombay_casting/core/theme/app_theme.dart';
 
 /// Shared fade + slide route for pushed screens.
 class AppPageRoute<T> extends PageRouteBuilder<T> {
-  AppPageRoute({required Widget page})
+  AppPageRoute({required Widget page, String? routeName})
       : super(
+          settings: RouteSettings(name: routeName),
           pageBuilder: (context, animation, secondaryAnimation) => page,
           transitionDuration: AppDurations.pageRoute,
           reverseTransitionDuration: AppDurations.pageRoute,
@@ -30,8 +31,9 @@ class AppPageRoute<T> extends PageRouteBuilder<T> {
 
 /// Modal-style route for premium / payment flows.
 class AppModalRoute<T> extends PageRouteBuilder<T> {
-  AppModalRoute({required Widget page})
+  AppModalRoute({required Widget page, String? routeName})
       : super(
+          settings: RouteSettings(name: routeName),
           pageBuilder: (context, animation, secondaryAnimation) => page,
           transitionDuration: AppDurations.pageRoute,
           reverseTransitionDuration: AppDurations.pageRoute,

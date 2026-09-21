@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:bombay_casting/core/models/models.dart';
 import 'package:bombay_casting/core/services/auth_service.dart';
+import 'package:bombay_casting/core/services/analytics_service.dart';
+import 'package:bombay_casting/core/services/referral_service.dart';
 import 'package:bombay_casting/core/services/user_cache_service.dart';
 
 class SessionBootstrap {
@@ -86,6 +88,9 @@ class AuthProvider extends ChangeNotifier {
       return false;
     }
     isAuthenticated = true;
+    AnalyticsService.instance.track(
+      () => AnalyticsService.instance.logLogin('google'),
+    );
     _notify();
     return true;
   }
@@ -120,6 +125,9 @@ class AuthProvider extends ChangeNotifier {
       return false;
     }
     isAuthenticated = true;
+    AnalyticsService.instance.track(
+      () => AnalyticsService.instance.logLogin('email'),
+    );
     _notify();
     return true;
   }
@@ -156,6 +164,9 @@ class AuthProvider extends ChangeNotifier {
       return false;
     }
     isAuthenticated = true;
+    AnalyticsService.instance.track(
+      () => AnalyticsService.instance.logSignUp('email'),
+    );
     _notify();
     return true;
   }
@@ -181,6 +192,7 @@ class AuthProvider extends ChangeNotifier {
       final userDoc = await _firestore.collection('users').doc(uid).get();
       final isNewUser = !userDoc.exists;
       if (isNewUser) {
+        final referredByCode = await ReferralService.pendingReferralCode();
         user = User(
           id: uid,
           name: name,
@@ -188,13 +200,19 @@ class AuthProvider extends ChangeNotifier {
           mobile: mobile,
           onboardingCompleted: false,
           onboardingStep: 'mobile',
+          referredByCode: referredByCode,
         );
         await Future.wait([
           _firestore
               .collection('users')
               .doc(uid)
               .set(user!.toJson())
-              .then((_) => _userDocExists = true),
+              .then((_) async {
+            _userDocExists = true;
+            if (referredByCode != null) {
+              await ReferralService.clearPendingReferralCode();
+            }
+          }),
           _onSessionReady(
             SessionBootstrap(
               uid: uid,

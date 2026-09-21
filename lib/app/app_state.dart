@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:bombay_casting/core/deep_links/deep_link_target.dart';
 import 'package:bombay_casting/core/models/models.dart';
 import 'package:bombay_casting/core/services/account_service.dart';
+import 'package:bombay_casting/core/services/analytics_service.dart';
 import 'package:bombay_casting/core/services/auth_service.dart';
 import 'package:bombay_casting/core/utils/phone_utils.dart';
 import 'package:bombay_casting/features/onboarding/first_login_step.dart';
@@ -430,12 +431,19 @@ class AppState extends ChangeNotifier {
     final uid = user?.id;
     if (uid == null) return false;
     if (applyGate != ApplyGate.allowed) return false;
-    return _jobs.applyToJob(
+    final ok = await _jobs.applyToJob(
       job,
       userId: uid,
       script: script,
       youtubeShortUrl: youtubeShortUrl,
     );
+    AnalyticsService.instance.track(
+      () => AnalyticsService.instance.logApplyJob(
+        jobId: job.id,
+        success: ok,
+      ),
+    );
+    return ok;
   }
 
   Future<bool> updateApplicationLink(
@@ -570,6 +578,7 @@ class AppState extends ChangeNotifier {
     pendingPushTap = null;
     pendingNotificationsOpen = false;
     await _auth.logout();
+    AnalyticsService.instance.track(AnalyticsService.instance.clearUserContext);
     _profile.reset();
     _jobs.reset();
     _firstLoginStep = FirstLoginStep.none;
@@ -593,6 +602,7 @@ class AppState extends ChangeNotifier {
     pendingPushTap = null;
     pendingNotificationsOpen = false;
     await _auth.logout();
+    AnalyticsService.instance.track(AnalyticsService.instance.clearUserContext);
     _profile.reset();
     _jobs.reset();
     _firstLoginStep = FirstLoginStep.none;
@@ -627,6 +637,27 @@ class AppState extends ChangeNotifier {
       isNewUser: bootstrap.isNewUser,
     );
     _startInbox(bootstrap.uid, isNewUser: bootstrap.isNewUser);
+    _syncAnalyticsUser(bootstrap);
+  }
+
+  void _syncAnalyticsUser(SessionBootstrap bootstrap) {
+    final currentUser = user;
+    if (currentUser == null) return;
+    final profile = _profile.profile;
+    AnalyticsService.instance.track(
+      () => AnalyticsService.instance.setUserContext(
+        userId: bootstrap.uid,
+        accountRole: currentUser.role.name,
+        subscriptionStatus: profile?.subscriptionStatus.name,
+        profileCompleted: currentUser.onboardingCompleted,
+        isVerified: profile?.isVerified,
+      ),
+    );
+    if (bootstrap.isNewUser) {
+      AnalyticsService.instance.track(
+        () => AnalyticsService.instance.logOnboardingStep('started'),
+      );
+    }
   }
 
   void _startInbox(String uid, {bool isNewUser = false}) {

@@ -8,12 +8,19 @@
     "validate": "node seed_jobs.js",
     "seed": "node seed_jobs.js --apply",
     "validate:creators": "node seed_creators.js",
-    "seed:creators": "node seed_creators.js --apply --project talenthire-d86a1"
+    "seed:creators": "node seed_creators.js --apply --project talenthire-d86a1",
+    "spaces:setup": "node setup_spaces.js",
+    "spaces:migrate": "node migrate_storage_to_spaces.js --apply",
+    "spaces:rewrite-urls": "node rewrite_storage_urls.js --apply",
+    "spaces:test": "node test_spaces.js",
+    "spaces:verify": "node verify_phase2.js"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.888.0",
+    "@aws-sdk/s3-request-presigner": "^3.1134.0",
     "firebase-admin": "^13.10.0"
   },
   "overrides": {

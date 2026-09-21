@@ -8,6 +8,7 @@ import 'package:bombay_casting/core/navigation/app_navigation.dart';
 import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/core/deep_links/deep_link_target.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
+import 'package:bombay_casting/core/services/analytics_service.dart';
 import 'package:bombay_casting/core/services/report_service.dart';
 import 'package:bombay_casting/core/widgets/app_screen_layout.dart';
 import 'package:bombay_casting/core/widgets/app_success_toast.dart';
@@ -28,6 +29,20 @@ class JobDetailScreen extends StatefulWidget {
 
 class _JobDetailScreenState extends State<JobDetailScreen> {
   bool _isApplying = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final jobId = widget.profile.jobId;
+    if (jobId.isNotEmpty) {
+      AnalyticsService.instance.track(
+        () => AnalyticsService.instance.logViewJob(
+          jobId: jobId,
+          jobTitle: widget.profile.name,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

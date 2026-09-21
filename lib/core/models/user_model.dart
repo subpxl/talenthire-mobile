@@ -15,6 +15,7 @@ class User {
     this.isActive = true,
     this.onboardingCompleted = false,
     this.onboardingStep = 'mobile',
+    this.referredByCode,
     DateTime? createdAt,
     DateTime? updatedAt,
   })  : createdAt = createdAt ?? DateTime.now(),
@@ -31,6 +32,7 @@ class User {
   bool isActive;
   bool onboardingCompleted;
   String onboardingStep;
+  final String? referredByCode;
   final DateTime createdAt;
   DateTime updatedAt;
 
@@ -61,6 +63,9 @@ class User {
       isActive: json['is_active'] ?? true,
       onboardingCompleted: onboardingCompleted,
       onboardingStep: onboardingStep,
+      referredByCode: (json['referred_by_code'] ?? '').toString().trim().isEmpty
+          ? null
+          : (json['referred_by_code'] ?? '').toString().trim(),
       createdAt: parseFlexibleDate(json['created_at']) ?? DateTime.now(),
       updatedAt: parseFlexibleDate(json['updated_at']) ?? DateTime.now(),
     );
@@ -78,6 +83,8 @@ class User {
         'is_active': isActive,
         'onboarding_completed': onboardingCompleted,
         'onboarding_step': onboardingStep,
+        if (referredByCode != null && referredByCode!.isNotEmpty)
+          'referred_by_code': referredByCode,
         'created_at': createdAt.toIso8601String(),
         'updated_at': updatedAt.toIso8601String(),
       };
@@ -103,6 +110,7 @@ class User {
       isActive: isActive ?? this.isActive,
       onboardingCompleted: onboardingCompleted ?? this.onboardingCompleted,
       onboardingStep: onboardingStep ?? this.onboardingStep,
+      referredByCode: referredByCode,
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

@@ -1,8 +1,10 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:http/http.dart' as http;
 import 'package:bombay_casting/core/services/image_resize_service.dart';
+import 'package:bombay_casting/core/services/storage_urls.dart';
 
 class ProfilePhotoUpload {
   const ProfilePhotoUpload({
@@ -17,12 +19,15 @@ class ProfilePhotoUpload {
 }
 
 class StorageService {
-  StorageService();
+  StorageService({FirebaseFunctions? functions})
+      : _functions =
+            functions ?? FirebaseFunctions.instanceFor(region: 'asia-south1');
 
-  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final FirebaseFunctions _functions;
 
   static const galleryPrefix = 'gallery_';
   static const galleryExtension = '.jpg';
+  static const _jpegContentType = 'image/jpeg';
 
   static String galleryFileName(int slot) =>
       '$galleryPrefix$slot$galleryExtension';
@@ -30,9 +35,9 @@ class StorageService {
   static String galleryThumbFileName(int slot) =>
       'thumbs/$galleryPrefix$slot$galleryExtension';
 
-  /// Parses `gallery_N.jpg` from a Firebase download URL, if present.
+  /// Parses `gallery_N.jpg` from a storage URL, if present.
   static int? gallerySlotFromUrl(String url) {
-    final key = _objectPathFromDownloadUrl(url);
+    final key = StorageUrls.objectPathFromUrl(url);
     if (key == null) return null;
     final name = key.split('/').last;
     if (!name.startsWith(galleryPrefix) || !name.endsWith(galleryExtension)) {
@@ -41,18 +46,6 @@ class StorageService {
     return int.tryParse(
       name.substring(galleryPrefix.length, name.length - galleryExtension.length),
     );
-  }
-
-  static String? _objectPathFromDownloadUrl(String url) {
-    if (!url.contains('firebasestorage.googleapis.com')) return null;
-    const marker = '/o/';
-    final start = url.indexOf(marker);
-    if (start == -1) return null;
-    var encoded = url.substring(start + marker.length);
-    final query = encoded.indexOf('?');
-    if (query != -1) encoded = encoded.substring(0, query);
-    final decoded = Uri.decodeComponent(encoded);
-    return decoded.isEmpty ? null : decoded;
   }
 
   Future<ProfilePhotoUpload> uploadProfilePhoto({
@@ -92,13 +85,13 @@ class StorageService {
     required String folder,
     String? fileName,
   }) async {
-    final ref = _storageRef(
+    final bytes = await file.readAsBytes();
+    return uploadBytes(
       userId: userId,
+      bytes: bytes,
       folder: folder,
       fileName: fileName ?? '${DateTime.now().microsecondsSinceEpoch}.jpg',
     );
-    await ref.putFile(file, SettableMetadata(contentType: 'image/jpeg'));
-    return ref.getDownloadURL();
   }
 
   Future<String> uploadBytes({
@@ -107,42 +100,106 @@ class StorageService {
     required String folder,
     required String fileName,
   }) async {
-    final ref = _storageRef(
+    final objectPath = _objectPath(
       userId: userId,
       folder: folder,
       fileName: fileName,
     );
-    await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
-    return ref.getDownloadURL();
+    return _uploadObject(
+      objectPath: objectPath,
+      bytes: bytes,
+      contentType: _jpegContentType,
+    );
   }
 
-  Reference _storageRef({
+  Future<void> deleteProfilePhoto(String url) async {
+    if (!StorageUrls.isStorageUrl(url)) return;
+    final path = StorageUrls.objectPathFromUrl(url);
+    if (path == null) return;
+
+    await _deleteObject(path);
+
+    final slot = gallerySlotFromUrl(url);
+    if (slot == null) return;
+    try {
+      final thumbPath = path.replaceFirst('/profile/', '/profile/thumbs/');
+      if (thumbPath != path) {
+        await _deleteObject(thumbPath);
+      }
+    } catch (_) {}
+  }
+
+  String _objectPath({
     required String userId,
     required String folder,
     required String fileName,
   }) {
-    Reference ref = _storage.ref().child('users').child(userId);
+    final segments = <String>['users', userId];
     for (final segment in folder.split('/')) {
-      if (segment.isNotEmpty) ref = ref.child(segment);
+      if (segment.isNotEmpty) segments.add(segment);
     }
-    return ref.child(fileName);
+    segments.add(fileName);
+    return segments.join('/');
   }
 
-  Future<void> deleteProfilePhoto(String url) async {
-    if (url.isEmpty || !url.contains('firebasestorage')) return;
-    await _storage.refFromURL(url).delete();
-    final slot = gallerySlotFromUrl(url);
-    if (slot == null) return;
+  Future<String> _uploadObject({
+    required String objectPath,
+    required Uint8List bytes,
+    required String contentType,
+  }) async {
+    final callable = _functions.httpsCallable('getStorageUploadUrl');
+    final result = await callable.call({
+      'objectPath': objectPath,
+      'contentType': contentType,
+      'contentLength': bytes.length,
+    });
+    final data = Map<String, dynamic>.from(result.data as Map);
+    final uploadUrl = data['uploadUrl'] as String?;
+    final publicUrl = data['publicUrl'] as String?;
+    final fallbackUploadUrl = data['fallbackUploadUrl'] as String?;
+    final fallbackPublicUrl = data['fallbackPublicUrl'] as String?;
+
+    if (uploadUrl == null || uploadUrl.isEmpty || publicUrl == null) {
+      throw StateError('Upload URL was not returned by the server.');
+    }
+
     try {
-      final path = _objectPathFromDownloadUrl(url);
-      if (path == null) return;
-      final thumbPath = path.replaceFirst(
-        '/profile/',
-        '/profile/thumbs/',
+      final response = await http.put(
+        Uri.parse(uploadUrl),
+        headers: {
+          'Content-Type': contentType,
+          'x-amz-acl': 'public-read',
+        },
+        body: bytes,
       );
-      if (thumbPath != path) {
-        await _storage.ref(thumbPath).delete();
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return publicUrl;
       }
-    } catch (_) {}
+    } catch (_) {
+      // Ignored, attempt fallback below if available
+    }
+
+    if (fallbackUploadUrl != null && fallbackUploadUrl.isNotEmpty && fallbackPublicUrl != null) {
+      final response = await http.put(
+        Uri.parse(fallbackUploadUrl),
+        headers: {
+          'Content-Type': contentType,
+        },
+        body: bytes,
+      );
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return fallbackPublicUrl;
+      }
+      throw StateError(
+        'Upload failed on fallback (${response.statusCode}): ${response.body}',
+      );
+    }
+
+    throw StateError('Upload failed and no fallback was available.');
+  }
+
+  Future<void> _deleteObject(String objectPath) async {
+    final callable = _functions.httpsCallable('deleteStorageObject');
+    await callable.call({'objectPath': objectPath});
   }
 }

@@ -13,6 +13,7 @@ import 'package:bombay_casting/features/onboarding/screens/onboarding_creator_sc
 import 'package:bombay_casting/features/onboarding/screens/onboarding_photo_screen.dart';
 import 'package:bombay_casting/features/onboarding/screens/onboarding_social_screen.dart';
 import 'package:bombay_casting/features/onboarding/screens/select_language_screen.dart';
+import 'package:bombay_casting/core/services/analytics_service.dart';
 import 'package:bombay_casting/features/profile/screens/deactivated_account_screen.dart';
 
 class App extends StatelessWidget {
@@ -36,6 +37,7 @@ class App extends StatelessWidget {
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       locale: appState.appLocale,
+      navigatorObservers: [AnalyticsService.instance.observer],
       home: Builder(
         builder: (context) {
           if (appState.isLoading || !appState.localeReady) {

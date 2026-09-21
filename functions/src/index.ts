@@ -36,6 +36,7 @@ import {
 } from './cashfree';
 import {sendPushToUser} from './push';
 import {callable} from './callable';
+import {notifyKamaoAffiliateConversion} from './kamaoAffiliate';
 
 admin.initializeApp();
 
@@ -48,6 +49,7 @@ export {submitJobApplication} from './submitJobApplication';
 export {backfillAgencyApplications} from './backfillAgencyApplications';
 export {deleteAccount} from './deleteAccount';
 export {syncCreatorFeedCard} from './syncCreatorFeedCard';
+export {deleteStorageObject, getStorageUploadUrl} from './storageUrls';
 
 const db = admin.firestore();
 const RTDB_INSTANCE = 'talenthire-d86a1-default-rtdb';
@@ -1298,6 +1300,12 @@ async function handleCashfreeHttpWebhook(
       if (subscriptionId) {
         if (isAuthorizationSuccessWebhook(payload)) {
           await recordPremiumTrialTransaction(userId, subscriptionId);
+          await notifyKamaoAffiliateConversion({
+            db,
+            bccUserId: userId,
+            subscriptionId,
+            idempotencyKey: `mandate_${subscriptionId}`,
+          });
         }
         if (payload.type === 'SUBSCRIPTION_CHARGED') {
           await recordPremiumMonthlyTransaction(userId, subscriptionId);

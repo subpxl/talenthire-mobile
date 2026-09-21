@@ -1,19 +1,18 @@
 #!/usr/bin/env node
 
-import { createHash } from 'node:crypto';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
-import { getStorage } from 'firebase-admin/storage';
+import { createSpacesClient, uploadBuffer } from './lib/spaces.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..');
 const dataPath = resolve(here, 'data', 'creators.json');
 const imageRoot = resolve(repoRoot, 'demophotos_model');
-const defaultStorageBucket = 'talenthire-d86a1.firebasestorage.app';
+const defaultSpacesBucket = 'talenthire-media';
 const defaultPassword = 'DemoCreator@2026';
 const maxPhotos = 4;
 
@@ -25,12 +24,12 @@ Dry-run validation is the default and does not contact Firebase.
   --apply             Upload photos and write Auth + Firestore documents
   --overwrite         Replace existing seed creators (requires --apply)
   --project <id>      Expected Firebase project ID
-  --bucket <name>     Firebase Storage bucket name
+  --bucket <name>     DigitalOcean Spaces bucket name
   --help              Show this help
 
 Apply mode uses GOOGLE_APPLICATION_CREDENTIALS, or scripts/serviceAccountKey.json
 if that file is present. Project and bucket may be supplied through
-FIREBASE_PROJECT_ID / GCLOUD_PROJECT and FIREBASE_STORAGE_BUCKET.`;
+FIREBASE_PROJECT_ID / GCLOUD_PROJECT and DO_SPACES_BUCKET.`;
 }
 
 function parseArgs(argv) {
@@ -53,7 +52,7 @@ function parseArgs(argv) {
     throw new Error('--overwrite is only valid together with --apply');
   }
   options.project ||= process.env.FIREBASE_PROJECT_ID || process.env.GCLOUD_PROJECT || '';
-  options.bucket ||= process.env.FIREBASE_STORAGE_BUCKET || defaultStorageBucket;
+  options.bucket ||= process.env.DO_SPACES_BUCKET || defaultSpacesBucket;
   return options;
 }
 
@@ -165,15 +164,6 @@ async function loadAndValidate() {
   return validated;
 }
 
-function deterministicToken(projectId, objectPath) {
-  const hex = createHash('sha256').update(`${projectId}:${objectPath}`).digest('hex').slice(0, 32);
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20)}`;
-}
-
-function downloadUrl(bucket, objectPath, token) {
-  return `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(bucket)}/o/${encodeURIComponent(objectPath)}?alt=media&token=${token}`;
-}
-
 async function resolveCredentialsPath() {
   if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
     return resolve(process.env.GOOGLE_APPLICATION_CREDENTIALS);
@@ -202,17 +192,14 @@ async function initializeFirebase(options) {
     throw new Error(`Project mismatch: --project is ${projectId}, credentials are for ${serviceAccount.project_id}`);
   }
   if (!options.bucket) {
-    throw new Error('Storage bucket is required via --bucket or FIREBASE_STORAGE_BUCKET');
+    throw new Error('Spaces bucket is required via --bucket or DO_SPACES_BUCKET');
   }
   const app = getApps()[0] || initializeApp({
     credential: cert(serviceAccount),
     projectId,
-    storageBucket: options.bucket,
   });
-  const bucket = getStorage(app).bucket(options.bucket);
-  const [exists] = await bucket.exists();
-  if (!exists) throw new Error(`Storage bucket does not exist or is inaccessible: ${options.bucket}`);
-  return { projectId, bucket, db: getFirestore(app), auth: getAuth(app) };
+  const spacesClient = createSpacesClient();
+  return { projectId, bucket: options.bucket, spacesClient, db: getFirestore(app), auth: getAuth(app) };
 }
 
 function userDoc(creator, createdAt) {
@@ -268,7 +255,7 @@ function profileDoc(creator, photoUrls) {
 }
 
 async function applySeed(creators, options) {
-  const { projectId, bucket, db, auth } = await initializeFirebase(options);
+  const { projectId, bucket, spacesClient, db, auth } = await initializeFirebase(options);
   const refs = creators.flatMap((creator) => [
     db.collection('users').doc(creator.id),
     db.collection('profiles').doc(creator.id),
@@ -283,7 +270,7 @@ async function applySeed(creators, options) {
     : creators.filter((creator) => !existingIds.has(creator.id));
   const skipped = creators.length - selected.length;
   console.log(`Target project: ${projectId}`);
-  console.log(`Target bucket: gs://${bucket.name}`);
+  console.log(`Target bucket: ${bucket} (DO Spaces)`);
   console.log(`Existing seed docs: ${existingIds.size}; selected: ${selected.length}; skipped: ${skipped}`);
 
   const errors = [];
@@ -296,22 +283,9 @@ async function applySeed(creators, options) {
       const photoUrls = [];
       for (const [photoIndex, photo] of creator.localPhotos.entries()) {
         const objectPath = `users/${creator.id}/profile/photo-${photoIndex + 1}.jpeg`;
-        const token = deterministicToken(projectId, objectPath);
-        await bucket.upload(photo.localImagePath, {
-          destination: objectPath,
-          resumable: false,
-          validation: 'crc32c',
-          metadata: {
-            contentType: 'image/jpeg',
-            cacheControl: 'public,max-age=31536000,immutable',
-            metadata: {
-              firebaseStorageDownloadTokens: token,
-              seedCreatorId: creator.id,
-              sourceImage: basename(photo.localImagePath),
-            },
-          },
-        });
-        photoUrls.push(downloadUrl(bucket.name, objectPath, token));
+        const imageBytes = await readFile(photo.localImagePath);
+        const url = await uploadBuffer(spacesClient, imageBytes, objectPath, 'image/jpeg');
+        photoUrls.push(url);
         uploaded += 1;
       }
 

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/core/models/models.dart';
+import 'package:bombay_casting/core/services/analytics_service.dart';
 import 'package:bombay_casting/core/services/report_service.dart';
 import 'package:bombay_casting/features/creators/models/creator_profile.dart';
 import 'package:bombay_casting/features/creators/widgets/creator_detail_sections.dart';
@@ -48,6 +49,9 @@ class _CreatorProfileScreenState extends State<CreatorProfileScreen> {
   void initState() {
     super.initState();
     _pageController = PageController();
+    AnalyticsService.instance.track(
+      () => AnalyticsService.instance.logViewCreator(creatorId: creator.id),
+    );
   }
 
   @override

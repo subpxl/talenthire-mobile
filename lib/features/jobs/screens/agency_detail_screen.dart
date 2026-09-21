@@ -2,6 +2,7 @@ import 'package:bombay_casting/app/app_state.dart';
 import 'package:bombay_casting/core/deep_links/deep_link_target.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/core/widgets/app_screen_layout.dart';
+import 'package:bombay_casting/core/services/analytics_service.dart';
 import 'package:bombay_casting/core/services/report_service.dart';
 import 'package:bombay_casting/core/widgets/share_link_button.dart';
 import 'package:bombay_casting/features/jobs/models/agency_profile.dart';
@@ -11,13 +12,30 @@ import 'package:bombay_casting/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-class AgencyDetailScreen extends StatelessWidget {
+class AgencyDetailScreen extends StatefulWidget {
   const AgencyDetailScreen({
     super.key,
     required this.agency,
   });
 
   final AgencyProfile agency;
+
+  @override
+  State<AgencyDetailScreen> createState() => _AgencyDetailScreenState();
+}
+
+class _AgencyDetailScreenState extends State<AgencyDetailScreen> {
+  AgencyProfile get agency => widget.agency;
+
+  @override
+  void initState() {
+    super.initState();
+    if (agency.id.isNotEmpty) {
+      AnalyticsService.instance.track(
+        () => AnalyticsService.instance.logViewAgency(agencyId: agency.id),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:bombay_casting/core/services/app_image_cache.dart';
+import 'package:bombay_casting/core/services/storage_urls.dart';
 
 /// Pre-set decode sizes for common image placements.
 enum AppImageVariant {
@@ -85,8 +86,16 @@ class AppNetworkImage extends StatelessWidget {
       return errorWidget?.call(context, '', '') ?? const SizedBox.shrink();
     }
 
+    String finalUrl = imageUrl;
+    if (imageUrl.contains('firebasestorage.googleapis.com')) {
+      final path = StorageUrls.objectPathFromUrl(imageUrl);
+      if (path != null) {
+        finalUrl = 'https://${StorageUrls.cdnHost}/$path';
+      }
+    }
+
     Widget image = CachedNetworkImage(
-      imageUrl: imageUrl,
+      imageUrl: finalUrl,
       width: width,
       height: height,
       fit: fit,

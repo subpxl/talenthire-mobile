@@ -11,6 +11,7 @@ import 'package:bombay_casting/features/jobs/screens/home_screen.dart';
 import 'package:bombay_casting/features/jobs/screens/job_detail_screen.dart';
 import 'package:bombay_casting/features/jobs/screens/jobs_screen.dart';
 import 'package:bombay_casting/features/messaging/screens/message_list_screen.dart';
+import 'package:bombay_casting/core/services/analytics_service.dart';
 import 'package:bombay_casting/features/profile/screens/user_profile_screen.dart';
 
 class MainShell extends StatefulWidget {
@@ -31,7 +32,12 @@ class _MainShellState extends State<MainShell> {
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: _currentIndex);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _openPendingDeepLink());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AnalyticsService.instance.track(
+        () => AnalyticsService.instance.logMainTabSelected(_currentIndex),
+      );
+      _openPendingDeepLink();
+    });
   }
 
   Future<void> _openPendingDeepLink() async {
@@ -158,6 +164,9 @@ class _MainShellState extends State<MainShell> {
     FocusManager.instance.primaryFocus?.unfocus();
     context.read<AppState>().onMainShellTabSelected(index);
     setState(() => _currentIndex = index);
+    AnalyticsService.instance.track(
+      () => AnalyticsService.instance.logMainTabSelected(index),
+    );
     _pageController.animateToPage(
       index,
       duration: AppDurations.tabSwitch,

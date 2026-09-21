@@ -1,4 +1,5 @@
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:bombay_casting/core/services/storage_urls.dart';
 
 /// Disk cache for remote images — higher limits than the default manager.
 class AppImageCacheManager {
@@ -15,17 +16,7 @@ class AppImageCacheManager {
   );
 }
 
-/// Extracts a stable Firebase Storage object path for [CachedNetworkImage.cacheKey].
+/// Stable object path for [CachedNetworkImage.cacheKey] (Firebase or DO CDN).
 String? storageObjectCacheKey(String url) {
-  if (url.isEmpty || !url.contains('firebasestorage.googleapis.com')) {
-    return null;
-  }
-  final marker = '/o/';
-  final start = url.indexOf(marker);
-  if (start == -1) return null;
-  var encoded = url.substring(start + marker.length);
-  final query = encoded.indexOf('?');
-  if (query != -1) encoded = encoded.substring(0, query);
-  final decoded = Uri.decodeComponent(encoded);
-  return decoded.isEmpty ? null : decoded;
+  return StorageUrls.objectPathFromUrl(url);
 }
