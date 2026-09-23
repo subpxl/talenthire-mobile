@@ -155,6 +155,7 @@ class _GetHelpScreenState extends State<GetHelpScreen> {
             },
             children: [
               ListTile(
+                key: const Key('e2e_settings_payment'),
                 title: Text(
                   AppLocalizations.of(context)!.cancelSubscription,
                   style: const TextStyle(

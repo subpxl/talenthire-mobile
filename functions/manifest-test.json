@@ -1,0 +1,451 @@
+{
+  "endpoints": {
+    "onUserRegistered": {
+      "platform": "gcfv1",
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": null,
+      "ingressSettings": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "region": [
+        "asia-south1"
+      ],
+      "eventTrigger": {
+        "eventType": "providers/cloud.firestore/eventTypes/document.create",
+        "eventFilters": {
+          "resource": "projects/talenthire-d86a1/databases/(default)/documents/users/{uid}"
+        },
+        "retry": false
+      },
+      "labels": {},
+      "entryPoint": "onUserRegistered"
+    },
+    "sendRegistrationReminder10Min": {
+      "platform": "gcfv1",
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": null,
+      "ingressSettings": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "region": [
+        "asia-south1"
+      ],
+      "httpsTrigger": {},
+      "entryPoint": "sendRegistrationReminder10Min"
+    },
+    "sendRegistrationReminder24Hour": {
+      "platform": "gcfv1",
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": null,
+      "ingressSettings": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "region": [
+        "asia-south1"
+      ],
+      "httpsTrigger": {},
+      "entryPoint": "sendRegistrationReminder24Hour"
+    },
+    "submitJobApplication": {
+      "platform": "gcfv1",
+      "labels": {},
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": null,
+      "ingressSettings": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "region": [
+        "asia-south1"
+      ],
+      "callableTrigger": {},
+      "entryPoint": "submitJobApplication"
+    },
+    "backfillAgencyApplications": {
+      "platform": "gcfv1",
+      "labels": {},
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": null,
+      "ingressSettings": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "region": [
+        "asia-south1"
+      ],
+      "callableTrigger": {},
+      "entryPoint": "backfillAgencyApplications"
+    },
+    "deleteAccount": {
+      "platform": "gcfv1",
+      "labels": {},
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": null,
+      "ingressSettings": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "region": [
+        "asia-south1"
+      ],
+      "callableTrigger": {},
+      "entryPoint": "deleteAccount"
+    },
+    "syncCreatorFeedCard": {
+      "platform": "gcfv1",
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": null,
+      "ingressSettings": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "region": [
+        "asia-south1"
+      ],
+      "eventTrigger": {
+        "eventType": "providers/cloud.firestore/eventTypes/document.write",
+        "eventFilters": {
+          "resource": "projects/talenthire-d86a1/databases/(default)/documents/profiles/{userId}"
+        },
+        "retry": false
+      },
+      "labels": {},
+      "entryPoint": "syncCreatorFeedCard"
+    },
+    "deleteStorageObject": {
+      "platform": "gcfv1",
+      "labels": {},
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": null,
+      "ingressSettings": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "region": [
+        "asia-south1"
+      ],
+      "callableTrigger": {},
+      "entryPoint": "deleteStorageObject"
+    },
+    "getStorageUploadUrl": {
+      "platform": "gcfv1",
+      "labels": {},
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": null,
+      "ingressSettings": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "region": [
+        "asia-south1"
+      ],
+      "callableTrigger": {},
+      "entryPoint": "getStorageUploadUrl"
+    },
+    "createPremiumSubscription": {
+      "platform": "gcfv1",
+      "labels": {},
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": null,
+      "ingressSettings": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "region": [
+        "asia-south1"
+      ],
+      "callableTrigger": {},
+      "entryPoint": "createPremiumSubscription"
+    },
+    "verifyPremiumSubscription": {
+      "platform": "gcfv1",
+      "labels": {},
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": null,
+      "ingressSettings": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "region": [
+        "asia-south1"
+      ],
+      "callableTrigger": {},
+      "entryPoint": "verifyPremiumSubscription"
+    },
+    "createCancellationCharge": {
+      "platform": "gcfv1",
+      "labels": {},
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": null,
+      "ingressSettings": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "region": [
+        "asia-south1"
+      ],
+      "callableTrigger": {},
+      "entryPoint": "createCancellationCharge"
+    },
+    "completeCancellationAfterCharge": {
+      "platform": "gcfv1",
+      "labels": {},
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": null,
+      "ingressSettings": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "region": [
+        "asia-south1"
+      ],
+      "callableTrigger": {},
+      "entryPoint": "completeCancellationAfterCharge"
+    },
+    "cancelPremiumSubscription": {
+      "platform": "gcfv1",
+      "labels": {},
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": null,
+      "ingressSettings": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "region": [
+        "asia-south1"
+      ],
+      "callableTrigger": {},
+      "entryPoint": "cancelPremiumSubscription"
+    },
+    "cashfreeSubscriptionWebhook": {
+      "platform": "gcfv1",
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": null,
+      "ingressSettings": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "region": [
+        "asia-south1"
+      ],
+      "httpsTrigger": {},
+      "entryPoint": "cashfreeSubscriptionWebhook"
+    },
+    "cashfreePgWebhook": {
+      "platform": "gcfv1",
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": null,
+      "ingressSettings": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "region": [
+        "asia-south1"
+      ],
+      "httpsTrigger": {},
+      "entryPoint": "cashfreePgWebhook"
+    },
+    "expireEndedPremiumSubscriptions": {
+      "platform": "gcfv1",
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": null,
+      "ingressSettings": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "region": [
+        "asia-south1"
+      ],
+      "scheduleTrigger": {
+        "schedule": "every 6 hours",
+        "retryConfig": {
+          "retryCount": null,
+          "maxDoublings": null,
+          "maxRetryDuration": null,
+          "maxBackoffDuration": null,
+          "minBackoffDuration": null
+        },
+        "timeZone": "Asia/Kolkata"
+      },
+      "labels": {},
+      "entryPoint": "expireEndedPremiumSubscriptions"
+    },
+    "syncConversationParticipantsToRtdb": {
+      "platform": "gcfv1",
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": null,
+      "ingressSettings": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "region": [
+        "asia-south1"
+      ],
+      "eventTrigger": {
+        "eventType": "providers/cloud.firestore/eventTypes/document.write",
+        "eventFilters": {
+          "resource": "projects/talenthire-d86a1/databases/(default)/documents/conversations/{convId}"
+        },
+        "retry": false
+      },
+      "labels": {},
+      "entryPoint": "syncConversationParticipantsToRtdb"
+    },
+    "onNewMessage": {
+      "platform": "gcfv1",
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": null,
+      "ingressSettings": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "eventTrigger": {
+        "eventType": "providers/google.firebase.database/eventTypes/ref.create",
+        "eventFilters": {
+          "resource": "projects/_/instances/talenthire-d86a1-default-rtdb/refs/messages/{conversationId}/{messageId}"
+        },
+        "retry": false
+      },
+      "labels": {},
+      "entryPoint": "onNewMessage"
+    },
+    "onNotificationCreated": {
+      "platform": "gcfv1",
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": null,
+      "ingressSettings": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "region": [
+        "asia-south1"
+      ],
+      "eventTrigger": {
+        "eventType": "providers/cloud.firestore/eventTypes/document.create",
+        "eventFilters": {
+          "resource": "projects/talenthire-d86a1/databases/(default)/documents/notifications/{notificationId}"
+        },
+        "retry": false
+      },
+      "labels": {},
+      "entryPoint": "onNotificationCreated"
+    },
+    "sendAdminNotification": {
+      "platform": "gcfv1",
+      "labels": {},
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": null,
+      "ingressSettings": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "region": [
+        "asia-south1"
+      ],
+      "callableTrigger": {},
+      "entryPoint": "sendAdminNotification"
+    },
+    "syncBillingHistory": {
+      "platform": "gcfv1",
+      "labels": {},
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": null,
+      "ingressSettings": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "region": [
+        "asia-south1"
+      ],
+      "callableTrigger": {},
+      "entryPoint": "syncBillingHistory"
+    },
+    "createCashfreeOrder": {
+      "platform": "gcfv1",
+      "labels": {},
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": null,
+      "ingressSettings": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "region": [
+        "asia-south1"
+      ],
+      "callableTrigger": {},
+      "entryPoint": "createCashfreeOrder"
+    },
+    "verifyCashfreePayment": {
+      "platform": "gcfv1",
+      "labels": {},
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": null,
+      "ingressSettings": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "region": [
+        "asia-south1"
+      ],
+      "callableTrigger": {},
+      "entryPoint": "verifyCashfreePayment"
+    },
+    "onJobPublished": {
+      "platform": "gcfv1",
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": null,
+      "ingressSettings": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "region": [
+        "asia-south1"
+      ],
+      "eventTrigger": {
+        "eventType": "providers/cloud.firestore/eventTypes/document.write",
+        "eventFilters": {
+          "resource": "projects/talenthire-d86a1/databases/(default)/documents/jobs/{jobId}"
+        },
+        "retry": false
+      },
+      "labels": {},
+      "entryPoint": "onJobPublished"
+    }
+  },
+  "specVersion": "v1alpha1",
+  "requiredAPIs": [
+    {
+      "api": "cloudscheduler.googleapis.com",
+      "reason": "Needed for scheduled functions."
+    }
+  ],
+  "extensions": {}
+}

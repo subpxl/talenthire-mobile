@@ -437,6 +437,7 @@ class _PremiumPageState extends State<PremiumPage> {
           const SizedBox(height: 4),
           const SizedBox(height: 12),
           AppPrimaryButton(
+            key: const Key('e2e_premium_pay'),
             label: AppLocalizations.of(context)!.payNow1,
             onPressed: _startUpiAutopay,
             loading: _isProcessing,

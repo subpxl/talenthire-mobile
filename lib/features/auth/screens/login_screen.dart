@@ -389,6 +389,7 @@ class _GoogleSignInButton extends StatelessWidget {
       width: double.infinity,
       height: 46,
       child: ElevatedButton(
+        key: const Key('e2e_google_sign_in'),
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
           elevation: 0,

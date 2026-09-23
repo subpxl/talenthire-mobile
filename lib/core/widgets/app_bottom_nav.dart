@@ -31,6 +31,7 @@ class AppBottomNav extends StatelessWidget {
           child: Row(
             children: [
               _NavItem(
+                itemKey: const Key('e2e_nav_home'),
                 icon: Icons.home_outlined,
                 activeIcon: Icons.home,
                 label: l10n.navHome,
@@ -38,6 +39,7 @@ class AppBottomNav extends StatelessWidget {
                 onTap: () => onTap(0),
               ),
               _NavItem(
+                itemKey: const Key('e2e_nav_creators'),
                 icon: Icons.people_outline,
                 activeIcon: Icons.people,
                 label: l10n.navCreators,
@@ -45,11 +47,13 @@ class AppBottomNav extends StatelessWidget {
                 onTap: () => onTap(1),
               ),
               _JobsCenterItem(
+                itemKey: const Key('e2e_nav_jobs'),
                 label: l10n.navJobs,
                 selected: currentIndex == 2,
                 onTap: () => onTap(2),
               ),
               _NavItem(
+                itemKey: const Key('e2e_nav_messages'),
                 icon: Icons.chat_bubble_outline,
                 activeIcon: Icons.chat_bubble,
                 label: l10n.navMessages,
@@ -58,6 +62,7 @@ class AppBottomNav extends StatelessWidget {
                 badgeCount: messageBadgeCount,
               ),
               _NavItem(
+                itemKey: const Key('e2e_nav_profile'),
                 icon: Icons.person_outline,
                 activeIcon: Icons.person,
                 label: l10n.navProfile,
@@ -74,6 +79,7 @@ class AppBottomNav extends StatelessWidget {
 
 class _NavItem extends StatelessWidget {
   const _NavItem({
+    this.itemKey,
     required this.icon,
     required this.activeIcon,
     required this.label,
@@ -82,6 +88,7 @@ class _NavItem extends StatelessWidget {
     this.badgeCount = 0,
   });
 
+  final Key? itemKey;
   final IconData icon;
   final IconData activeIcon;
   final String label;
@@ -94,6 +101,7 @@ class _NavItem extends StatelessWidget {
     final color = selected ? _selectedNavColor : AppColors.textSecondary;
     return Expanded(
       child: InkWell(
+        key: itemKey,
         onTap: onTap,
         splashColor: AppColors.brandRed.withValues(alpha: 0.16),
         highlightColor: AppColors.brandRed.withValues(alpha: 0.08),
@@ -125,11 +133,13 @@ class _NavItem extends StatelessWidget {
 
 class _JobsCenterItem extends StatelessWidget {
   const _JobsCenterItem({
+    this.itemKey,
     required this.label,
     required this.selected,
     required this.onTap,
   });
 
+  final Key? itemKey;
   final String label;
   final bool selected;
   final VoidCallback onTap;
@@ -138,6 +148,7 @@ class _JobsCenterItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Expanded(
       child: GestureDetector(
+        key: itemKey,
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
         child: Column(

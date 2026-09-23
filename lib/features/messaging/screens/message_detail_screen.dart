@@ -344,6 +344,7 @@ class _ComposerBar extends StatelessWidget {
             children: [
               Expanded(
                 child: TextField(
+                  key: const Key('e2e_message_composer'),
                   controller: controller,
                   textCapitalization: TextCapitalization.sentences,
                   minLines: 1,
@@ -362,6 +363,7 @@ class _ComposerBar extends StatelessWidget {
               ),
               const SizedBox(width: 4),
               IconButton(
+                key: const Key('e2e_message_send'),
                 tooltip: 'Send',
                 onPressed: onSend,
                 color: AppColors.primary,

@@ -597,6 +597,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               ),
             )
           : TextButton.icon(
+              key: const Key('e2e_settings_logout'),
               onPressed: _logout,
               icon: const Icon(Icons.logout, size: 18, color: AppColors.primary),
               label: Text(

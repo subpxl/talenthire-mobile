@@ -117,6 +117,7 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                 Expanded(child: _buildHeader(context)),
                 if (profile.jobId.isNotEmpty)
                   IconButton(
+                    key: const Key('e2e_job_save'),
                     tooltip: appState.isJobSaved(profile.jobId)
                         ? 'Remove saved job'
                         : 'Save job',
@@ -173,6 +174,7 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
         child: Material(
           color: Colors.transparent,
           child: InkWell(
+            key: const Key('e2e_job_detail_apply'),
             onTap: hasApplied || _isApplying ? null : _apply,
             borderRadius: BorderRadius.circular(AppRadius.pill),
             child: Ink(

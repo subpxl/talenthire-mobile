@@ -171,6 +171,22 @@ class AuthProvider extends ChangeNotifier {
     return true;
   }
 
+  Future<void> _backfillProfileFromAuth({
+    required String name,
+    required String email,
+  }) async {
+    if (user == null) return;
+    final trimmedEmail = email.trim();
+    final trimmedName = name.trim();
+    final needsEmail = user!.email.trim().isEmpty && trimmedEmail.isNotEmpty;
+    final needsName = user!.name.trim().isEmpty && trimmedName.isNotEmpty;
+    if (!needsEmail && !needsName) return;
+    await updateUser(
+      name: needsName ? trimmedName : null,
+      email: needsEmail ? trimmedEmail : null,
+    );
+  }
+
   Future<bool> _createOrFetchUser({
     required String uid,
     required String name,
@@ -182,6 +198,7 @@ class AuthProvider extends ChangeNotifier {
       if (cached != null) {
         _userDocExists = true;
         user = cached.user;
+        await _backfillProfileFromAuth(name: name, email: email);
         await _onSessionReady(SessionBootstrap(uid: uid));
         if (!cached.isFresh) {
           unawaited(_syncUserFromServer(uid: uid));
@@ -225,6 +242,7 @@ class AuthProvider extends ChangeNotifier {
         final data = Map<String, dynamic>.from(userDoc.data()!);
         data['id'] = data['id']?.toString().isNotEmpty == true ? data['id'] : uid;
         user = User.fromJson(data);
+        await _backfillProfileFromAuth(name: name, email: email);
         await _userCache.write(uid, user!);
         await _onSessionReady(
           SessionBootstrap(uid: uid),

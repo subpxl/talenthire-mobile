@@ -9,11 +9,17 @@
     "seed": "node seed_jobs.js --apply",
     "validate:creators": "node seed_creators.js",
     "seed:creators": "node seed_creators.js --apply --project talenthire-d86a1",
+    "delete:seed-creators": "node delete_seed_creators.js --project telefone-b3feb --adc",
+    "delete:seed-creators:apply": "node delete_seed_creators.js --project telefone-b3feb --adc --apply",
+    "wipe:telefone": "node ../../mobile-vcap/scripts/wipe_telefone_data.js --project telefone-b3feb --adc",
+    "wipe:telefone:apply": "node ../../mobile-vcap/scripts/wipe_telefone_data.js --project telefone-b3feb --adc --apply",
     "spaces:setup": "node setup_spaces.js",
     "spaces:migrate": "node migrate_storage_to_spaces.js --apply",
     "spaces:rewrite-urls": "node rewrite_storage_urls.js --apply",
     "spaces:test": "node test_spaces.js",
-    "spaces:verify": "node verify_phase2.js"
+    "spaces:verify": "node verify_phase2.js",
+    "sync:app-version": "node sync_app_version.js --apply",
+    "sync:app-version:dry": "node sync_app_version.js"
   },
   "engines": {
     "node": ">=20"

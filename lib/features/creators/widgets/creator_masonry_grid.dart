@@ -32,7 +32,8 @@ class CreatorMasonryGrid extends StatelessWidget {
       padding: padding,
       physics: physics,
       itemCount: creators.length,
-      itemBuilder: (context, index) => _card(context, creators[index]),
+      itemBuilder: (context, index) =>
+          _card(context, creators[index], index: index),
     );
   }
 }
@@ -54,16 +55,16 @@ class CreatorMasonrySliver extends StatelessWidget {
       mainAxisSpacing: 6,
       crossAxisSpacing: 6,
       delegate: SliverChildBuilderDelegate(
-        (context, index) => _card(context, creators[index]),
+        (context, index) => _card(context, creators[index], index: index),
         childCount: creators.length,
       ),
     );
   }
 }
 
-Widget _card(BuildContext context, CreatorProfile creator) {
+Widget _card(BuildContext context, CreatorProfile creator, {int? index}) {
   return _KeepAliveCreatorTile(
-    key: ValueKey(creator.id),
+    key: index == 0 ? const Key('e2e_creator_card_first') : ValueKey(creator.id),
     creator: creator,
   );
 }

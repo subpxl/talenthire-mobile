@@ -197,7 +197,10 @@ class _JobsAllTabState extends State<_JobsAllTab> {
           padding: EdgeInsets.only(
             bottom: index < jobs.length - 1 ? AppSpacing.lg : 0,
           ),
-          child: JobCard(job: jobs[index]),
+          child: JobCard(
+            key: index == 0 ? const Key('e2e_job_card_first') : null,
+            job: jobs[index],
+          ),
         );
       },
     );

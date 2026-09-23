@@ -89,6 +89,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             ),
             const SizedBox(height: AppSpacing.sm),
             AppSettingsTile(
+              key: const Key('e2e_profile_settings'),
               icon: Icons.settings_outlined,
               title: AppLocalizations.of(context)!.accountSettings,
               onTap: () =>
@@ -189,6 +190,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       color: AppColors.bannerStart,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
+        key: const Key('e2e_premium_cta'),
         onTap: isPremium
             ? null
             : () => AppNavigation.openPremiumScreen(context),

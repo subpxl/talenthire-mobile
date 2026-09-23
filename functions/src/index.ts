@@ -169,6 +169,36 @@ async function setUserSubscriptionStatus(
   );
 }
 
+async function resolveUserEmailFromAuth(
+  userId: string,
+  firestoreEmail: string,
+): Promise<string> {
+  const fromDoc = firestoreEmail.trim();
+  if (fromDoc) return fromDoc;
+
+  try {
+    const authUser = await admin.auth().getUser(userId);
+    const fromAuth = authUser.email?.trim() ?? '';
+    if (fromAuth) {
+      await db.collection('users').doc(userId).set(
+        {
+          email: fromAuth,
+          updated_at: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        {merge: true},
+      );
+      return fromAuth;
+    }
+  } catch (error) {
+    functions.logger.warn('resolveUserEmailFromAuth: could not read auth user', {
+      userId,
+      error,
+    });
+  }
+
+  return '';
+}
+
 async function loadCustomerDetails(userId: string): Promise<{
   name: string;
   email: string;
@@ -183,7 +213,10 @@ async function loadCustomerDetails(userId: string): Promise<{
   const profile = profileDoc.data() ?? {};
 
   const name = (user.name as string | undefined)?.trim() || 'Premium User';
-  const email = (user.email as string | undefined)?.trim() || '';
+  const email = await resolveUserEmailFromAuth(
+    userId,
+    (user.email as string | undefined) ?? '',
+  );
   const phone =
     normalizeIndianPhone((user.mobile as string | undefined) ?? '') ||
     normalizeIndianPhone((profile.contact as string | undefined) ?? '') ||

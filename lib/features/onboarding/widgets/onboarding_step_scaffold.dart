@@ -48,6 +48,7 @@ class OnboardingStepScaffold extends StatelessWidget {
         actions: [
           if (onSkip != null)
             TextButton(
+              key: const Key('e2e_onboarding_skip'),
               onPressed: actionLoading ? null : onSkip,
               child: Text(
                 context.skipAction,
@@ -107,6 +108,7 @@ class OnboardingStepScaffold extends StatelessWidget {
                 width: double.infinity,
                 height: 48,
                 child: ElevatedButton(
+                  key: const Key('e2e_onboarding_continue'),
                   onPressed:
                       !actionEnabled || actionLoading ? null : onAction,
                   style: AppButtonStyle.banner(),

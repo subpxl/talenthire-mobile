@@ -48,9 +48,14 @@ class MessageListScreen extends StatelessWidget {
                 ),
               ),
             if (conversations.isNotEmpty)
-              ...conversations.map((thread) {
+              ...conversations.asMap().entries.map((entry) {
+                final index = entry.key;
+                final thread = entry.value;
                 final isWelcome = thread.isCompanyWelcome;
                 return ProfileListTile(
+                  key: index == 0
+                      ? const Key('e2e_message_thread_first')
+                      : null,
                   name: isWelcome
                       ? l10n.bombayCastingCompany
                       : thread.name,

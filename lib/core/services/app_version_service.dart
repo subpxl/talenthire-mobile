@@ -26,8 +26,8 @@ class AppVersionService {
 
   static final AppVersionService instance = AppVersionService._();
 
-  /// Current production APK on device / Play: versionName 1.0.0, versionCode 22.
-  static const currentMinBuild = 22;
+  /// Synced from pubspec: versionName 1.0.0, build 29.
+  static const currentMinBuild = 29;
   static const currentMinVersion = '1.0.0';
 
   static const minAndroidBuildKey = 'min_android_build';

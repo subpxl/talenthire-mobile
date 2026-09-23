@@ -77,6 +77,7 @@ class _EnterMobileScreenState extends State<EnterMobileScreen> {
       child: Column(
         children: [
           TextField(
+            key: const Key('e2e_onboarding_mobile'),
             controller: _controller,
             focusNode: _focusNode,
             keyboardType: TextInputType.phone,

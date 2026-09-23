@@ -342,6 +342,7 @@ class _ApplyJobSheetState extends State<ApplyJobSheet> {
                 ],
                 const SizedBox(height: 16),
                 AppPrimaryButton(
+                  key: const Key('e2e_apply_sheet_submit'),
                   label: widget.updateLinkOnly ? 'Update link' : 'Submit',
                   onPressed: _submitting ? null : _submit,
                   loading: _submitting,
