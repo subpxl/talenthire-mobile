@@ -11,7 +11,10 @@ export interface CashfreeConfig {
 
 const API_VERSION = '2025-01-01';
 
-export const CANCELLATION_CHARGE_AMOUNT = 299;
+/** Monthly Autopay amount (Cashfree plan_amount) and trial-window cancel charge. */
+export const PREMIUM_MONTHLY_AMOUNT = 199;
+
+export const CANCELLATION_CHARGE_AMOUNT = PREMIUM_MONTHLY_AMOUNT;
 
 function isPlaceholderEnvValue(value: string): boolean {
   const trimmed = value.trim();
@@ -158,13 +161,13 @@ export function buildPremiumSubscriptionPayload(
     plan_details: {
       plan_name: 'Premium Monthly',
       plan_type: 'PERIODIC',
-      plan_amount: 299,
-      plan_max_amount: 299,
+      plan_amount: PREMIUM_MONTHLY_AMOUNT,
+      plan_max_amount: PREMIUM_MONTHLY_AMOUNT,
       plan_max_cycles: 120,
       plan_intervals: 1,
       plan_currency: 'INR',
       plan_interval_type: 'MONTH',
-      plan_note: 'Bombay Casting Premium — ₹299/month after trial',
+      plan_note: `Bombay Casting Premium — ₹${PREMIUM_MONTHLY_AMOUNT}/month`,
     },
     authorization_details: {
       authorization_amount: 1,
@@ -172,7 +175,7 @@ export function buildPremiumSubscriptionPayload(
       payment_methods: ['upi'],
     },
     subscription_meta: {
-      return_url: 'https://bombaycastingcompany.app/subscription-return',
+      return_url: 'https://bombaycastingcompany.com/subscription-return',
       notification_channel: ['EMAIL', 'SMS'],
     },
     subscription_expiry_time: '2100-01-01T23:59:59+05:30',
@@ -339,18 +342,11 @@ export function isAuthorizationSuccessWebhook(
 export function isPremiumActivationWebhook(
   payload: CashfreeWebhookPayload,
 ): boolean {
-  const type = payload.type ?? '';
-
-  if (
-    type === 'SUBSCRIPTION_STATUS_CHANGED' ||
-    type === 'SUBSCRIPTION_NEW' ||
-    type === 'SUBSCRIPTION_AUTH_STATUS'
-  ) {
-    // Align with verifyPremiumSubscription: auth SUCCESS alone is not enough.
-    return isPremiumSubscriptionActive(payload);
+  if (isAuthorizationSuccessWebhook(payload)) {
+    return true;
   }
 
-  // Recurring monthly charge succeeded — keeps/restores premium after lapse.
+  const type = payload.type ?? '';
   if (type === 'SUBSCRIPTION_CHARGED') {
     const subscriptionStatus = subscriptionStatusFromWebhook(payload);
     return subscriptionStatus === '' || subscriptionStatus === 'ACTIVE';
@@ -417,10 +413,10 @@ export function buildCancellationOrderPayload(
     },
     order_meta: {
       return_url:
-        'https://bombaycastingcompany.app/subscription-return?order_id={order_id}',
+        'https://bombaycastingcompany.com/subscription-return?order_id={order_id}',
       ...(input.notifyUrl ? {notify_url: input.notifyUrl} : {}),
     },
-    order_note: 'Premium cancellation — one month ₹299',
+    order_note: `Premium cancellation — one month ₹${PREMIUM_MONTHLY_AMOUNT}`,
     order_tags: {
       user_id: input.customerId,
       purpose: 'cancellation_charge',

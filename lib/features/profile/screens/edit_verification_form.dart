@@ -98,8 +98,8 @@ class _EditVerificationFormScreenState
     if (source == null) return;
     final picked = await _picker.pickImage(
       source: source,
-      maxWidth: 2000,
-      imageQuality: 88,
+      maxWidth: 1400,
+      imageQuality: 82,
     );
     if (picked == null) return;
     onPicked(_DocPick(file: File(picked.path), url: current?.url));

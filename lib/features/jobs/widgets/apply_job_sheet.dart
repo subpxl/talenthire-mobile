@@ -91,6 +91,7 @@ class ApplyJobSheet extends StatefulWidget {
 
 class _ApplyJobSheetState extends State<ApplyJobSheet> {
   late final TextEditingController _linkController;
+  final ScrollController _scriptScrollController = ScrollController();
   String? _linkError;
   bool _submitting = false;
 
@@ -105,6 +106,7 @@ class _ApplyJobSheetState extends State<ApplyJobSheet> {
   @override
   void dispose() {
     _linkController.dispose();
+    _scriptScrollController.dispose();
     super.dispose();
   }
 
@@ -184,13 +186,14 @@ class _ApplyJobSheetState extends State<ApplyJobSheet> {
         padding: EdgeInsets.only(bottom: bottomInset),
         child: SafeArea(
           minimum: const EdgeInsets.only(bottom: 12),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
                   child: Container(
                     width: 36,
                     height: 4,
@@ -249,7 +252,8 @@ class _ApplyJobSheetState extends State<ApplyJobSheet> {
                   const SizedBox(height: AppFormStyle.labelGap),
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                    constraints: const BoxConstraints(maxHeight: 320),
+                    padding: const EdgeInsets.fromLTRB(14, 12, 4, 12),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF7F7F7),
                       borderRadius: BorderRadius.circular(
@@ -257,12 +261,22 @@ class _ApplyJobSheetState extends State<ApplyJobSheet> {
                       ),
                       border: Border.all(color: AppFormStyle.border),
                     ),
-                    child: Text(
-                      _scriptCopy,
-                      style: const TextStyle(
-                        fontSize: 13.5,
-                        height: 1.45,
-                        color: AppColors.textSecondary,
+                    child: Scrollbar(
+                      thumbVisibility: true,
+                      controller: _scriptScrollController,
+                      child: SingleChildScrollView(
+                        controller: _scriptScrollController,
+                        child: Padding(
+                          padding: const EdgeInsets.only(right: 10.0),
+                          child: Text(
+                            _scriptCopy,
+                            style: const TextStyle(
+                              fontSize: 13.5,
+                              height: 1.45,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -349,6 +363,7 @@ class _ApplyJobSheetState extends State<ApplyJobSheet> {
                 ),
               ],
             ),
+          ),
           ),
         ),
       ),

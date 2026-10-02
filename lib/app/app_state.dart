@@ -5,18 +5,21 @@ import 'package:app_links/app_links.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:bombay_casting/core/deep_links/deep_link_target.dart';
 import 'package:bombay_casting/core/models/models.dart';
-import 'package:bombay_casting/core/services/account_service.dart';
 import 'package:bombay_casting/core/services/analytics_service.dart';
 import 'package:bombay_casting/core/services/auth_service.dart';
 import 'package:bombay_casting/core/utils/phone_utils.dart';
 import 'package:bombay_casting/features/onboarding/first_login_step.dart';
+import 'package:bombay_casting/core/services/payment_service.dart';
 import 'package:bombay_casting/core/services/push_notification_service.dart';
+import 'package:bombay_casting/core/services/referral_service.dart';
 import 'package:bombay_casting/core/services/storage_service.dart';
 import 'package:bombay_casting/core/widgets/option_picker.dart';
 import 'package:bombay_casting/features/auth/providers/auth_provider.dart';
 import 'package:bombay_casting/features/creators/models/creator_profile.dart';
+import 'package:bombay_casting/features/creators/utils/creator_feed_sort.dart';
 import 'package:bombay_casting/features/jobs/models/agency_profile.dart';
 import 'package:bombay_casting/features/jobs/models/job_listing.dart';
 import 'package:bombay_casting/features/jobs/providers/job_feed_provider.dart';
@@ -39,6 +42,15 @@ class AppState extends ChangeNotifier {
     _listenCategories();
     _listenDeepLinks();
     _listenBanners();
+    unawaited(_hydrateInstallReferrerJob());
+  }
+
+  Future<void> _hydrateInstallReferrerJob() async {
+    if (pendingDeepLink != null) return;
+    final jobId = await ReferralService.pendingInstallJobId();
+    if (jobId == null || jobId.isEmpty) return;
+    pendingDeepLink = DeepLinkTarget(kind: DeepLinkKind.job, id: jobId);
+    notifyListeners();
   }
 
   StreamSubscription? _categoriesSub;
@@ -48,6 +60,14 @@ class AppState extends ChangeNotifier {
   NotificationsProvider? _notifications;
   PushTapTarget? pendingPushTap;
   bool pendingNotificationsOpen = false;
+
+  final PaymentService _paymentService = PaymentService();
+  Timer? _premiumPollTimer;
+  bool _premiumActivationPending = false;
+  bool _premiumActivationTimedOut = false;
+
+  bool get isPremiumActivationPending => _premiumActivationPending;
+  bool get premiumActivationTimedOut => _premiumActivationTimedOut;
 
   MessagingProvider? get messaging => _messaging;
   NotificationsProvider? get notifications => _notifications;
@@ -154,7 +174,36 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> completeMobileOnboarding(String mobile) async {
-    await updateUser(mobile: mobile);
+    double? latitude;
+    double? longitude;
+
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (serviceEnabled) {
+        LocationPermission permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied) {
+          permission = await Geolocator.requestPermission();
+        }
+        if (permission == LocationPermission.whileInUse ||
+            permission == LocationPermission.always) {
+          final position = await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.medium,
+            ),
+          );
+          latitude = position.latitude;
+          longitude = position.longitude;
+        }
+      }
+    } catch (e) {
+      debugPrint('Failed to get location during mobile onboarding: $e');
+    }
+
+    await updateUser(
+      mobile: mobile,
+      latitude: latitude,
+      longitude: longitude,
+    );
     final current = profile;
     if (current != null) {
       await updateProfile(
@@ -277,7 +326,7 @@ class AppState extends ChangeNotifier {
   }
 
   ApplyGate get applyGate => ApplyQuota.evaluate(
-        isPremium: isPremiumUser,
+        hasActiveMandate: isPremiumUser,
         accountCreatedAt: user?.createdAt,
         applications: applications,
       );
@@ -289,27 +338,19 @@ class AppState extends ChangeNotifier {
     final loaded = _jobs.creators;
     final currentUser = user;
     final currentProfile = profile;
-    if (currentUser == null || currentProfile == null) return loaded;
+    if (currentUser == null) return loaded;
+
+    // Drop the denormalized feed row until the live profile can be ranked.
+    final withoutSelf =
+        loaded.where((creator) => creator.id != currentUser.id).toList();
+    if (currentProfile == null) return withoutSelf;
 
     final self = CreatorProfile.fromRecords(
       user: currentUser,
       profile: currentProfile,
       fallbackIndex: 1,
     );
-    if (loaded.isEmpty) return [self];
-
-    final result = <CreatorProfile>[];
-    var included = false;
-    for (final creator in loaded) {
-      if (creator.id == currentUser.id) {
-        result.add(self);
-        included = true;
-      } else {
-        result.add(creator);
-      }
-    }
-    if (!included) result.insert(0, self);
-    return result;
+    return integrateRankedCreator(feed: withoutSelf, candidate: self);
   }
   bool get isUploadingPhoto => _profile.isUploadingPhoto;
   bool get isLoadingCreators => _jobs.isLoadingCreators;
@@ -317,6 +358,8 @@ class AppState extends ChangeNotifier {
   bool get hasMoreCreators => _jobs.hasMoreCreators;
   Object? get creatorsLoadError => _jobs.creatorsLoadError;
   bool get isCreatorsFeedEmpty => _jobs.creators.isEmpty;
+  int get newCreatorsCount => _jobs.creatorFeed.pendingCreators.length;
+  void applyNewCreators() => _jobs.creatorFeed.applyPending();
   
   List<HomeBanner> _homeBanners = [];
   List<HomeBanner> get homeBanners => _homeBanners;
@@ -487,6 +530,8 @@ class AppState extends ChangeNotifier {
     String? mobile,
     bool? onboardingCompleted,
     String? onboardingStep,
+    double? latitude,
+    double? longitude,
   }) =>
       _auth.updateUser(
         name: name,
@@ -494,6 +539,8 @@ class AppState extends ChangeNotifier {
         mobile: mobile,
         onboardingCompleted: onboardingCompleted,
         onboardingStep: onboardingStep,
+        latitude: latitude,
+        longitude: longitude,
       );
 
   Future<void> uploadProfilePhoto(File file) async {
@@ -527,10 +574,57 @@ class AppState extends ChangeNotifier {
   Future<void> removeProfilePhoto(String url) =>
       _profile.removeProfilePhoto(url, userId: user?.id);
 
-  Future<void> refreshProfile() async {
+  Future<void> refreshProfile({bool forceRefresh = false}) async {
     final uid = user?.id;
     if (uid == null) return;
-    await _profile.loadProfile(uid);
+    await _profile.loadProfile(uid, forceRefresh: forceRefresh);
+    if (_premiumActivationTimedOut && isPremiumUser) {
+      _premiumActivationTimedOut = false;
+      notifyListeners();
+    }
+  }
+
+  void _stopPremiumActivationWait() {
+    _premiumPollTimer?.cancel();
+    _premiumPollTimer = null;
+    if (_premiumActivationPending) {
+      _premiumActivationPending = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> waitForPremiumActivation({required String subscriptionId}) async {
+    final uid = user?.id;
+    if (uid == null) return;
+
+    _stopPremiumActivationWait();
+    _premiumActivationPending = true;
+    _premiumActivationTimedOut = false;
+    notifyListeners();
+
+    _premiumPollTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
+      if (!_premiumActivationPending) return;
+      if (user?.id != uid) {
+        _stopPremiumActivationWait();
+        return;
+      }
+      try {
+        final result = await _paymentService.verifyPremiumSubscription(
+          subscriptionId: subscriptionId,
+        );
+        if (result.isPremium) {
+          _stopPremiumActivationWait();
+          await refreshProfile(forceRefresh: true);
+        }
+      } catch (_) {}
+    });
+
+    Timer(const Duration(minutes: 2), () {
+      if (_premiumActivationPending) {
+        _premiumActivationTimedOut = true;
+        _stopPremiumActivationWait();
+      }
+    });
   }
 
   Future<void> loadCreators({bool forceRefresh = false}) =>
@@ -568,24 +662,8 @@ class AppState extends ChangeNotifier {
     if (uid != null) {
       await PushNotificationService.instance.unregisterToken(uid);
     }
-    await AccountService().deleteAccount();
-    _pushTapSub?.cancel();
-    _pushTapSub = null;
-    _messaging?.dispose();
-    _messaging = null;
-    _notifications?.dispose();
-    _notifications = null;
-    pendingPushTap = null;
-    pendingNotificationsOpen = false;
-    await _auth.logout();
-    AnalyticsService.instance.track(AnalyticsService.instance.clearUserContext);
-    _profile.reset();
-    _jobs.reset();
-    _firstLoginStep = FirstLoginStep.none;
-    homeInnerTabIndex = 0;
-    creatorsInnerTabIndex = 0;
-    jobsInnerTabIndex = 0;
-    notifyListeners();
+    await _auth.markAccountDeleted();
+    await logout();
   }
 
   Future<void> logout() async {
@@ -601,6 +679,7 @@ class AppState extends ChangeNotifier {
     _notifications = null;
     pendingPushTap = null;
     pendingNotificationsOpen = false;
+    _stopPremiumActivationWait();
     await _auth.logout();
     AnalyticsService.instance.track(AnalyticsService.instance.clearUserContext);
     _profile.reset();
@@ -715,6 +794,7 @@ class AppState extends ChangeNotifier {
     _bannersSub?.cancel();
     _deepLinkSub?.cancel();
     _pushTapSub?.cancel();
+    _premiumPollTimer?.cancel();
     _messaging?.dispose();
     _notifications?.dispose();
     super.dispose();

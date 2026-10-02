@@ -89,9 +89,10 @@ class _PaymentAndSubscriptionScreenState
     final l10n = AppLocalizations.of(context)!;
     final prepaid = _isPrepaidCurrentPeriod(subscription);
     final periodEnd = _prepaidPeriodEnd(subscription);
+    final amount = premiumMonthlyAmountInr;
     final prepaidMessage = periodEnd == null
-        ? 'Your ₹299 for this period is already paid. Cancel Autopay now with no extra charge. You keep Premium until the period ends.'
-        : 'Your ₹299 for this period is already paid until ${DateFormat('d MMM yyyy').format(periodEnd)}. Cancel Autopay now with no extra charge. You keep Premium until then.';
+        ? 'Your ₹$amount for this period is already paid. Cancel Autopay now with no extra charge. You keep Premium until the period ends.'
+        : 'Your ₹$amount for this period is already paid until ${DateFormat('d MMM yyyy').format(periodEnd)}. Cancel Autopay now with no extra charge. You keep Premium until then.';
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AccountConfirmDialog(
@@ -150,7 +151,8 @@ class _PaymentAndSubscriptionScreenState
       if (!mounted) return;
       if (error.code == 'failed-precondition') {
         final message = error.message ?? '';
-        if (message.contains('PhonePe') || message.contains('₹299')) {
+        if (message.contains('PhonePe') ||
+            message.contains('₹$premiumMonthlyAmountInr')) {
           _showMessage(l10n.cancellationChargeIncomplete);
         } else {
           _showMessage(l10n.noActiveSubscription);
@@ -372,7 +374,7 @@ class _PaymentAndSubscriptionScreenState
       return 'Autopay is cancelled. You keep Premium until $date because this period is already paid.';
     }
     if (_isPrepaidCurrentPeriod(subscription)) {
-      return 'Your ₹299 for this period is already paid until $date. You can cancel Autopay now with no extra charge and keep Premium until then.';
+      return 'Your ₹$premiumMonthlyAmountInr for this period is already paid until $date. You can cancel Autopay now with no extra charge and keep Premium until then.';
     }
     return l10n.cancelPremiumMessage;
   }

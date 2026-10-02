@@ -255,7 +255,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get contactUs => 'हमसे संपर्क करें';
 
   @override
-  String get for1DayThen299month => '3 दिनों के लिए, फिर ₹299/महीना';
+  String get for1DayThen299month => '1 दिन के लिए, फिर ₹199/महीना';
 
   @override
   String get phonepe => 'PhonePe';
@@ -265,6 +265,12 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get payNow1 => 'अभी भुगतान करें ₹1';
+
+  @override
+  String get startNow => 'Start now';
+
+  @override
+  String get payNow => 'Pay now';
 
   @override
   String get accountSettings => 'खाता सेटिंग्स';
@@ -286,7 +292,7 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get cancelPremiumMessage =>
-      'रद्द करने के लिए PhonePe में एक बार ₹299 महीने का शुल्क दें। पूरा करने के लिए अपना UPI पिन डालें। भुगतान के बाद सदस्यता रद्द हो जाएगी।';
+      'रद्द करने के लिए PhonePe में एक बार ₹199 महीने का शुल्क दें। पूरा करने के लिए अपना UPI पिन डालें। भुगतान के बाद सदस्यता रद्द हो जाएगी।';
 
   @override
   String get subscriptionCancelled => 'सदस्यता रद्द कर दी गई।';
@@ -301,7 +307,7 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get cancellationChargeIncomplete =>
-      '₹299 का भुगतान पूरा नहीं हुआ। आपकी सदस्यता अभी भी सक्रिय है।';
+      '₹199 का भुगतान पूरा नहीं हुआ। आपकी सदस्यता अभी भी सक्रिय है।';
 
   @override
   String get couldNotOpenPhonePe => 'PhonePe नहीं खुल सका। फिर कोशिश करें।';
@@ -515,4 +521,8 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get seePlans => 'योजनाएं देखें';
+
+  @override
+  String get dailyApplyLimitReached =>
+      'Daily apply limit reached. Try again tomorrow.';
 }

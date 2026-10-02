@@ -13,6 +13,8 @@ import 'package:bombay_casting/features/messaging/screens/message_detail_screen.
 import 'package:bombay_casting/features/notifications/screens/notifications_screen.dart';
 import 'package:bombay_casting/core/services/analytics_service.dart';
 import 'package:bombay_casting/features/jobs/utils/apply_quota.dart';
+import 'package:bombay_casting/l10n/app_localizations.dart';
+import 'package:bombay_casting/core/widgets/app_success_toast.dart';
 
 class AppNavigation {
   AppNavigation._();
@@ -24,10 +26,13 @@ class AppNavigation {
   static void openPremiumScreen(
     BuildContext context, {
     bool showApplyTomorrow = false,
+    String? source,
   }) {
+    final analyticsSource = source ??
+        (showApplyTomorrow ? 'apply_limit' : 'general');
     AnalyticsService.instance.track(
       () => AnalyticsService.instance.logPremiumView(
-        source: showApplyTomorrow ? 'apply_limit' : 'general',
+        source: analyticsSource,
       ),
     );
     Navigator.of(context).push(
@@ -45,11 +50,19 @@ class AppNavigation {
     return false;
   }
 
-  /// Days 1–3: 3 free applies/day. Day 4+ or 4th apply today: show pay popup.
+  /// Days 1–3: 1 free apply/day. Mandate: 5/day. Day 4+ without mandate: paywall.
   static bool requireApplyAccess(BuildContext context) {
     final gate = context.read<AppState>().applyGate;
     if (gate == ApplyGate.allowed) return true;
-    openPremiumScreen(context, showApplyTomorrow: true);
+    if (gate == ApplyGate.dailyLimit) {
+      showAppToast(
+        context,
+        AppLocalizations.of(context)!.dailyApplyLimitReached,
+        type: AppToastType.error,
+      );
+      return false;
+    }
+    openPremiumScreen(context);
     return false;
   }
 

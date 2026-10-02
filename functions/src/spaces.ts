@@ -1,9 +1,11 @@
 import {
   DeleteObjectsCommand,
+  HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
+import {randomUUID} from 'crypto';
 import {getSignedUrl} from '@aws-sdk/s3-request-presigner';
 import * as admin from 'firebase-admin';
 import * as functions from 'firebase-functions/v1';
@@ -19,6 +21,10 @@ export interface SpacesConfig {
 
 const MAX_USER_IMAGE_BYTES = 10 * 1024 * 1024;
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+
+export function isSpacesConfigured(): boolean {
+  return Boolean(process.env.DO_SPACES_KEY && process.env.DO_SPACES_SECRET);
+}
 
 export function getSpacesConfig(): SpacesConfig {
   const accessKeyId = process.env.DO_SPACES_KEY ?? '';
@@ -182,6 +188,43 @@ export async function createPresignedUploadUrl(opts: {
     publicUrl: publicObjectUrl(objectPath, config),
     objectPath,
   };
+}
+
+export async function objectExistsOnSpaces(objectPath: string): Promise<boolean> {
+  if (!isSpacesConfigured()) return false;
+  const config = getSpacesConfig();
+  const client = createSpacesClient(config);
+  const path = normalizeObjectPath(objectPath);
+  try {
+    await client.send(new HeadObjectCommand({
+      Bucket: config.bucket,
+      Key: path,
+    }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Public Firebase download URL with a long-lived token (for legacy uploads). */
+export async function firebaseDownloadUrl(objectPath: string): Promise<string | null> {
+  const path = normalizeObjectPath(objectPath);
+  const bucket = admin.storage().bucket();
+  const file = bucket.file(path);
+  const [exists] = await file.exists();
+  if (!exists) return null;
+
+  const [metadata] = await file.getMetadata();
+  const rawToken = metadata.metadata?.firebaseStorageDownloadTokens;
+  let token = typeof rawToken === 'string' ? rawToken.split(',')[0]?.trim() : '';
+  if (!token) {
+    token = randomUUID();
+    await file.setMetadata({
+      metadata: {firebaseStorageDownloadTokens: token},
+    });
+  }
+
+  return `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(path)}?alt=media&token=${token}`;
 }
 
 export async function deleteObject(objectPath: string): Promise<void> {

@@ -86,16 +86,16 @@ class AppNetworkImage extends StatelessWidget {
       return errorWidget?.call(context, '', '') ?? const SizedBox.shrink();
     }
 
-    String finalUrl = imageUrl;
-    if (imageUrl.contains('firebasestorage.googleapis.com')) {
-      final path = StorageUrls.objectPathFromUrl(imageUrl);
-      if (path != null) {
-        finalUrl = 'https://${StorageUrls.cdnHost}/$path';
-      }
-    }
+    final finalUrl = StorageUrls.displayStorageUrl(imageUrl);
 
     Widget image = CachedNetworkImage(
       imageUrl: finalUrl,
+      cacheManager: AppImageCacheManager.instance,
+      cacheKey: storageObjectCacheKey(finalUrl),
+      memCacheWidth: _memCacheWidth,
+      memCacheHeight: memCacheHeight,
+      maxWidthDiskCache: _maxWidthDiskCache,
+      maxHeightDiskCache: _maxHeightDiskCache,
       width: width,
       height: height,
       fit: fit,

@@ -1,10 +1,11 @@
 import * as functions from 'firebase-functions/v1';
-import * as admin from 'firebase-admin';
 import {callable} from './callable';
 import {
   assertStorageAccess,
   createPresignedUploadUrl,
   deleteObject,
+  isSpacesConfigured,
+  objectExistsOnSpaces,
   publicObjectUrl,
 } from './spaces';
 
@@ -15,6 +16,10 @@ interface UploadUrlRequest {
 }
 
 interface DeleteObjectRequest {
+  objectPath?: string;
+}
+
+interface PublicUrlRequest {
   objectPath?: string;
 }
 
@@ -45,23 +50,56 @@ export const getStorageUploadUrl = callable().https.onCall(async (data, context)
   }
 
   await assertStorageAccess(context.auth.uid, objectPath, contentType, contentLength);
-  
-  const spaces = await createPresignedUploadUrl({objectPath, contentType});
-  
-  const bucket = admin.storage().bucket();
-  const file = bucket.file(objectPath);
-  const [fallbackUploadUrl] = await file.getSignedUrl({
-    action: 'write',
-    expires: Date.now() + 15 * 60 * 1000,
-    contentType,
-  });
-  const fallbackPublicUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(objectPath)}?alt=media`;
 
-  return {
-    ...spaces,
-    fallbackUploadUrl,
-    fallbackPublicUrl,
-  };
+  if (!isSpacesConfigured()) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      'Photo storage is not configured on the server.',
+    );
+  }
+
+  try {
+    return await createPresignedUploadUrl({objectPath, contentType});
+  } catch (error) {
+    functions.logger.error('getStorageUploadUrl: Spaces presign failed', {
+      objectPath,
+      error,
+    });
+    throw new functions.https.HttpsError(
+      'unavailable',
+      'Could not prepare upload. Try again in a moment.',
+    );
+  }
+});
+
+/** Returns the public CDN URL after a client upload to Spaces. */
+export const getStoragePublicUrl = callable().https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      'unauthenticated',
+      'Sign in to resolve upload URLs.',
+    );
+  }
+
+  const payload = (data ?? {}) as PublicUrlRequest;
+  const objectPath = String(payload.objectPath ?? '').trim();
+  if (!objectPath) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'objectPath is required.',
+    );
+  }
+
+  await assertStorageAccess(context.auth.uid, objectPath);
+
+  if (await objectExistsOnSpaces(objectPath)) {
+    return {publicUrl: publicObjectUrl(objectPath), storage: 'spaces'};
+  }
+
+  throw new functions.https.HttpsError(
+    'not-found',
+    'Uploaded file was not found on storage. Try uploading again.',
+  );
 });
 
 export const deleteStorageObject = callable().https.onCall(async (data, context) => {

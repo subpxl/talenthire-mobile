@@ -48,8 +48,8 @@ class _CompleteProfilePhotoScreenState
     if (source == null || !mounted) return;
     final file = await ImagePicker().pickImage(
       source: source,
-      maxWidth: 2000,
-      imageQuality: 88,
+      maxWidth: 1080,
+      imageQuality: 80,
     );
     if (file == null || !mounted) return;
     setState(() => _picked = File(file.path));

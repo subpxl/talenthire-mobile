@@ -1,7 +1,8 @@
 const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000;
 
 export const APPLY_TRIAL_DAYS = 3;
-export const FREE_APPLIES_PER_DAY = 3;
+export const FREE_APPLIES_PER_DAY = 1;
+export const MANDATE_APPLIES_PER_DAY = 5;
 
 export type ApplyGateReason = 'allowed' | 'daily_limit' | 'trial_ended';
 
@@ -42,17 +43,26 @@ export function appliesToday(
 }
 
 export function evaluateApplyGate(opts: {
-  isPremium: boolean;
+  /** UPI mandate active (profile premium / subscription authorized). */
+  hasActiveMandate: boolean;
   accountCreatedAt: Date;
   applications: ApplyQuotaApplication[];
   now?: Date;
 }): ApplyGateReason {
   const now = opts.now ?? new Date();
-  if (opts.isPremium) return 'allowed';
+  const todayCount = appliesToday(opts.applications, now);
+
+  if (opts.hasActiveMandate) {
+    if (todayCount >= MANDATE_APPLIES_PER_DAY) {
+      return 'daily_limit';
+    }
+    return 'allowed';
+  }
+
   if (trialDayNumber(opts.accountCreatedAt, now) > APPLY_TRIAL_DAYS) {
     return 'trial_ended';
   }
-  if (appliesToday(opts.applications, now) >= FREE_APPLIES_PER_DAY) {
+  if (todayCount >= FREE_APPLIES_PER_DAY) {
     return 'daily_limit';
   }
   return 'allowed';

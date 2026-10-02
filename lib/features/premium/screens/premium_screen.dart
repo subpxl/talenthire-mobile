@@ -1,18 +1,15 @@
+import 'dart:async';
+
 import 'package:bombay_casting/l10n/app_localizations.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:bombay_casting/app/app_state.dart';
-import 'package:bombay_casting/core/navigation/app_navigation.dart';
 import 'package:bombay_casting/core/services/payment_service.dart';
 import 'package:bombay_casting/core/widgets/app_success_toast.dart';
 import 'package:bombay_casting/core/theme/app_theme.dart';
 import 'package:bombay_casting/core/widgets/app_primary_button.dart';
-import 'package:bombay_casting/core/widgets/google_pay_logo.dart';
-import 'package:bombay_casting/core/widgets/paytm_logo.dart';
-import 'package:bombay_casting/core/widgets/phonepe_logo.dart';
-import 'package:bombay_casting/core/widgets/placeholder_avatar.dart';
-import 'package:bombay_casting/features/premium/screens/payment_in_progress_screen.dart';
+import 'package:bombay_casting/features/premium/premium_paywall_assets.dart';
 
 class PremiumPage extends StatefulWidget {
   const PremiumPage({super.key, this.showApplyTomorrow = false});
@@ -26,8 +23,14 @@ class PremiumPage extends StatefulWidget {
 class _PremiumPageState extends State<PremiumPage> {
   final PaymentService _paymentService = PaymentService();
   bool _isProcessing = false;
-  bool _othersMenuOpen = false;
-  String _selectedUpiAppId = UpiAppOption.phonePe.id;
+  static const _defaultUpiApp = UpiAppOption.phonePe;
+  late final String _backgroundAsset;
+
+  @override
+  void initState() {
+    super.initState();
+    _backgroundAsset = pickPaywallBackgroundAsset();
+  }
 
   Future<void> _startUpiAutopay() async {
     if (_isProcessing) return;
@@ -51,7 +54,7 @@ class _PremiumPageState extends State<PremiumPage> {
 
       final result = await _paymentService.launchUpiMandate(
         session: session,
-        upiApp: UpiAppOption.byId(_selectedUpiAppId),
+        upiApp: _defaultUpiApp,
       );
 
       if (!mounted) return;
@@ -62,21 +65,31 @@ class _PremiumPageState extends State<PremiumPage> {
         return;
       }
 
-      AppNavigation.push(
-        context,
-        PaymentInProgressScreen(subscriptionId: session.subscriptionId),
+      if (mounted) {
+        Navigator.of(context).maybePop();
+      }
+      unawaited(
+        appState.waitForPremiumActivation(
+          subscriptionId: session.subscriptionId,
+        ),
       );
+      if (mounted) {
+        _showMessage(
+          'Activating Premium…',
+          type: AppToastType.success,
+        );
+      }
     } on FirebaseFunctionsException catch (error) {
       if (!mounted) return;
       if (error.code == 'already-exists') {
-        // Server says the user is already premium — refresh profile so the
-        // local state catches up, then show a friendly message.
         await context.read<AppState>().refreshProfile();
         if (!mounted) return;
         _showMessage(
           'You are already a Premium member!',
           type: AppToastType.success,
         );
+      } else if (error.code == 'resource-exhausted') {
+        _showMessage('Daily limit reached. Try again tomorrow.');
       } else {
         _showMessage(error.message ?? 'Could not start payment.');
       }
@@ -94,167 +107,201 @@ class _PremiumPageState extends State<PremiumPage> {
     showAppToast(context, message, type: type);
   }
 
+  static const _priceGray = Color(0xFF9E9E9E);
+
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    const SizedBox(height: 14),
-                    _buildProfileSection(context),
-                    const SizedBox(height: 25),
-                    RichText(
-                      text: const TextSpan(
-                        style: TextStyle(
-                          fontSize: 26,
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w400,
-                        ),
-                        children: [
-                          TextSpan(text: 'Become '),
-                          TextSpan(
-                            text: 'Premium',
-                            style: TextStyle(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          TextSpan(text: ' Member'),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 25),
-                    const Text(
-                      '₹1',
-                      style: TextStyle(
-                        fontSize: 76,
-                        height: 0.95,
-                        fontWeight: FontWeight.w300,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    if (widget.showApplyTomorrow) ...[
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 28),
-                        child: Text(
-                          'Subscribe to apply. Pay ₹1 now, or apply tomorrow.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 14,
-                            height: 1.35,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-                    Text(
-                      AppLocalizations.of(context)!.for1DayThen299month,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 26),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 18),
-                      child: _buildFeaturesCard(),
-                    ),
-                    const SizedBox(height: 18),
+      backgroundColor: Colors.black,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Positioned.fill(
+            child: _buildBackgroundImage(),
+          ),
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.28),
+                    Colors.transparent,
+                    Colors.white.withValues(alpha: 0.55),
+                    Colors.white.withValues(alpha: 0.96),
                   ],
+                  stops: const [0.0, 0.38, 0.68, 1.0],
                 ),
               ),
             ),
-            _buildBottomPayment(context),
-          ],
+          ),
+          _buildCloseControl(context),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Spacer(flex: 8),
+              Flexible(
+                flex: 4,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.97),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(28),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
+                          child: Column(
+                            children: [
+                              const Text(
+                                'Start Applying',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 26,
+                                  height: 1.15,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textPrimary,
+                                  letterSpacing: -0.3,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Apply to more brand opportunities',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  height: 1.35,
+                                  color: AppColors.textSecondary
+                                      .withValues(alpha: 0.95),
+                                ),
+                              ),
+                              const SizedBox(height: 22),
+                              _buildTrialPrice(),
+                              const SizedBox(height: 10),
+                              Text(
+                                l10n.for1DayThen299month,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  height: 1.35,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+                              _buildFeaturesCard(),
+                              if (widget.showApplyTomorrow) const SizedBox(height: 8),
+                            ],
+                          ),
+                        ),
+                      ),
+                      SafeArea(
+                        top: false,
+                        child: _buildBottomPayment(context),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBackgroundImage() {
+    return Image.asset(
+      _backgroundAsset,
+      fit: BoxFit.cover,
+      alignment: Alignment.center,
+      filterQuality: FilterQuality.medium,
+      errorBuilder: (context, error, stackTrace) {
+        if (paywallBackgrounds.isEmpty) {
+          return const ColoredBox(color: Colors.black);
+        }
+        return Image.asset(
+          paywallBackgrounds.first,
+          fit: BoxFit.cover,
+          alignment: Alignment.center,
+          filterQuality: FilterQuality.medium,
+        );
+      },
+    );
+  }
+
+  Widget _buildCloseControl(BuildContext context) {
+    return Positioned(
+      top: 0,
+      left: 0,
+      child: SafeArea(
+        bottom: false,
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            onTap: _isProcessing ? null : () => Navigator.maybePop(context),
+            borderRadius: BorderRadius.circular(20),
+            child: const Padding(
+              padding: EdgeInsets.fromLTRB(12, 8, 16, 16),
+              child: Icon(
+                Icons.keyboard_arrow_down,
+                color: Colors.white,
+                size: 26,
+              ),
+            ),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildProfileSection(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 18),
-      child: Row(
+  Widget _buildTrialPrice() {
+    return Center(
+      child: RichText(
+      textAlign: TextAlign.center,
+      text: const TextSpan(
         children: [
-          IconButton(
-            tooltip: 'Close',
-            onPressed: _isProcessing ? null : () => Navigator.maybePop(context),
-            style: IconButton.styleFrom(
-              backgroundColor: AppColors.surface,
-              foregroundColor: AppColors.textPrimary,
-            ),
-            icon: const Icon(Icons.keyboard_arrow_down),
-          ),
-          const Spacer(),
-          SizedBox(
-            width: 185,
-            height: 115,
-            child: Stack(
-              children: [
-                Positioned(
-                  left: 0,
-                  top: 20,
-                  child: _profileImage(72, PlaceholderAvatar.stackColors[0]),
-                ),
-                Positioned(
-                  left: 55,
-                  top: 0,
-                  child: _profileImage(100, PlaceholderAvatar.stackColors[1]),
-                ),
-                Positioned(
-                  right: 0,
-                  top: 30,
-                  child: _profileImage(70, PlaceholderAvatar.stackColors[2]),
-                ),
-              ],
+          TextSpan(
+            text: '₹',
+            style: TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.w300,
+              color: _priceGray,
+              height: 1,
+              decoration: TextDecoration.none,
             ),
           ),
-          const Spacer(),
-          const SizedBox(width: 42),
+          TextSpan(
+            text: '1',
+            style: TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.w300,
+              color: _priceGray,
+              height: 1,
+              decoration: TextDecoration.none,
+            ),
+          ),
         ],
       ),
-    );
-  }
-
-  Widget _profileImage(double size, Color color) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 3),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 8),
-        ],
-        color: color,
       ),
-      child: Icon(Icons.auto_awesome, size: size * 0.45, color: Colors.white),
     );
   }
 
   Widget _buildFeaturesCard() {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.85)),
       ),
       child: Column(
         children: [
-          _featureRow(
-            icon: Icons.movie_filter_outlined,
-            iconColor: AppColors.primary,
-            title: 'Apply to 1 Lakh+ brand jobs',
-            subtitle: 'Unlimited applications',
-          ),
-          _divider(),
           _featureRow(
             icon: Icons.visibility_outlined,
             iconColor: AppColors.primaryDark,
@@ -334,111 +381,20 @@ class _PremiumPageState extends State<PremiumPage> {
   }
 
   Widget _buildBottomPayment(BuildContext context) {
-    final selected = UpiAppOption.byId(_selectedUpiAppId);
-    final isPhonePe = _selectedUpiAppId == UpiAppOption.phonePe.id;
-    const otherApps = [UpiAppOption.googlePay, UpiAppOption.paytm];
-
     return Container(
-      padding: const EdgeInsets.fromLTRB(18, 10, 18, 24),
-      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          top: BorderSide(color: AppColors.divider.withValues(alpha: 0.6)),
+        ),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _UpiAppTile(
-            app: UpiAppOption.phonePe,
-            iconSize: 32,
-            isSelected: isPhonePe,
-            onTap: _isProcessing
-                ? null
-                : () => setState(() {
-                    _selectedUpiAppId = UpiAppOption.phonePe.id;
-                    _othersMenuOpen = false;
-                  }),
-          ),
-          const SizedBox(height: 4),
-          if (_othersMenuOpen) ...[
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(AppRadius.sm),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Column(
-                children: [
-                  for (var i = 0; i < otherApps.length; i++) ...[
-                    if (i > 0)
-                      const Divider(
-                        height: 1,
-                        thickness: 0.7,
-                        color: AppColors.divider,
-                      ),
-                    _UpiAppTile(
-                      app: otherApps[i],
-                      iconSize: 28,
-                      isSelected: _selectedUpiAppId == otherApps[i].id,
-                      onTap: _isProcessing
-                          ? null
-                          : () => setState(() {
-                              _selectedUpiAppId = otherApps[i].id;
-                              _othersMenuOpen = false;
-                            }),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(height: 4),
-          ],
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: _isProcessing
-                  ? null
-                  : () => setState(() => _othersMenuOpen = !_othersMenuOpen),
-              borderRadius: BorderRadius.circular(AppRadius.sm),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: Row(
-                  children: [
-                    if (!isPhonePe) ...[
-                      _UpiAppIcon(app: selected, size: 28),
-                      const SizedBox(width: 12),
-                      Text(
-                        selected.label,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    ] else
-                      const Text(
-                        'Others',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    const Spacer(),
-                    Icon(
-                      _othersMenuOpen
-                          ? Icons.keyboard_arrow_up
-                          : Icons.keyboard_arrow_down,
-                      color: isPhonePe
-                          ? AppColors.textSecondary
-                          : AppColors.textPrimary,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 4),
-          const SizedBox(height: 12),
           AppPrimaryButton(
             key: const Key('e2e_premium_pay'),
-            label: AppLocalizations.of(context)!.payNow1,
+            label: AppLocalizations.of(context)!.startNow,
             onPressed: _startUpiAutopay,
             loading: _isProcessing,
           ),
@@ -458,83 +414,6 @@ class _PremiumPageState extends State<PremiumPage> {
             ),
           ],
         ],
-      ),
-    );
-  }
-}
-
-class _UpiAppIcon extends StatelessWidget {
-  const _UpiAppIcon({required this.app, this.size = 32});
-
-  final UpiAppOption app;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    switch (app.id) {
-      case 'phonepe':
-        return PhonePeLogo(size: size);
-      case 'gpay':
-        return GooglePayLogo(size: size);
-      case 'paytm':
-        return PaytmLogo(size: size);
-      default:
-        return PhonePeLogo(size: size);
-    }
-  }
-}
-
-class _UpiAppTile extends StatelessWidget {
-  const _UpiAppTile({
-    required this.app,
-    required this.isSelected,
-    this.iconSize = 32,
-    this.onTap,
-  });
-
-  final UpiAppOption app;
-  final bool isSelected;
-  final double iconSize;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: isSelected
-          ? AppColors.primary.withValues(alpha: 0.06)
-          : Colors.transparent,
-      borderRadius: BorderRadius.circular(AppRadius.sm),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.sm),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            children: [
-              _UpiAppIcon(app: app, size: iconSize),
-              const SizedBox(width: 12),
-              Text(
-                app.label,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const Spacer(),
-              if (isSelected)
-                Container(
-                  width: 22,
-                  height: 22,
-                  decoration: const BoxDecoration(
-                    color: AppColors.primary,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.check, size: 14, color: Colors.white),
-                ),
-            ],
-          ),
-        ),
       ),
     );
   }

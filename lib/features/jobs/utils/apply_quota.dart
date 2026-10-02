@@ -1,17 +1,17 @@
 import 'package:bombay_casting/core/models/models.dart';
 
 /// Free apply window (enforced server-side by `submitJobApplication`):
-/// - Days 1–3 from account creation: 3 applications per calendar day
-/// - 4th apply on the same day: daily-limit popup (tomorrow or pay ₹1)
-/// - Day 4+: must subscribe (₹1 modal)
-/// - Premium: unlimited
+/// - Days 1–3 from account creation: 1 application per IST calendar day
+/// - Day 4+ without mandate: must subscribe (paywall)
+/// - Active UPI mandate: 5 applications per IST calendar day
 enum ApplyGate { allowed, dailyLimit, trialEnded }
 
 class ApplyQuota {
   ApplyQuota._();
 
   static const trialDays = 3;
-  static const freeAppliesPerDay = 3;
+  static const freeAppliesPerDay = 1;
+  static const mandateAppliesPerDay = 5;
 
   static DateTime dateOnly(DateTime value) {
     final local = value.toLocal();
@@ -33,17 +33,26 @@ class ApplyQuota {
   }
 
   static ApplyGate evaluate({
-    required bool isPremium,
+    required bool hasActiveMandate,
     required DateTime? accountCreatedAt,
     required List<Application> applications,
     DateTime? now,
   }) {
-    if (isPremium) return ApplyGate.allowed;
-    final createdAt = accountCreatedAt ?? DateTime.now();
-    if (trialDayNumber(createdAt, now) > trialDays) {
+    final clock = now ?? DateTime.now();
+    final todayCount = appliesToday(applications, clock);
+
+    if (hasActiveMandate) {
+      if (todayCount >= mandateAppliesPerDay) {
+        return ApplyGate.dailyLimit;
+      }
+      return ApplyGate.allowed;
+    }
+
+    final createdAt = accountCreatedAt ?? clock;
+    if (trialDayNumber(createdAt, clock) > trialDays) {
       return ApplyGate.trialEnded;
     }
-    if (appliesToday(applications, now) >= freeAppliesPerDay) {
+    if (todayCount >= freeAppliesPerDay) {
       return ApplyGate.dailyLimit;
     }
     return ApplyGate.allowed;

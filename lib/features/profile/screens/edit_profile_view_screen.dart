@@ -410,14 +410,14 @@ class ProfilePhotoPicker extends StatelessWidget {
     if (source == ImageSource.camera) {
       final file = await picker.pickImage(
         source: ImageSource.camera,
-        maxWidth: 2000,
-        imageQuality: 88,
+        maxWidth: 1080,
+        imageQuality: 80,
       );
       picked = file == null ? const [] : [file];
     } else {
       picked = await picker.pickMultiImage(
-        maxWidth: 2000,
-        imageQuality: 88,
+        maxWidth: 1080,
+        imageQuality: 80,
         limit: remaining,
         requestFullMetadata: false,
       );

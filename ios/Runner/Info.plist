@@ -70,6 +70,8 @@
 		<string>Take a profile photo to upload to your account.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>Choose a profile photo to upload to your account.</string>
+		<key>NSLocationWhenInUseUsageDescription</key>
+		<string>We use your location to improve creator discovery and show relevant opportunities near you.</string>
 		<key>LSApplicationQueriesSchemes</key>
 		<array>
 			<string>phonepe</string>

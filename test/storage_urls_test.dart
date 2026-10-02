@@ -12,6 +12,21 @@ void main() {
     );
   });
 
+  test('keeps tokenized Firebase URLs for display', () {
+    const url =
+        'https://firebasestorage.googleapis.com/v0/b/talenthire-d86a1.firebasestorage.app/o/users%2Fu1%2Fprofile%2Fgallery_1.jpg?alt=media&token=abc';
+    expect(StorageUrls.displayStorageUrl(url), url);
+  });
+
+  test('rewrites tokenless Firebase URLs to CDN for display', () {
+    const url =
+        'https://firebasestorage.googleapis.com/v0/b/talenthire-d86a1.firebasestorage.app/o/users%2Fu1%2Fprofile%2Fgallery_1.jpg?alt=media';
+    expect(
+      StorageUrls.displayStorageUrl(url),
+      'https://talenthire-media.sgp1.cdn.digitaloceanspaces.com/users/u1/profile/gallery_1.jpg',
+    );
+  });
+
   test('parses legacy Firebase Storage URLs', () {
     const url =
         'https://firebasestorage.googleapis.com/v0/b/talenthire-d86a1.firebasestorage.app/o/users%2Fu1%2Fprofile%2Fgallery_1.jpg?alt=media&token=abc';

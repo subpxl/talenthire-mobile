@@ -10,11 +10,29 @@ class ReferralService {
   ReferralService._();
 
   static const _pendingCodeKey = 'pending_referral_code';
+  static const _pendingJobIdKey = 'pending_install_job_id';
   static const _fetchAttemptedKey = 'referral_fetch_attempted';
 
   /// Parses `ref_code` from the raw Play Install Referrer string.
   /// Handles both encoded (`ref_code%3DABC`) and plain (`ref_code=ABC`) forms.
   @visibleForTesting
+  /// Parses `utm_content=job_{id}` (or `download_app_job_{id}`) from Play install referrer.
+  @visibleForTesting
+  static String? parseDeferredJobId(String? rawReferrer) {
+    if (rawReferrer == null || rawReferrer.trim().isEmpty) return null;
+
+    final decoded = Uri.decodeComponent(rawReferrer.trim());
+    final match = RegExp(
+      r'(?:^|[?&])utm_content=(?:job_|download_app_job_)([^&]+)',
+      caseSensitive: false,
+    ).firstMatch(decoded);
+    if (match == null) return null;
+
+    final jobId = match.group(1)?.trim();
+    if (jobId == null || jobId.isEmpty) return null;
+    return jobId;
+  }
+
   static String? parseReferralCode(String? rawReferrer) {
     if (rawReferrer == null || rawReferrer.trim().isEmpty) return null;
 
@@ -38,9 +56,14 @@ class ReferralService {
 
     try {
       final details = await PlayInstallReferrer.installReferrer;
-      final code = parseReferralCode(details.installReferrer);
+      final rawReferrer = details.installReferrer;
+      final code = parseReferralCode(rawReferrer);
       if (code != null) {
         await prefs.setString(_pendingCodeKey, code);
+      }
+      final jobId = parseDeferredJobId(rawReferrer);
+      if (jobId != null) {
+        await prefs.setString(_pendingJobIdKey, jobId);
       }
     } catch (error) {
       debugPrint('Install referrer capture skipped: $error');
@@ -61,5 +84,17 @@ class ReferralService {
   static Future<void> clearPendingReferralCode() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_pendingCodeKey);
+  }
+
+  static Future<String?> pendingInstallJobId() async {
+    final prefs = await SharedPreferences.getInstance();
+    final jobId = prefs.getString(_pendingJobIdKey);
+    if (jobId == null || jobId.trim().isEmpty) return null;
+    return jobId.trim();
+  }
+
+  static Future<void> clearPendingInstallJobId() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_pendingJobIdKey);
   }
 }

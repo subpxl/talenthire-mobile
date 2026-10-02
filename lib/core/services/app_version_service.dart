@@ -26,8 +26,8 @@ class AppVersionService {
 
   static final AppVersionService instance = AppVersionService._();
 
-  /// Synced from pubspec: versionName 1.0.0, build 29.
-  static const currentMinBuild = 29;
+  /// Synced from pubspec: versionName 1.0.0, min build 30 (1.0.0+30).
+  static const currentMinBuild = 30;
   static const currentMinVersion = '1.0.0';
 
   static const minAndroidBuildKey = 'min_android_build';
@@ -58,11 +58,12 @@ class AppVersionService {
 
     try {
       final remoteConfig = FirebaseRemoteConfig.instance;
+      // Always fetch fresh thresholds so Remote Config deploys take effect
+      // immediately (production default is 12h and would keep stale min builds).
       await remoteConfig.setConfigSettings(
         RemoteConfigSettings(
           fetchTimeout: const Duration(seconds: 10),
-          minimumFetchInterval:
-              kDebugMode ? Duration.zero : const Duration(hours: 1),
+          minimumFetchInterval: Duration.zero,
         ),
       );
       await remoteConfig.setDefaults({

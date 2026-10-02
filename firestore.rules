@@ -120,6 +120,8 @@ service cloud.firestore {
           'birth_day',
           'birth_month',
           'birth_year',
+          'latitude',
+          'longitude',
           'updated_at',
           'fcm_tokens',
           'onboarding_completed',
@@ -128,6 +130,14 @@ service cloud.firestore {
         && optionalString(request.resource.data, 'name', 80)
         && optionalString(request.resource.data, 'email', 254)
         && optionalString(request.resource.data, 'mobile', 20)
+        && (!('latitude' in request.resource.data)
+          || (request.resource.data.latitude is number
+            && request.resource.data.latitude >= -90
+            && request.resource.data.latitude <= 90))
+        && (!('longitude' in request.resource.data)
+          || (request.resource.data.longitude is number
+            && request.resource.data.longitude >= -180
+            && request.resource.data.longitude <= 180))
         && (!('onboarding_completed' in request.resource.data)
           || request.resource.data.onboarding_completed is bool)
         && (!('onboarding_step' in request.resource.data)
@@ -141,6 +151,16 @@ service cloud.firestore {
         isOwner(userId)
         && changedKeys().hasOnly(['is_active', 'updated_at'])
         && request.resource.data.is_active is bool
+      ) || (
+        // Self soft-delete account (tag only).
+        isOwner(userId)
+        && changedKeys().hasOnly(['account_deleted_at', 'updated_at'])
+        && stringField(request.resource.data, 'account_deleted_at', 40)
+      ) || (
+        // Self restore after login: clear account_deleted_at.
+        isOwner(userId)
+        && changedKeys().hasOnly(['account_deleted_at', 'updated_at'])
+        && !('account_deleted_at' in request.resource.data)
       );
 
       allow delete: if isAdmin();
@@ -235,6 +255,12 @@ service cloud.firestore {
         && request.resource.data.text.size() <= 2000;
 
       allow update, delete: if false;
+    }
+
+    // ── public_jobs (marketing site — written only by Cloud Functions) ─────
+    match /public_jobs/{jobId} {
+      allow read: if true;
+      allow write: if false;
     }
 
     // ── jobs ───────────────────────────────────────────────────────────────
@@ -368,6 +394,23 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create, update: if isAdmin();
       allow delete: if false;
+    }
+
+    // ── banners (homepage promos — admin panel writes) ───────────────────
+    match /banners/{bannerId} {
+      allow read: if isSignedIn();
+
+      allow create: if isAdmin()
+        && stringField(request.resource.data, 'imageUrl', 2048)
+        && optionalString(request.resource.data, 'targetUrl', 2048)
+        && request.resource.data.isActive is bool;
+
+      allow update: if isAdmin()
+        && stringField(request.resource.data, 'imageUrl', 2048)
+        && optionalString(request.resource.data, 'targetUrl', 2048)
+        && request.resource.data.isActive is bool;
+
+      allow delete: if isAdmin();
     }
 
     // ── subscriptions (Cashfree billing — server writes only) ─────────────

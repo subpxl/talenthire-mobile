@@ -253,7 +253,7 @@ class AppLocalizationsTa extends AppLocalizations {
   String get contactUs => 'Contact us';
 
   @override
-  String get for1DayThen299month => 'For 3 days, then ₹299/Month';
+  String get for1DayThen299month => 'For 1 day, then ₹199/Month';
 
   @override
   String get phonepe => 'PhonePe';
@@ -263,6 +263,12 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get payNow1 => 'Pay now ₹1';
+
+  @override
+  String get startNow => 'Start now';
+
+  @override
+  String get payNow => 'Pay now';
 
   @override
   String get accountSettings => 'Account Settings';
@@ -284,7 +290,7 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get cancelPremiumMessage =>
-      'To cancel, pay a one-time ₹299 month charge in PhonePe. Enter your UPI PIN to complete. After payment, your subscription will be cancelled.';
+      'To cancel, pay a one-time ₹199 month charge in PhonePe. Enter your UPI PIN to complete. After payment, your subscription will be cancelled.';
 
   @override
   String get subscriptionCancelled => 'Subscription cancelled.';
@@ -298,7 +304,7 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get cancellationChargeIncomplete =>
-      '₹299 payment was not completed. Your subscription is still active.';
+      '₹199 payment was not completed. Your subscription is still active.';
 
   @override
   String get couldNotOpenPhonePe => 'Could not open PhonePe. Try again.';
@@ -513,4 +519,8 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get seePlans => 'திட்டங்களைக் காண்க';
+
+  @override
+  String get dailyApplyLimitReached =>
+      'Daily apply limit reached. Try again tomorrow.';
 }

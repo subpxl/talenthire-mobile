@@ -126,7 +126,7 @@ class CancellationChargeSession {
       orderId: data['orderId'] as String? ?? '',
       paymentSessionId: data['paymentSessionId'] as String? ?? '',
       environment: _parseEnvironment(data['environment']),
-      amount: (data['amount'] as num?)?.toInt() ?? 299,
+      amount: (data['amount'] as num?)?.toInt() ?? premiumMonthlyAmountInr,
       alreadyCancelled: data['alreadyCancelled'] == true,
       chargeWaived: data['chargeWaived'] == true,
       periodEndAt: data['periodEndAt'] as String? ?? '',
@@ -143,6 +143,9 @@ String _parseEnvironment(Object? raw) {
     'Cashfree environment missing or invalid in server response: $raw',
   );
 }
+
+/// Monthly Autopay amount (INR); must match [PREMIUM_MONTHLY_AMOUNT] in Cloud Functions.
+const premiumMonthlyAmountInr = 199;
 
 enum PremiumPaymentResult {
   success,
@@ -190,7 +193,7 @@ class PaymentService {
     }
   }
 
-  /// Starts a ₹299 PhonePe UPI charge, or cancels immediately with no extra
+  /// Starts a monthly PhonePe UPI charge, or cancels immediately with no extra
   /// charge when the current 30-day period is already prepaid.
   Future<CancellationChargeSession> createCancellationCharge() async {
     final callable = _functions.httpsCallable('createCancellationCharge');
@@ -198,7 +201,7 @@ class PaymentService {
     return CancellationChargeSession.fromMap(result.data);
   }
 
-  /// Confirms the ₹299 PhonePe payment with Cashfree, then cancels Autopay.
+  /// Confirms the PhonePe payment with Cashfree, then cancels Autopay.
   Future<PremiumVerificationResult> completeCancellationAfterCharge({
     required String orderId,
   }) async {
@@ -209,7 +212,7 @@ class PaymentService {
     return PremiumVerificationResult.fromMap(result.data);
   }
 
-  /// Cancels Autopay. ₹299 is required only during trial; a prepaid period
+  /// Cancels Autopay. A one-month charge is required only during trial; a prepaid period
   /// cancels with no extra charge.
   Future<PremiumVerificationResult> cancelPremiumSubscription() async {
     final callable = _functions.httpsCallable('cancelPremiumSubscription');

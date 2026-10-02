@@ -7,6 +7,7 @@ import {
   buildCancellationOrderPayload,
   buildPremiumSubscriptionPayload,
   CANCELLATION_CHARGE_AMOUNT,
+  PREMIUM_MONTHLY_AMOUNT,
   cancelCashfreeSubscription,
   cashfreeRequest,
   CashfreeSubscriptionResponse,
@@ -37,6 +38,7 @@ import {
 import {sendPushToUser} from './push';
 import {callable} from './callable';
 import {notifyKamaoAffiliateConversion} from './kamaoAffiliate';
+import {registerSyncPublicJob} from './syncPublicJob';
 
 admin.initializeApp();
 
@@ -49,7 +51,11 @@ export {submitJobApplication} from './submitJobApplication';
 export {backfillAgencyApplications} from './backfillAgencyApplications';
 export {deleteAccount} from './deleteAccount';
 export {syncCreatorFeedCard} from './syncCreatorFeedCard';
-export {deleteStorageObject, getStorageUploadUrl} from './storageUrls';
+export {
+  deleteStorageObject,
+  getStoragePublicUrl,
+  getStorageUploadUrl,
+} from './storageUrls';
 
 const db = admin.firestore();
 const RTDB_INSTANCE = 'talenthire-d86a1-default-rtdb';
@@ -59,14 +65,16 @@ const RTDB_URL =
 /** All payment-related functions run in Mumbai for lowest latency to Cashfree India. */
 const FUNCTION_REGION = 'asia-south1';
 
-const PREMIUM_TRIAL_DAYS = 3;
-/** Prepaid monthly access after a successful ₹299 charge. */
+const PREMIUM_TRIAL_DAYS = 1;
+/** Prepaid monthly access after a successful monthly charge. */
 const BILLING_PERIOD_DAYS = 30;
 const PAY_TO_CANCEL_MESSAGE =
-  'Pay ₹299 in PhonePe to cancel your subscription.';
+  `Pay ₹${PREMIUM_MONTHLY_AMOUNT} in PhonePe to cancel your subscription.`;
 
 /** How long (ms) a cached Firestore subscription session is considered fresh. */
 const SESSION_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+const MAX_MANDATE_ATTEMPTS_PER_DAY = 5;
 
 /** Cashfree expects IST timestamps, e.g. 2025-06-01T10:20:12+05:30 */
 function formatCashfreeIstIso(date: Date): string {
@@ -85,6 +93,12 @@ function addDaysIso(days: number, from: Date = new Date()): string {
   const result = new Date(from.getTime());
   result.setDate(result.getDate() + days);
   return formatCashfreeIstIso(result);
+}
+
+function todayIst(): string {
+  const istOffsetMs = 5.5 * 60 * 60 * 1000;
+  const ist = new Date(Date.now() + istOffsetMs);
+  return ist.toISOString().slice(0, 10);
 }
 
 function parseIsoDate(value: string | undefined | null): Date | null {
@@ -113,7 +127,7 @@ function addDays(from: Date, days: number): Date {
 }
 
 /**
- * Current prepaid period end: last ₹299 charge + 30 days, or first_charge_at
+ * Current prepaid period end: last ₹199 charge + 30 days, or first_charge_at
  * walked forward in 30-day steps. Null during trial (first charge still upcoming).
  */
 function currentPrepaidPeriodEnd(local: LocalSubscriptionRecord): Date | null {
@@ -144,9 +158,35 @@ function hasPaidMonthlyCharge(local: LocalSubscriptionRecord): boolean {
   return firstCharge != null && firstCharge.getTime() <= Date.now();
 }
 
+/** Full subscription payment received (₹199), not ₹1 UPI mandate authorization. */
+function hasReceivedFullPremiumPayment(
+  local: LocalSubscriptionRecord | Record<string, unknown> | undefined,
+): boolean {
+  if (!local) return false;
+  return parseFlexibleDate(local.last_charged_at) != null;
+}
+
+/** UPI mandate (₹1 auth) completed — user should get Premium access immediately. */
+function hasMandateAuthorization(
+  local: LocalSubscriptionRecord | Record<string, unknown> | undefined,
+): boolean {
+  if (!local) return false;
+  if (parseFlexibleDate(local.authorized_at) != null) return true;
+  const status = String(local.subscription_status ?? '').toUpperCase();
+  return status === 'ACTIVE';
+}
+
+function hasPremiumEntitlement(
+  local: LocalSubscriptionRecord | Record<string, unknown> | undefined,
+): boolean {
+  return (
+    hasReceivedFullPremiumPayment(local) || hasMandateAuthorization(local)
+  );
+}
+
 /**
  * Pending checkout sessions go stale when first_charge_at is too soon or already
- * past — Cashfree would charge ₹299 almost immediately after ₹1 auth instead of
+ * past — Cashfree would charge ₹199 almost immediately after ₹1 auth instead of
  * waiting PREMIUM_TRIAL_DAYS from authorization.
  */
 function isFirstChargeScheduleStale(firstChargeAt: string | undefined): boolean {
@@ -163,10 +203,27 @@ async function setUserSubscriptionStatus(
   await db.collection('profiles').doc(userId).set(
     {
       subscription_status: status,
+      is_verified: status === 'premium',
       updated_at: admin.firestore.FieldValue.serverTimestamp(),
     },
     {merge: true},
   );
+}
+
+async function syncPremiumAccessFromSubscription(userId: string): Promise<boolean> {
+  const subSnap = await db.collection('subscriptions').doc(userId).get();
+  const local = (subSnap.data() ?? {}) as LocalSubscriptionRecord;
+  const profileSnap = await db.collection('profiles').doc(userId).get();
+  const profileStatus = String(profileSnap.data()?.subscription_status ?? '');
+
+  if (hasPremiumEntitlement(local)) {
+    if (profileStatus !== 'premium') {
+      await setUserSubscriptionStatus(userId, 'premium');
+    }
+    return true;
+  }
+
+  return false;
 }
 
 async function resolveUserEmailFromAuth(
@@ -265,6 +322,7 @@ interface LocalSubscriptionRecord {
   subscription_id?: string;
   user_id?: string;
   subscription_status?: string;
+  authorized_at?: admin.firestore.Timestamp | string;
   first_charge_at?: string;
   last_charged_at?: admin.firestore.Timestamp | string;
   period_end_at?: admin.firestore.Timestamp | string;
@@ -690,10 +748,10 @@ async function resolveExistingSubscriptionSession(
 /**
  * Creates a Cashfree UPI Autopay subscription:
  * - ₹1 authorization now (when user completes UPI mandate)
- * - ₹299/month starting PREMIUM_TRIAL_DAYS after the ₹1 authorization
+ * - ₹199/month starting PREMIUM_TRIAL_DAYS after the ₹1 authorization
  *
- * Cancelling in this trial window (₹1 paid, ₹299 not yet charged) requires a
- * ₹299 PhonePe charge. After the monthly Autopay, cancel is free.
+ * Cancelling in this trial window (₹1 paid, ₹199 not yet charged) requires a
+ * ₹199 PhonePe charge. After the monthly Autopay, cancel is free.
  */
 export const createPremiumSubscription = callable().https.onCall(
   async (_data, context) => {
@@ -708,8 +766,18 @@ export const createPremiumSubscription = callable().https.onCall(
 
     // Server-side guard: do not create a new subscription if user is already premium.
     // This prevents overwriting a valid subscriptions/{userId} doc and prevents double-billing.
-    const existingProfile = await db.collection('profiles').doc(userId).get();
-    if (existingProfile.data()?.subscription_status === 'premium') {
+    const [existingProfile, existingSubscription] = await Promise.all([
+      db.collection('profiles').doc(userId).get(),
+      db.collection('subscriptions').doc(userId).get(),
+    ]);
+    const existingSub = existingSubscription.data() ?? {};
+    if (
+      existingProfile.data()?.subscription_status === 'premium' ||
+      hasPremiumEntitlement(existingSub)
+    ) {
+      if (existingProfile.data()?.subscription_status !== 'premium') {
+        await setUserSubscriptionStatus(userId, 'premium');
+      }
       throw new functions.https.HttpsError(
         'already-exists',
         'You are already a Premium member.',
@@ -722,6 +790,27 @@ export const createPremiumSubscription = callable().https.onCall(
     if (reusedSession) {
       return reusedSession;
     }
+
+    const today = todayIst();
+    const attemptsDate = String(existingSub.mandate_attempts_date ?? '');
+    const attemptsCount = attemptsDate === today
+      ? Number(existingSub.mandate_attempts_today ?? 0)
+      : 0;
+
+    if (attemptsCount >= MAX_MANDATE_ATTEMPTS_PER_DAY) {
+      throw new functions.https.HttpsError(
+        'resource-exhausted',
+        'Daily limit reached. Try again tomorrow.',
+      );
+    }
+
+    await db.collection('subscriptions').doc(userId).set(
+      {
+        mandate_attempts_today: attemptsCount + 1,
+        mandate_attempts_date: today,
+      },
+      {merge: true},
+    );
 
     const customer = await loadCustomerDetails(userId);
     const subscriptionId = `premium_${userId}_${Date.now()}`;
@@ -763,7 +852,7 @@ export const createPremiumSubscription = callable().https.onCall(
         subscription_session_id: created.subscription_session_id,
         subscription_status: created.subscription_status,
         authorization_amount: 1,
-        recurring_amount: 299,
+        recurring_amount: PREMIUM_MONTHLY_AMOUNT,
         first_charge_at: firstChargeTimeIso,
         provider: 'cashfree',
         created_at: admin.firestore.FieldValue.serverTimestamp(),
@@ -836,16 +925,18 @@ export const verifyPremiumSubscription = callable().https.onCall(
     const authStatus =
       remote.authorisation_details?.authorization_status ?? 'UNKNOWN';
 
-    // Only treat ACTIVE subscription status as premium. Do NOT use authStatus === 'SUCCESS'
-    // alone — that only means the mandate was accepted, the subscription could still be cancelled.
     const isActive = subscriptionStatus === 'ACTIVE';
+    const isAuthSuccess =
+      authStatus.toUpperCase() === 'SUCCESS' ||
+      authStatus.toUpperCase() === 'ACTIVE';
+    const shouldGrantAuth = (isActive || isAuthSuccess) && !alreadyAuthorized;
 
     await db.collection('subscriptions').doc(userId).set(
       {
         subscription_status: subscriptionStatus,
         authorization_status: authStatus,
         updated_at: admin.firestore.FieldValue.serverTimestamp(),
-        ...(isActive && !alreadyAuthorized
+        ...(shouldGrantAuth
           ? {
               authorized_at: admin.firestore.FieldValue.serverTimestamp(),
               first_charge_at: addDaysIso(PREMIUM_TRIAL_DAYS),
@@ -855,18 +946,17 @@ export const verifyPremiumSubscription = callable().https.onCall(
       {merge: true},
     );
 
-    if (isActive) {
-      await setUserSubscriptionStatus(userId, 'premium');
-    } else if (isTerminalSubscriptionStatus(subscriptionStatus)) {
+    if (isTerminalSubscriptionStatus(subscriptionStatus)) {
       const current = await db.collection('profiles').doc(userId).get();
       if (current.data()?.subscription_status === 'premium') {
         await setUserSubscriptionStatus(userId, 'expired');
       }
+    } else {
+      await syncPremiumAccessFromSubscription(userId);
     }
 
     const profileDoc = await db.collection('profiles').doc(userId).get();
-    const isPremium =
-      profileDoc.data()?.subscription_status === 'premium' || isActive;
+    const isPremium = profileDoc.data()?.subscription_status === 'premium';
 
     return {
       status: subscriptionStatus,
@@ -877,9 +967,9 @@ export const verifyPremiumSubscription = callable().https.onCall(
 );
 
 /**
- * Creates a ₹299 Cashfree order and returns a PhonePe UPI session.
+ * Creates a ₹199 Cashfree order and returns a PhonePe UPI session.
  * Subscription is not cancelled until the charge is paid.
- * Prepaid current period (₹299 already paid, still within 30 days): cancel
+ * Prepaid current period (₹199 already paid, still within 30 days): cancel
  * Autopay with no extra charge and keep Premium until period end.
  */
 export const createCancellationCharge = callable().https.onCall(
@@ -1075,7 +1165,7 @@ export const createCancellationCharge = callable().https.onCall(
 );
 
 /**
- * Verifies the ₹299 PhonePe payment, then cancels Autopay and ends Premium.
+ * Verifies the ₹199 PhonePe payment, then cancels Autopay and ends Premium.
  */
 export const completeCancellationAfterCharge = callable().https.onCall(
   async (data, context) => {
@@ -1102,7 +1192,7 @@ export const completeCancellationAfterCharge = callable().https.onCall(
 );
 
 /**
- * Completes cancellation only after a ₹299 PhonePe charge is paid.
+ * Completes cancellation only after a ₹199 PhonePe charge is paid.
  * Idempotent: already-cancelled subscriptions still expire local premium.
  */
 export const cancelPremiumSubscription = callable().https.onCall(
@@ -1306,7 +1396,7 @@ async function handleCashfreeHttpWebhook(
           ...(isAuthorizationSuccessWebhook(payload)
             ? {
                 authorized_at: admin.firestore.FieldValue.serverTimestamp(),
-                // Display schedule: ₹299 due PREMIUM_TRIAL_DAYS after ₹1 auth.
+                // Display schedule: ₹199 due PREMIUM_TRIAL_DAYS after ₹1 auth.
                 first_charge_at: addDaysIso(PREMIUM_TRIAL_DAYS),
               }
             : {}),
@@ -1705,7 +1795,7 @@ async function recordPremiumMonthlyTransaction(
   await recordBillingTransaction({
     docId: `pm_${subscriptionId}_${chargeKey}`,
     userId,
-    amount: 299,
+    amount: PREMIUM_MONTHLY_AMOUNT,
     type: 'premium_monthly',
     cashfreeSubscriptionId: subscriptionId,
     paidAt,
@@ -2171,3 +2261,6 @@ export const onJobPublished = functions
     );
     return null;
   });
+
+/** Public marketing site: sanitized copy in `public_jobs` when agency opts in. */
+export const syncPublicJobOnWrite = registerSyncPublicJob(db, FUNCTION_REGION);

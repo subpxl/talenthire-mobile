@@ -12,6 +12,27 @@ class StorageUrls {
         || url.contains(originHost);
   }
 
+  /// Public CDN URL for a storage object path.
+  static String publicObjectUrl(String objectPath) {
+    final normalized = objectPath.replaceFirst(RegExp(r'^/+'), '');
+    final segments =
+        normalized.split('/').map(Uri.encodeComponent).join('/');
+    return 'https://$cdnHost/$segments';
+  }
+
+  /// Prefer CDN for display when safe; keeps tokenized Firebase download links.
+  static String displayStorageUrl(String url) {
+    if (url.isEmpty) return url;
+    if (url.contains('firebasestorage.googleapis.com')) {
+      // Token URLs work without auth. Rewriting to CDN breaks files that were
+      // never copied to Spaces (common for Play Store builds still on Firebase).
+      if (url.contains('token=')) return url;
+      final path = objectPathFromUrl(url);
+      if (path != null) return publicObjectUrl(path);
+    }
+    return url;
+  }
+
   static String? objectPathFromUrl(String url) {
     if (url.isEmpty) return null;
     if (url.contains(cdnHost) || url.contains(originHost)) {

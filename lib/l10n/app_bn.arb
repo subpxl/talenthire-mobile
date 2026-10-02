@@ -1,4 +1,4 @@
-{
+﻿{
   "changeLanguage": "ভাষা পরিবর্তন করুন",
   "chooseYourAppLanguage": "আপনার অ্যাপের ভাষা নির্বাচন করুন",
   "couldNotOpenThisPageRightNow": "Could not open this page right now.",
@@ -61,10 +61,12 @@
   "paymentRelated": "Payment related",
   "appPolicies": "App policies",
   "contactUs": "Contact us",
-  "for1DayThen299month": "For 3 days, then ₹299/Month",
+  "for1DayThen299month": "For 1 day, then ₹199/Month",
   "phonepe": "PhonePe",
   "change": "CHANGE",
   "payNow1": "Pay now ₹1",
+  "startNow": "Start now",
+  "payNow": "Pay now",
   "accountSettings": "Account Settings",
   "contactPrivacy": "Contact privacy",
   "subscriptions": "Subscriptions",

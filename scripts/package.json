@@ -14,12 +14,12 @@
     "wipe:telefone": "node ../../mobile-vcap/scripts/wipe_telefone_data.js --project telefone-b3feb --adc",
     "wipe:telefone:apply": "node ../../mobile-vcap/scripts/wipe_telefone_data.js --project telefone-b3feb --adc --apply",
     "spaces:setup": "node setup_spaces.js",
-    "spaces:migrate": "node migrate_storage_to_spaces.js --apply",
     "spaces:rewrite-urls": "node rewrite_storage_urls.js --apply",
     "spaces:test": "node test_spaces.js",
     "spaces:verify": "node verify_phase2.js",
     "sync:app-version": "node sync_app_version.js --apply",
-    "sync:app-version:dry": "node sync_app_version.js"
+    "sync:app-version:dry": "node sync_app_version.js",
+    "forceupdate": "node sync_app_version.js --force-update"
   },
   "engines": {
     "node": ">=20"

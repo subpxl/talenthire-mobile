@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:bombay_casting/core/models/models.dart';
 import 'package:bombay_casting/features/creators/models/creator_profile.dart';
 import 'package:bombay_casting/features/creators/services/creator_cache_service.dart';
+import 'package:bombay_casting/features/creators/utils/creator_feed_sort.dart';
 
 class CreatorFeed {
   CreatorFeed({
@@ -28,12 +29,14 @@ class CreatorFeed {
   final Map<String, CreatorProfile> _creatorsById = {};
 
   List<CreatorProfile> creators = [];
+  List<CreatorProfile> pendingCreators = [];
   bool isLoading = true;
   bool isLoadingMore = false;
   bool hasMore = true;
   Object? loadError;
 
   DocumentSnapshot<Map<String, dynamic>>? _cursor;
+  String? _lastPaginationDocId;
   int _autoFillPages = 0;
   int _requestId = 0;
   bool _fetchInFlight = false;
@@ -59,28 +62,50 @@ class CreatorFeed {
   void setFilter(CreatorFilter filter) {
     _filter = filter;
     _autoFillPages = 0;
+    pendingCreators.clear();
     _onChange();
     maybeFillFilteredFeed(filter);
+  }
+
+  void applyPending() {
+    if (pendingCreators.isEmpty) return;
+    _mergeCreatorsInPlace(pendingCreators);
+    pendingCreators.clear();
+    _onChange();
   }
 
   Future<void> hydrateAndLoad() async {
     await _hydrateFromCache();
     if (creators.isEmpty) {
       await fetchPage(reset: true);
-    } else if (!_cacheIsFresh) {
-      unawaited(fetchPage(reset: true));
+      return;
+    }
+
+    isLoading = false;
+    _onChange();
+    if (!_cacheIsFresh) {
+      unawaited(_syncStaleFeed());
+    } else {
+      unawaited(_establishPaginationCursor());
     }
   }
 
   Future<void> refresh() => fetchPage(reset: true, fromServer: true);
 
-  Future<void> loadMore() => fetchPage(reset: false);
+  Future<void> loadMore() async {
+    if (_cursor == null && creators.isNotEmpty && !_fetchInFlight) {
+      await _establishPaginationCursor();
+    }
+    await fetchPage(reset: false);
+  }
 
   void reset() {
     _requestId++;
     creators = [];
+    pendingCreators.clear();
     _creatorsById.clear();
     _cursor = null;
+    _lastPaginationDocId = null;
     hasMore = true;
     isLoading = false;
     isLoadingMore = false;
@@ -102,8 +127,59 @@ class CreatorFeed {
     }
     _cacheIsFresh = cached.isFresh;
     _replaceCreators(cached.creators);
-    hasMore = true;
+    hasMore = cached.creators.length >= CreatorCacheService.maxCreators;
     _cursor = null;
+    _lastPaginationDocId = cached.lastPaginationDocId;
+  }
+
+  /// Refreshes cached rows in place without clearing the list or pagination.
+  Future<void> _syncStaleFeed() async {
+    if (_fetchInFlight || creators.isEmpty) return;
+    _fetchInFlight = true;
+    try {
+      await _fetchChunk(
+        requestId: _requestId,
+        fromServer: false,
+        limit: _nextPageSize,
+        replace: false,
+        applyCursor: false,
+        notify: false,
+        queueNew: true,
+      );
+      await _cache.write(
+        creators,
+        lastPaginationDocId: _lastPaginationDocId,
+      );
+      _cacheIsFresh = true;
+    } catch (error) {
+      debugPrint('Stale creator feed sync failed: $error');
+    } finally {
+      _fetchInFlight = false;
+      _onChange();
+      unawaited(_establishPaginationCursor());
+    }
+  }
+
+  /// Aligns [_cursor] with how many creator user docs are already shown.
+  Future<void> _establishPaginationCursor() async {
+    if (_cursor != null || creators.isEmpty || _fetchInFlight) return;
+
+    final limit = creators.length.clamp(1, CreatorCacheService.maxCreators);
+    var query = _usersQuery().limit(limit);
+    final snapshot = await _getQuery(
+      query,
+      fromServer: false,
+      limit: limit,
+    );
+
+    if (snapshot.docs.isEmpty) {
+      hasMore = false;
+      return;
+    }
+
+    _cursor = snapshot.docs.last;
+    _lastPaginationDocId = _cursor!.id;
+    hasMore = snapshot.docs.length >= limit;
   }
 
   Future<void> fetchPage({
@@ -115,19 +191,21 @@ class CreatorFeed {
 
     final requestId = ++_requestId;
     _fetchInFlight = true;
+    final notifyLoading = reset ? creators.isEmpty : true;
     if (reset) {
       isLoading = creators.isEmpty;
       isLoadingMore = false;
       loadError = null;
       _autoFillPages = 0;
-      _cursor = null;
       if (fromServer) {
+        _cursor = null;
+        _lastPaginationDocId = null;
         _fallbackSeed = 1;
       }
     } else {
       isLoadingMore = true;
     }
-    _onChange();
+    if (notifyLoading) _onChange();
 
     try {
       if (reset) {
@@ -137,20 +215,23 @@ class CreatorFeed {
           limit: firstPaintSize,
           replace: fromServer,
           applyCursor: false,
+          notify: false,
         );
         if (requestId != _requestId) return;
         isLoading = false;
         final remaining = _nextPageSize - firstPaintSize;
-        isLoadingMore = !_slowNetwork && hasMore && remaining > 0;
-        _onChange();
+        final loadSecondChunk =
+            !_slowNetwork && hasMore && remaining > 0;
+        isLoadingMore = loadSecondChunk;
 
-        if (isLoadingMore && remaining > 0) {
+        if (loadSecondChunk) {
           await _fetchChunk(
             requestId: requestId,
             fromServer: fromServer,
             limit: remaining,
             replace: false,
             applyCursor: true,
+            notify: false,
           );
         }
       } else {
@@ -160,12 +241,16 @@ class CreatorFeed {
           limit: _nextPageSize,
           replace: false,
           applyCursor: true,
+          notify: false,
         );
       }
 
       if (requestId == _requestId) {
         loadError = null;
-        await _cache.write(creators);
+        await _cache.write(
+          creators,
+          lastPaginationDocId: _lastPaginationDocId,
+        );
         _cacheIsFresh = true;
       }
     } catch (error) {
@@ -195,6 +280,8 @@ class CreatorFeed {
     required int limit,
     required bool replace,
     required bool applyCursor,
+    bool notify = true,
+    bool queueNew = false,
   }) async {
     var query = _usersQuery();
     if (applyCursor) query = _applyCursor(query);
@@ -215,6 +302,8 @@ class CreatorFeed {
 
     for (final doc in snapshot.docs) {
       final data = Map<String, dynamic>.from(doc.data());
+      if (data['profile_deleted_at'] != null) continue;
+      if (data['account_deleted_at'] != null) continue;
       final feedCard = data['feed_card'];
       if (feedCard is Map) {
         final creator = CreatorProfile.fromFeedCard(
@@ -251,11 +340,34 @@ class CreatorFeed {
     if (replace) {
       _replaceCreators(page);
     } else {
-      _mergeCreators(page);
+      if (queueNew) {
+        for (final c in page) {
+          final existing = _creatorsById[c.id];
+          if (existing == null || existing.profileScore != c.profileScore || existing.hasPhoto != c.hasPhoto) {
+            // Significant change or new user -> queue to prevent feed jump
+            final pendingIndex = pendingCreators.indexWhere((p) => p.id == c.id);
+            if (pendingIndex >= 0) {
+              pendingCreators[pendingIndex] = c;
+            } else {
+              pendingCreators.add(c);
+            }
+          } else {
+            // Minor update -> apply in place silently
+            final index = creators.indexWhere((x) => x.id == c.id);
+            if (index >= 0) creators[index] = c;
+            _creatorsById[c.id] = c;
+          }
+        }
+      } else {
+        _mergeCreatorsInPlace(page);
+      }
     }
+
+    if (notify || (queueNew && pendingCreators.isNotEmpty)) _onChange();
 
     if (snapshot.docs.isNotEmpty) {
       _cursor = snapshot.docs.last;
+      _lastPaginationDocId = _cursor!.id;
     }
     hasMore = snapshot.docs.length >= limit;
   }
@@ -299,8 +411,9 @@ class CreatorFeed {
   }
 
   void maybeFillFilteredFeed(CreatorFilter filter) {
+    if (!filter.isActive) return;
     if (!hasMore || _fetchInFlight || isLoadingMore) return;
-    if (_slowNetwork && !filter.isActive) return;
+    if (_slowNetwork) return;
     final visible = creators.where((creator) => filter.matches(creator)).length;
     if (visible >= firstPaintSize) return;
     if (_autoFillPages >= (_slowNetwork ? 1 : _maxAutoFillPages)) return;
@@ -316,10 +429,12 @@ class CreatorFeed {
   }) {
     final otherProfile = profilesById[id];
     if (otherProfile == null) return null;
+    if (otherProfile.accountStatus == AccountStatus.deleted) return null;
     data['id'] = data['id'] ?? id;
     final otherUser = User.fromJson(data);
     final isCurrentUser = id == _currentUserId;
     if (!isCurrentUser && !otherUser.isActive) return null;
+    if (!isCurrentUser && otherUser.isAccountDeleted) return null;
     if (!isCurrentUser &&
         otherUser.name.trim().isEmpty &&
         otherProfile.galleryPhotos.isEmpty &&
@@ -369,7 +484,7 @@ class CreatorFeed {
   }
 
   void _replaceCreators(List<CreatorProfile> next) {
-    final sorted = [...next]..sort(_byCreatedAtDesc);
+    final sorted = [...next]..sort(compareCreatorsForFeed);
     creators = sorted;
     _creatorsById
       ..clear()
@@ -377,18 +492,18 @@ class CreatorFeed {
     _fallbackSeed = sorted.length * 4 + 1;
   }
 
-  void _mergeCreators(List<CreatorProfile> incoming) {
-    final byId = {for (final creator in creators) creator.id: creator};
-    for (final creator in incoming) {
-      byId[creator.id] = creator;
-      _creatorsById[creator.id] = creator;
-    }
-    creators = byId.values.toList()..sort(_byCreatedAtDesc);
-  }
+  void _mergeCreatorsInPlace(List<CreatorProfile> incoming) {
+    if (incoming.isEmpty) return;
 
-  int _byCreatedAtDesc(CreatorProfile a, CreatorProfile b) {
-    final aTime = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-    final bTime = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-    return bTime.compareTo(aTime);
+    final sortedIncoming = [...incoming]..sort(compareCreatorsForFeed);
+    for (final creator in sortedIncoming) {
+      _creatorsById[creator.id] = creator;
+      final existingIndex = creators.indexWhere((c) => c.id == creator.id);
+      if (existingIndex >= 0) {
+        creators.removeAt(existingIndex);
+      }
+      final insertAt = insertIndexForCreator(creator, creators);
+      creators.insert(insertAt, creator);
+    }
   }
 }

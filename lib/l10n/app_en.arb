@@ -1,4 +1,4 @@
-{
+﻿{
   "changeLanguage": "Change language",
   "@changeLanguage": {
     "description": "The title for the language selection screen"
@@ -82,21 +82,23 @@
   "paymentRelated": "Payment related",
   "appPolicies": "App policies",
   "contactUs": "Contact us",
-  "for1DayThen299month": "For 3 days, then ₹299/Month",
+  "for1DayThen299month": "For 1 day, then ₹199/Month",
   "phonepe": "PhonePe",
   "change": "CHANGE",
   "payNow1": "Pay now ₹1",
+  "startNow": "Start now",
+  "payNow": "Pay now",
   "accountSettings": "Account Settings",
   "contactPrivacy": "Contact privacy",
   "subscriptions": "Subscriptions",
   "recentTransactions": "Recent transactions",
   "cancelSubscription": "Cancel subscription",
   "cancelPremiumTitle": "Cancel Premium?",
-  "cancelPremiumMessage": "To cancel, pay a one-time ₹299 month charge in PhonePe. Enter your UPI PIN to complete. After payment, your subscription will be cancelled.",
+  "cancelPremiumMessage": "To cancel, pay a one-time ₹199 month charge in PhonePe. Enter your UPI PIN to complete. After payment, your subscription will be cancelled.",
   "subscriptionCancelled": "Subscription cancelled.",
   "noActiveSubscription": "No active subscription to cancel.",
   "couldNotCancelSubscription": "Could not cancel subscription. Try again.",
-  "cancellationChargeIncomplete": "₹299 payment was not completed. Your subscription is still active.",
+  "cancellationChargeIncomplete": "₹199 payment was not completed. Your subscription is still active.",
   "couldNotOpenPhonePe": "Could not open PhonePe. Try again.",
   "noTransactionsYet": "No transactions yet.",
   "logout": "Logout",
@@ -165,5 +167,6 @@
   "applicationStageCancelled": "Cancelled",
   "all": "All",
   "subscribeToApply": "Subscribe to apply and land your next collab",
-  "seePlans": "See plans"
+  "seePlans": "See plans",
+  "dailyApplyLimitReached": "Daily apply limit reached. Try again tomorrow."
 }

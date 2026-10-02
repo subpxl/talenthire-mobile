@@ -39,4 +39,22 @@ void main() {
       );
     });
   });
+
+  group('ReferralService.parseDeferredJobId', () {
+    test('parses job id from utm_content', () {
+      expect(
+        ReferralService.parseDeferredJobId(
+          'utm_source=website&utm_medium=deeplink&utm_content=job_abc123',
+        ),
+        'abc123',
+      );
+    });
+
+    test('parses legacy download_app_job prefix', () {
+      expect(
+        ReferralService.parseDeferredJobId('utm_content=download_app_job_xyz'),
+        'xyz',
+      );
+    });
+  });
 }

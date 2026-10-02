@@ -12,7 +12,9 @@ import 'package:bombay_casting/features/jobs/screens/job_detail_screen.dart';
 import 'package:bombay_casting/features/jobs/screens/jobs_screen.dart';
 import 'package:bombay_casting/features/messaging/screens/message_list_screen.dart';
 import 'package:bombay_casting/core/services/analytics_service.dart';
+import 'package:bombay_casting/core/services/referral_service.dart';
 import 'package:bombay_casting/features/profile/screens/user_profile_screen.dart';
+import 'package:bombay_casting/features/premium/premium_paywall_gate.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -72,6 +74,7 @@ class _MainShellState extends State<MainShell> {
           final job = await appState.fetchJobById(target.id);
           if (!mounted) return;
           Navigator.of(context, rootNavigator: true).pop();
+          await ReferralService.clearPendingInstallJobId();
           if (job == null) {
             _showMissing('Job not found.');
             return;
@@ -159,7 +162,7 @@ class _MainShellState extends State<MainShell> {
     }
   }
 
-  void _onTabTapped(int index) {
+  void _onTabTapped(int index, {bool fromBottomNav = true}) {
     if (_currentIndex == index) return;
     FocusManager.instance.primaryFocus?.unfocus();
     context.read<AppState>().onMainShellTabSelected(index);
@@ -172,6 +175,9 @@ class _MainShellState extends State<MainShell> {
       duration: AppDurations.tabSwitch,
       curve: Curves.easeInOutCubic,
     );
+    if (fromBottomNav && (index == 1 || index == 2 || index == 3)) {
+      PremiumPaywallGate.maybeShowOnMainTab(context, index);
+    }
   }
 
   @override
@@ -186,7 +192,7 @@ class _MainShellState extends State<MainShell> {
         if (!mounted) return;
         final tab = context.read<AppState>().requestedMainShellTab;
         if (tab == null || tab == _currentIndex) return;
-        _onTabTapped(tab);
+        _onTabTapped(tab, fromBottomNav: false);
         context.read<AppState>().clearRequestedMainShellTab();
       });
     }

@@ -575,7 +575,7 @@ abstract class AppLocalizations {
   /// No description provided for @for1DayThen299month.
   ///
   /// In en, this message translates to:
-  /// **'For 3 days, then ₹299/Month'**
+  /// **'For 1 day, then ₹199/Month'**
   String get for1DayThen299month;
 
   /// No description provided for @phonepe.
@@ -595,6 +595,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Pay now ₹1'**
   String get payNow1;
+
+  /// No description provided for @startNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Start now'**
+  String get startNow;
+
+  /// No description provided for @payNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Pay now'**
+  String get payNow;
 
   /// No description provided for @accountSettings.
   ///
@@ -635,7 +647,7 @@ abstract class AppLocalizations {
   /// No description provided for @cancelPremiumMessage.
   ///
   /// In en, this message translates to:
-  /// **'To cancel, pay a one-time ₹299 month charge in PhonePe. Enter your UPI PIN to complete. After payment, your subscription will be cancelled.'**
+  /// **'To cancel, pay a one-time ₹199 month charge in PhonePe. Enter your UPI PIN to complete. After payment, your subscription will be cancelled.'**
   String get cancelPremiumMessage;
 
   /// No description provided for @subscriptionCancelled.
@@ -659,7 +671,7 @@ abstract class AppLocalizations {
   /// No description provided for @cancellationChargeIncomplete.
   ///
   /// In en, this message translates to:
-  /// **'₹299 payment was not completed. Your subscription is still active.'**
+  /// **'₹199 payment was not completed. Your subscription is still active.'**
   String get cancellationChargeIncomplete;
 
   /// No description provided for @couldNotOpenPhonePe.
@@ -1075,6 +1087,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'See plans'**
   String get seePlans;
+
+  /// No description provided for @dailyApplyLimitReached.
+  ///
+  /// In en, this message translates to:
+  /// **'Daily apply limit reached. Try again tomorrow.'**
+  String get dailyApplyLimitReached;
 }
 
 class _AppLocalizationsDelegate

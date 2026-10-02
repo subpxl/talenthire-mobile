@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:bombay_casting/core/services/image_resize_service.dart';
 import 'package:bombay_casting/core/services/storage_urls.dart';
@@ -62,14 +63,18 @@ class StorageService {
     );
 
     var thumbUrl = fullUrl;
-    final thumbBytes = await ImageResizeService.createThumbnailBytes(file);
-    if (thumbBytes != null) {
-      thumbUrl = await uploadBytes(
-        userId: userId,
-        bytes: thumbBytes,
-        folder: 'profile/thumbs',
-        fileName: galleryFileName(slot),
-      );
+    try {
+      final thumbBytes = await ImageResizeService.createThumbnailBytes(file);
+      if (thumbBytes != null) {
+        thumbUrl = await uploadBytes(
+          userId: userId,
+          bytes: thumbBytes,
+          folder: 'profile/thumbs',
+          fileName: galleryFileName(slot),
+        );
+      }
+    } catch (error) {
+      debugPrint('Profile thumb upload skipped: $error');
     }
 
     return ProfilePhotoUpload(
@@ -85,7 +90,7 @@ class StorageService {
     required String folder,
     String? fileName,
   }) async {
-    final bytes = await file.readAsBytes();
+    final bytes = await ImageResizeService.createUploadBytes(file);
     return uploadBytes(
       userId: userId,
       bytes: bytes,
@@ -147,22 +152,74 @@ class StorageService {
     required Uint8List bytes,
     required String contentType,
   }) async {
-    final callable = _functions.httpsCallable('getStorageUploadUrl');
-    final result = await callable.call({
-      'objectPath': objectPath,
-      'contentType': contentType,
-      'contentLength': bytes.length,
-    });
-    final data = Map<String, dynamic>.from(result.data as Map);
+    final Map<String, dynamic> data;
+    try {
+      final callable = _functions.httpsCallable('getStorageUploadUrl');
+      final result = await callable.call({
+        'objectPath': objectPath,
+        'contentType': contentType,
+        'contentLength': bytes.length,
+      });
+      data = Map<String, dynamic>.from(result.data as Map);
+    } on FirebaseFunctionsException catch (error) {
+      debugPrint(
+        'getStorageUploadUrl: ${error.code} ${error.message ?? ''}',
+      );
+      rethrow;
+    }
     final uploadUrl = data['uploadUrl'] as String?;
     final publicUrl = data['publicUrl'] as String?;
-    final fallbackUploadUrl = data['fallbackUploadUrl'] as String?;
-    final fallbackPublicUrl = data['fallbackPublicUrl'] as String?;
 
     if (uploadUrl == null || uploadUrl.isEmpty || publicUrl == null) {
       throw StateError('Upload URL was not returned by the server.');
     }
 
+    if (!uploadUrl.contains('digitaloceanspaces.com')) {
+      throw StateError('Upload must use DigitalOcean Spaces.');
+    }
+
+    final uploaded = await _putBytes(
+      uploadUrl,
+      bytes: bytes,
+      contentType: contentType,
+    );
+    if (!uploaded) {
+      throw StateError('Upload failed (${bytes.length} bytes).');
+    }
+
+    final resolved = await _resolvePublicUrlWithRetry(objectPath);
+    if (resolved != null && resolved.isNotEmpty) {
+      return resolved;
+    }
+    return publicUrl;
+  }
+
+  /// True when the object exists on Spaces (via server HeadObject).
+  Future<bool> objectExistsAtUrl(String url) async {
+    if (url.isEmpty) return false;
+    // Legacy Firebase URLs: keep as-is during repair (display layer handles them).
+    if (url.contains('firebasestorage.googleapis.com')) return true;
+    final objectPath = StorageUrls.objectPathFromUrl(url);
+    if (objectPath == null) return true;
+    if (!StorageUrls.isStorageUrl(url)) return true;
+    final resolved = await _resolvePublicUrl(objectPath);
+    return resolved != null && resolved.isNotEmpty;
+  }
+
+  /// Expected thumb CDN URL for a profile gallery full-size URL.
+  static String? canonicalThumbUrlForPhoto(String fullUrl) {
+    final path = StorageUrls.objectPathFromUrl(fullUrl);
+    if (path == null || !path.contains('/profile/')) return null;
+    if (!path.contains('/${galleryPrefix}')) return null;
+    final thumbPath = path.replaceFirst('/profile/', '/profile/thumbs/');
+    return StorageUrls.publicObjectUrl(thumbPath);
+  }
+
+  Future<bool> _putBytes(
+    String uploadUrl, {
+    required Uint8List bytes,
+    required String contentType,
+  }) async {
     try {
       final response = await http.put(
         Uri.parse(uploadUrl),
@@ -172,30 +229,44 @@ class StorageService {
         },
         body: bytes,
       );
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        return publicUrl;
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        debugPrint(
+          'Storage PUT failed (${response.statusCode}): ${response.body}',
+        );
+        return false;
       }
-    } catch (_) {
-      // Ignored, attempt fallback below if available
+      return true;
+    } catch (error) {
+      debugPrint('Storage PUT error: $error');
+      return false;
     }
+  }
 
-    if (fallbackUploadUrl != null && fallbackUploadUrl.isNotEmpty && fallbackPublicUrl != null) {
-      final response = await http.put(
-        Uri.parse(fallbackUploadUrl),
-        headers: {
-          'Content-Type': contentType,
-        },
-        body: bytes,
-      );
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        return fallbackPublicUrl;
+  Future<String?> _resolvePublicUrlWithRetry(
+    String objectPath, {
+    int attempts = 3,
+  }) async {
+    for (var i = 0; i < attempts; i++) {
+      final resolved = await _resolvePublicUrl(objectPath);
+      if (resolved != null && resolved.isNotEmpty) return resolved;
+      if (i < attempts - 1) {
+        await Future<void>.delayed(Duration(milliseconds: 400 * (i + 1)));
       }
-      throw StateError(
-        'Upload failed on fallback (${response.statusCode}): ${response.body}',
-      );
     }
+    return null;
+  }
 
-    throw StateError('Upload failed and no fallback was available.');
+  Future<String?> _resolvePublicUrl(String objectPath) async {
+    try {
+      final callable = _functions.httpsCallable('getStoragePublicUrl');
+      final result = await callable.call({'objectPath': objectPath});
+      final data = Map<String, dynamic>.from(result.data as Map);
+      final url = data['publicUrl'] as String?;
+      if (url != null && url.isNotEmpty) return url;
+    } catch (error) {
+      debugPrint('getStoragePublicUrl failed: $error');
+    }
+    return null;
   }
 
   Future<void> _deleteObject(String objectPath) async {

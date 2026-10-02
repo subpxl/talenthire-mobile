@@ -6,6 +6,7 @@ import 'package:bombay_casting/core/models/models.dart';
 import 'package:bombay_casting/core/services/auth_service.dart';
 import 'package:bombay_casting/core/services/analytics_service.dart';
 import 'package:bombay_casting/core/services/referral_service.dart';
+import 'package:bombay_casting/core/services/profile_cache_service.dart';
 import 'package:bombay_casting/core/services/user_cache_service.dart';
 
 class SessionBootstrap {
@@ -194,8 +195,23 @@ class AuthProvider extends ChangeNotifier {
     String mobile = '',
   }) async {
     try {
+      var userDoc = await _firestore.collection('users').doc(uid).get();
+      var docExists = userDoc.exists;
+      var restoredFromDeleted = false;
+
+      if (docExists) {
+        final raw = userDoc.data();
+        if (raw != null && raw['account_deleted_at'] != null) {
+          await _restoreAccountDeleted(uid);
+          await _userCache.clear();
+          restoredFromDeleted = true;
+          userDoc = await _firestore.collection('users').doc(uid).get();
+          docExists = userDoc.exists;
+        }
+      }
+
       final cached = await _userCache.read(uid);
-      if (cached != null) {
+      if (cached != null && docExists && !restoredFromDeleted) {
         _userDocExists = true;
         user = cached.user;
         await _backfillProfileFromAuth(name: name, email: email);
@@ -205,15 +221,24 @@ class AuthProvider extends ChangeNotifier {
         }
         return true;
       }
+      if (cached != null && !docExists) {
+        await _userCache.clear();
+      }
 
-      final userDoc = await _firestore.collection('users').doc(uid).get();
-      final isNewUser = !userDoc.exists;
+      final isNewUser = !docExists;
       if (isNewUser) {
+        await ProfileCacheService().clear();
         final referredByCode = await ReferralService.pendingReferralCode();
+        final displayName = name.trim().isNotEmpty
+            ? name.trim()
+            : (email.trim().isNotEmpty
+                ? email.split('@').first
+                : 'User');
+        final normalizedEmail = email.trim();
         user = User(
           id: uid,
-          name: name,
-          email: email,
+          name: displayName,
+          email: normalizedEmail,
           mobile: mobile,
           onboardingCompleted: false,
           onboardingStep: 'mobile',
@@ -259,7 +284,10 @@ class AuthProvider extends ChangeNotifier {
   Future<void> _syncUserFromServer({required String uid}) async {
     try {
       final userDoc = await _firestore.collection('users').doc(uid).get();
-      if (!userDoc.exists) return;
+      if (!userDoc.exists) {
+        await _userCache.clear();
+        return;
+      }
       final data = Map<String, dynamic>.from(userDoc.data()!);
       data['id'] = data['id']?.toString().isNotEmpty == true ? data['id'] : uid;
       user = User.fromJson(data);
@@ -310,6 +338,8 @@ class AuthProvider extends ChangeNotifier {
     String? mobile,
     bool? onboardingCompleted,
     String? onboardingStep,
+    double? latitude,
+    double? longitude,
   }) async {
     if (user == null) return;
     user = user!.copyWith(
@@ -318,6 +348,8 @@ class AuthProvider extends ChangeNotifier {
       mobile: mobile,
       onboardingCompleted: onboardingCompleted,
       onboardingStep: onboardingStep,
+      latitude: latitude,
+      longitude: longitude,
       updatedAt: DateTime.now(),
     );
     _notify();
@@ -345,6 +377,8 @@ class AuthProvider extends ChangeNotifier {
       data['onboarding_completed'] = onboardingCompleted;
     }
     if (onboardingStep != null) data['onboarding_step'] = onboardingStep;
+    if (latitude != null) data['latitude'] = latitude;
+    if (longitude != null) data['longitude'] = longitude;
     await ref.set(data, SetOptions(merge: true));
     if (user != null) {
       unawaited(_userCache.write(user!.id, user!));
@@ -353,6 +387,28 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> deactivateAccount() async {
     await _setIsActive(false);
+  }
+
+  Future<void> markAccountDeleted() async {
+    if (user == null) return;
+    final updatedAt = DateTime.now();
+    await _firestore.collection('users').doc(user!.id).update({
+      'account_deleted_at': updatedAt.toIso8601String(),
+      'updated_at': updatedAt.toIso8601String(),
+    });
+    user = user!.copyWith(
+      accountDeletedAt: updatedAt,
+      updatedAt: updatedAt,
+    );
+    await _userCache.clear();
+  }
+
+  Future<void> _restoreAccountDeleted(String uid) async {
+    final updatedAt = DateTime.now();
+    await _firestore.collection('users').doc(uid).update({
+      'account_deleted_at': FieldValue.delete(),
+      'updated_at': updatedAt.toIso8601String(),
+    });
   }
 
   Future<void> reactivateAccount() async {

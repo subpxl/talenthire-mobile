@@ -23,6 +23,10 @@ class ProfileProvider extends ChangeNotifier {
   /// eager empty placeholder docs at login.
   bool _remoteExists = false;
 
+  /// Bumped on local profile writes so stale [loadProfile] fetches cannot
+  /// overwrite photos the user just uploaded.
+  int _profileFetchGeneration = 0;
+
   void _notify() {
     notifyListeners();
     _onChange();
@@ -40,32 +44,44 @@ class ProfileProvider extends ChangeNotifier {
     _notify();
   }
 
-  Future<void> loadProfile(String uid) async {
-    final cached = await _cache.read(uid);
-    if (cached != null) {
-      profile = cached.profile;
-      _remoteExists = cached.remoteExists;
-      _notify();
-      if (!cached.isFresh) {
-        unawaited(_fetchProfileFromServer(uid));
+  Future<void> loadProfile(String uid, {bool forceRefresh = false}) async {
+    if (!forceRefresh) {
+      final cached = await _cache.read(uid);
+      if (cached != null) {
+        profile = cached.profile;
+        _remoteExists = cached.remoteExists;
+        _notify();
+        if (!cached.isFresh || !cached.profile.isPremium) {
+          final fetchGen = _profileFetchGeneration;
+          unawaited(_fetchProfileFromServer(uid, fetchGen));
+        }
+        return;
       }
-      return;
-    }
 
-    profile = null;
-    _remoteExists = false;
-    _notify();
-    await _fetchProfileFromServer(uid);
+      profile = null;
+      _remoteExists = false;
+      _notify();
+    }
+    
+    final fetchGen = _profileFetchGeneration;
+    await _fetchProfileFromServer(uid, fetchGen);
   }
 
-  Future<void> _fetchProfileFromServer(String uid) async {
+  Future<void> _fetchProfileFromServer(String uid, int fetchGen) async {
     try {
       final profileDoc = await _firestore.collection('profiles').doc(uid).get();
+      if (fetchGen != _profileFetchGeneration) return;
       if (profileDoc.exists) {
         final data = Map<String, dynamic>.from(profileDoc.data()!);
         data['user_id'] = uid;
-        profile = Profile.fromJson(data);
-        _remoteExists = true;
+        final loaded = Profile.fromJson(data);
+        if (loaded.accountStatus == AccountStatus.deleted) {
+          profile = Profile(userId: uid);
+          _remoteExists = false;
+        } else {
+          profile = loaded;
+          _remoteExists = true;
+        }
       } else {
         profile = Profile(userId: uid);
         _remoteExists = false;
@@ -76,16 +92,26 @@ class ProfileProvider extends ChangeNotifier {
           profile: profile!,
           remoteExists: _remoteExists,
         );
+        if (_remoteExists) {
+          unawaited(_repairGalleryIfNeeded(uid, fetchGen));
+        }
       }
     } catch (error) {
       debugPrint('Error loading profile: $error');
+      if (fetchGen != _profileFetchGeneration) return;
       profile = Profile(userId: uid);
       _remoteExists = false;
     }
+    if (fetchGen != _profileFetchGeneration) return;
     _notify();
   }
 
+  void _invalidateInFlightProfileFetch() {
+    _profileFetchGeneration++;
+  }
+
   Future<void> updateProfile(Profile updated, {String? userId}) async {
+    _invalidateInFlightProfileFetch();
     profile = updated;
     _notify();
     if (userId == null) return;
@@ -133,7 +159,11 @@ class ProfileProvider extends ChangeNotifier {
     required List<File> files,
     int? mainIndex,
   }) async {
-    if (profile == null || files.isEmpty) return;
+    if (profile == null) {
+      throw StateError('Profile is not loaded yet. Try again in a moment.');
+    }
+    if (files.isEmpty) return;
+    _invalidateInFlightProfileFetch();
     final current = profile!.galleryPhotos;
     final remaining = Profile.maxPhotos - current.length;
     if (remaining <= 0) return;
@@ -171,18 +201,11 @@ class ProfileProvider extends ChangeNotifier {
       );
     } catch (error) {
       debugPrint('Error uploading profile photo: $error');
-      if (newUrls.isNotEmpty) {
+      for (final url in newUrls) {
         try {
-          await _saveGallery(
-            current: current,
-            currentThumbs: profile!.galleryThumbPhotos,
-            newUrls: newUrls,
-            newThumbUrls: newThumbs,
-            mainIndex: mainIndex,
-            userId: userId,
-          );
-        } catch (saveError) {
-          debugPrint('Error saving uploaded photos: $saveError');
+          await storageService.deleteProfilePhoto(url);
+        } catch (deleteError) {
+          debugPrint('Upload rollback delete failed: $deleteError');
         }
       }
       rethrow;
@@ -190,6 +213,88 @@ class ProfileProvider extends ChangeNotifier {
       isUploadingPhoto = false;
       _notify();
     }
+  }
+
+  Map<String, String> _galleryThumbsByUrl(
+    List<String> photos,
+    List<String> thumbs,
+  ) {
+    final map = <String, String>{};
+    for (var i = 0; i < photos.length; i++) {
+      if (i < thumbs.length && thumbs[i].isNotEmpty) {
+        map[photos[i]] = thumbs[i];
+      }
+    }
+    return map;
+  }
+
+  List<String> _alignedPhotoThumbs(
+    List<String> photos,
+    Map<String, String> thumbsByUrl,
+  ) {
+    return [
+      for (final photo in photos) thumbsByUrl[photo] ?? '',
+    ];
+  }
+
+  Future<void> _repairGalleryIfNeeded(String uid, int fetchGen) async {
+    if (fetchGen != _profileFetchGeneration) return;
+    final current = profile;
+    if (current == null || !_remoteExists) return;
+
+    final gallery = current.galleryPhotos;
+    if (gallery.isEmpty) return;
+
+    final thumbsByUrl = _galleryThumbsByUrl(
+      gallery,
+      current.galleryThumbPhotos,
+    );
+
+    final keptPhotos = <String>[];
+    final keptThumbsByUrl = <String, String>{};
+    for (final photo in gallery) {
+      if (!await storageService.objectExistsAtUrl(photo)) {
+        continue;
+      }
+      keptPhotos.add(photo);
+      var thumb = thumbsByUrl[photo] ?? '';
+      if (thumb.isNotEmpty && !await storageService.objectExistsAtUrl(thumb)) {
+        thumb = '';
+      }
+      if (thumb.isEmpty) {
+        final canonical = StorageService.canonicalThumbUrlForPhoto(photo);
+        if (canonical != null &&
+            await storageService.objectExistsAtUrl(canonical)) {
+          thumb = canonical;
+        }
+      }
+      keptThumbsByUrl[photo] = thumb;
+    }
+
+    final alignedThumbs = _alignedPhotoThumbs(keptPhotos, keptThumbsByUrl);
+    final galleryChanged = gallery.length != keptPhotos.length ||
+        !_listEquals(gallery, keptPhotos);
+    final thumbsChanged =
+        !_listEquals(current.galleryThumbPhotos, alignedThumbs);
+    if (!galleryChanged && !thumbsChanged) return;
+    if (fetchGen != _profileFetchGeneration) return;
+
+    await updateProfile(
+      current.copyWith(
+        profileImage: keptPhotos.isEmpty ? '' : keptPhotos.first,
+        photos: keptPhotos,
+        photoThumbs: alignedThumbs,
+      ),
+      userId: uid,
+    );
+  }
+
+  bool _listEquals(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 
   Future<void> _saveGallery({
@@ -200,12 +305,7 @@ class ProfileProvider extends ChangeNotifier {
     required int? mainIndex,
     required String userId,
   }) async {
-    final thumbsByUrl = <String, String>{};
-    for (var i = 0; i < current.length; i++) {
-      if (i < currentThumbs.length && currentThumbs[i].isNotEmpty) {
-        thumbsByUrl[current[i]] = currentThumbs[i];
-      }
-    }
+    final thumbsByUrl = _galleryThumbsByUrl(current, currentThumbs);
     for (var i = 0; i < newUrls.length; i++) {
       if (i < newThumbUrls.length && newThumbUrls[i].isNotEmpty) {
         thumbsByUrl[newUrls[i]] = newThumbUrls[i];
@@ -223,9 +323,7 @@ class ProfileProvider extends ChangeNotifier {
     photos = photos.take(Profile.maxPhotos).toList();
     if (photos.isEmpty) return;
 
-    final alignedThumbs = [
-      for (final photo in photos) thumbsByUrl[photo] ?? '',
-    ];
+    final alignedThumbs = _alignedPhotoThumbs(photos, thumbsByUrl);
 
     await updateProfile(
       profile!.copyWith(
@@ -250,15 +348,12 @@ class ProfileProvider extends ChangeNotifier {
     if (profile == null || url.isEmpty) return;
     final photos = profile!.galleryPhotos;
     if (!photos.contains(url) || photos.first == url) return;
-    final thumbs = profile!.galleryThumbPhotos;
-    final thumbByUrl = {
-      for (var i = 0; i < photos.length; i++)
-        photos[i]: i < thumbs.length ? thumbs[i] : '',
-    };
+    final thumbByUrl = _galleryThumbsByUrl(
+      photos,
+      profile!.galleryThumbPhotos,
+    );
     final reordered = [url, ...photos.where((item) => item != url)];
-    final reorderedThumbs = [
-      for (final photo in reordered) thumbByUrl[photo] ?? '',
-    ];
+    final reorderedThumbs = _alignedPhotoThumbs(reordered, thumbByUrl);
     await updateProfile(
       profile!.copyWith(
         profileImage: url,
@@ -283,13 +378,12 @@ class ProfileProvider extends ChangeNotifier {
   Future<void> removeProfilePhoto(String url, {String? userId}) async {
     if (profile == null) return;
     final photos = profile!.galleryPhotos;
-    final thumbs = profile!.galleryThumbPhotos;
+    final thumbByUrl = _galleryThumbsByUrl(
+      photos,
+      profile!.galleryThumbPhotos,
+    );
     final remainingPhotos = photos.where((item) => item != url).toList();
-    final remainingThumbs = <String>[];
-    for (var i = 0; i < photos.length; i++) {
-      if (photos[i] == url) continue;
-      remainingThumbs.add(i < thumbs.length ? thumbs[i] : '');
-    }
+    final remainingThumbs = _alignedPhotoThumbs(remainingPhotos, thumbByUrl);
     await updateProfile(
       profile!.copyWith(
         profileImage: remainingPhotos.isEmpty ? '' : remainingPhotos.first,
@@ -309,6 +403,7 @@ class ProfileProvider extends ChangeNotifier {
     profile = null;
     isUploadingPhoto = false;
     _remoteExists = false;
+    _profileFetchGeneration++;
     unawaited(_cache.clear());
     _notify();
   }

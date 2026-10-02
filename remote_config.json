@@ -3,16 +3,16 @@
   "parameters": {
     "min_android_build": {
       "defaultValue": {
-        "value": "29"
+        "value": "30"
       },
-      "description": "Minimum Android versionCode allowed to use the app. Synced from pubspec 1.0.0+29.",
+      "description": "Minimum Android versionCode allowed to use the app. Synced from pubspec 1.0.0+30.",
       "valueType": "NUMBER"
     },
     "min_ios_build": {
       "defaultValue": {
-        "value": "29"
+        "value": "30"
       },
-      "description": "Minimum iOS CFBundleVersion allowed to use the app. Synced from pubspec 1.0.0+29.",
+      "description": "Minimum iOS CFBundleVersion allowed to use the app. Synced from pubspec 1.0.0+30.",
       "valueType": "NUMBER"
     },
     "min_version": {

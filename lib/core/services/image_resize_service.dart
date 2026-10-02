@@ -7,8 +7,21 @@ import 'package:image/image.dart' as img;
 class ImageResizeService {
   ImageResizeService._();
 
-  static const thumbnailMaxSide = 400;
-  static const jpegQuality = 85;
+  static const thumbnailMaxSide = 300;
+  static const uploadMaxSide = 1920;
+  static const jpegQuality = 72;
+  static const uploadJpegQuality = 85;
+
+  /// JPEG bytes for profile upload (resize + re-encode for size and compatibility).
+  static Future<Uint8List> createUploadBytes(File file) async {
+    final raw = await file.readAsBytes();
+    final encoded = await compute(
+      _encodeUpload,
+      _ThumbnailRequest(bytes: raw, maxSide: uploadMaxSide),
+    );
+    if (encoded != null && encoded.isNotEmpty) return encoded;
+    return raw;
+  }
 
   static Future<Uint8List?> createThumbnailBytes(
     File file, {
@@ -27,6 +40,14 @@ class ImageResizeService {
   }
 
   static Uint8List? _encodeThumbnail(_ThumbnailRequest request) {
+    return _encodeJpeg(request, jpegQuality);
+  }
+
+  static Uint8List? _encodeUpload(_ThumbnailRequest request) {
+    return _encodeJpeg(request, uploadJpegQuality);
+  }
+
+  static Uint8List? _encodeJpeg(_ThumbnailRequest request, int quality) {
     final decoded = img.decodeImage(request.bytes);
     if (decoded == null) return null;
     final resized = img.copyResize(
@@ -34,9 +55,7 @@ class ImageResizeService {
       width: decoded.width >= decoded.height ? request.maxSide : null,
       height: decoded.height > decoded.width ? request.maxSide : null,
     );
-    return Uint8List.fromList(
-      img.encodeJpg(resized, quality: jpegQuality),
-    );
+    return Uint8List.fromList(img.encodeJpg(resized, quality: quality));
   }
 }
 

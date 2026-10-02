@@ -13,9 +13,12 @@ class User {
     this.birthMonth,
     this.birthYear,
     this.isActive = true,
+    this.accountDeletedAt,
     this.onboardingCompleted = false,
     this.onboardingStep = 'mobile',
     this.referredByCode,
+    this.latitude,
+    this.longitude,
     DateTime? createdAt,
     DateTime? updatedAt,
   })  : createdAt = createdAt ?? DateTime.now(),
@@ -30,9 +33,14 @@ class User {
   int? birthMonth;
   int? birthYear;
   bool isActive;
+  DateTime? accountDeletedAt;
   bool onboardingCompleted;
+
+  bool get isAccountDeleted => accountDeletedAt != null;
   String onboardingStep;
   final String? referredByCode;
+  final double? latitude;
+  final double? longitude;
   final DateTime createdAt;
   DateTime updatedAt;
 
@@ -61,11 +69,14 @@ class User {
       birthMonth: (json['birth_month'] ?? json['birthMonth']) as int?,
       birthYear: (json['birth_year'] ?? json['birthYear']) as int?,
       isActive: json['is_active'] ?? true,
+      accountDeletedAt: parseFlexibleDate(json['account_deleted_at']),
       onboardingCompleted: onboardingCompleted,
       onboardingStep: onboardingStep,
       referredByCode: (json['referred_by_code'] ?? '').toString().trim().isEmpty
           ? null
           : (json['referred_by_code'] ?? '').toString().trim(),
+      latitude: (json['latitude'] as num?)?.toDouble(),
+      longitude: (json['longitude'] as num?)?.toDouble(),
       createdAt: parseFlexibleDate(json['created_at']) ?? DateTime.now(),
       updatedAt: parseFlexibleDate(json['updated_at']) ?? DateTime.now(),
     );
@@ -85,6 +96,8 @@ class User {
         'onboarding_step': onboardingStep,
         if (referredByCode != null && referredByCode!.isNotEmpty)
           'referred_by_code': referredByCode,
+        if (latitude != null) 'latitude': latitude,
+        if (longitude != null) 'longitude': longitude,
         'created_at': createdAt.toIso8601String(),
         'updated_at': updatedAt.toIso8601String(),
       };
@@ -94,8 +107,11 @@ class User {
     String? name,
     String? email,
     bool? isActive,
+    DateTime? accountDeletedAt,
     bool? onboardingCompleted,
     String? onboardingStep,
+    double? latitude,
+    double? longitude,
     DateTime? updatedAt,
   }) {
     return User(
@@ -108,9 +124,12 @@ class User {
       birthMonth: birthMonth,
       birthYear: birthYear,
       isActive: isActive ?? this.isActive,
+      accountDeletedAt: accountDeletedAt ?? this.accountDeletedAt,
       onboardingCompleted: onboardingCompleted ?? this.onboardingCompleted,
       onboardingStep: onboardingStep ?? this.onboardingStep,
       referredByCode: referredByCode,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

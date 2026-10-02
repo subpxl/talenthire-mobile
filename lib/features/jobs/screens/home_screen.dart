@@ -10,6 +10,7 @@ import 'package:bombay_casting/core/widgets/app_screen_layout.dart';
 import 'package:bombay_casting/core/widgets/app_tab_bar.dart';
 import 'package:bombay_casting/core/navigation/app_navigation.dart';
 import 'package:bombay_casting/features/creators/widgets/creator_card.dart';
+import 'package:bombay_casting/features/creators/models/creator_profile.dart';
 import 'package:bombay_casting/features/jobs/models/job_listing.dart';
 import 'package:bombay_casting/features/jobs/widgets/job_card.dart';
 import 'package:bombay_casting/features/jobs/widgets/profile_completion_banner.dart';
@@ -61,7 +62,38 @@ class _HomeAllTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
     final recommendedJobs = listingsForJobs(appState.jobs).take(5).toList();
-    final topCreators = appState.creators.take(6).toList();
+    final currentUserId = appState.user?.id;
+    final otherTopCreators = appState.creators
+        .where(
+          (creator) =>
+              creator.isPremium &&
+              creator.id != currentUserId &&
+              creator.hasPhoto,
+        )
+        .toList();
+
+    CreatorProfile? currentUserCreator;
+    if (currentUserId != null && appState.isPremiumUser) {
+      try {
+        currentUserCreator = appState.creators.firstWhere(
+          (c) => c.id == currentUserId && c.hasPhoto,
+        );
+      } catch (_) {}
+    }
+
+    final topCreators = <CreatorProfile>[];
+    if (currentUserCreator != null) {
+      final others = otherTopCreators.take(5).toList();
+      if (others.isNotEmpty) {
+        topCreators.add(others.first);
+        topCreators.add(currentUserCreator);
+        topCreators.addAll(others.skip(1));
+      } else {
+        topCreators.add(currentUserCreator);
+      }
+    } else {
+      topCreators.addAll(otherTopCreators.take(6));
+    }
     final completionPercent = appState.profile?.completionPercentage ?? 0;
 
     return AppScrollBody(

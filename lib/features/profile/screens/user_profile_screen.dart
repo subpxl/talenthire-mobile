@@ -185,51 +185,84 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   Widget _buildPremiumCard(BuildContext context) {
-    final isPremium = context.watch<AppState>().isPremiumUser;
+    final appState = context.watch<AppState>();
+    final isPremium = appState.isPremiumUser;
+    final isActivating = appState.isPremiumActivationPending;
+    final timedOut = appState.premiumActivationTimedOut && !isPremium;
     return Material(
       color: AppColors.bannerStart,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         key: const Key('e2e_premium_cta'),
-        onTap: isPremium
+        onTap: isPremium || isActivating
             ? null
-            : () => AppNavigation.openPremiumScreen(context),
+            : timedOut
+                ? () => appState.refreshProfile(forceRefresh: true)
+                : () => AppNavigation.openPremiumScreen(context),
         borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.md,
             vertical: 14,
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(
-                Icons.workspace_premium_outlined,
-                color: AppColors.primary,
-                size: 22,
+              Row(
+                children: [
+                  const Icon(
+                    Icons.workspace_premium_outlined,
+                    color: AppColors.primary,
+                    size: 22,
+                  ),
+                  const SizedBox(width: AppSpacing.sm + 4),
+                  Expanded(
+                    child: Text(
+                      isPremium
+                          ? AppLocalizations.of(context)!.youAreAPremiumMember
+                          : AppLocalizations.of(context)!.becomeAPremiumMember,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  if (isActivating && !isPremium)
+                    SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.primary.withValues(alpha: 0.85),
+                      ),
+                    )
+                  else
+                    Text(
+                      isPremium
+                          ? AppLocalizations.of(context)!.active
+                          : timedOut
+                              ? 'Tap to refresh'
+                              : AppLocalizations.of(context)!.join,
+                      style: context.caption.copyWith(
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                        color:
+                            isPremium ? AppColors.accentGreen : AppColors.primary,
+                      ),
+                    ),
+                ],
               ),
-              const SizedBox(width: AppSpacing.sm + 4),
-              Expanded(
-                child: Text(
-                  isPremium
-                      ? AppLocalizations.of(context)!.youAreAPremiumMember
-                      : AppLocalizations.of(context)!.becomeAPremiumMember,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.textPrimary,
+              if (timedOut) ...[
+                const SizedBox(height: 6),
+                const Text(
+                  'Activation is taking longer than expected. Tap to refresh or restart the app.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
                   ),
                 ),
-              ),
-              Text(
-                isPremium
-                    ? AppLocalizations.of(context)!.active
-                    : AppLocalizations.of(context)!.join,
-                style: context.caption.copyWith(
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.5,
-                  color: isPremium ? AppColors.accentGreen : AppColors.primary,
-                ),
-              ),
+              ],
             ],
           ),
         ),

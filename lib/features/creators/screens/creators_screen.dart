@@ -46,7 +46,8 @@ class _CreatorsScreenState extends State<CreatorsScreen> {
       return false;
     }
     if (notification is! ScrollUpdateNotification &&
-        notification is! OverscrollNotification) {
+        notification is! OverscrollNotification &&
+        notification is! ScrollEndNotification) {
       return false;
     }
     if (notification.metrics.pixels >=
@@ -95,44 +96,79 @@ class _CreatorsScreenState extends State<CreatorsScreen> {
           onRefresh: () => selectedTab == 0
               ? context.read<AppState>().refreshCreators()
               : context.read<AppState>().refreshSavedCreators(),
-          child: NotificationListener<ScrollNotification>(
-            onNotification: _onScrollNotification,
-            child: CustomScrollView(
-              controller: _scrollController,
-              cacheExtent: 1200,
-              physics: const AlwaysScrollableScrollPhysics(
-                parent: BouncingScrollPhysics(),
-              ),
-              slivers: [
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.screenH,
-                      0,
-                      AppSpacing.screenH,
-                      0,
+          child: Stack(
+            children: [
+              NotificationListener<ScrollNotification>(
+                onNotification: _onScrollNotification,
+                child: CustomScrollView(
+                  controller: _scrollController,
+                  cacheExtent: 1200,
+                  physics: const AlwaysScrollableScrollPhysics(
+                    parent: BouncingScrollPhysics(),
+                  ),
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.screenH,
+                          0,
+                          AppSpacing.screenH,
+                          0,
+                        ),
+                        child: AppTabBar(
+                          tabs: _tabs,
+                          selectedIndex: selectedTab,
+                          onChanged: _onTabChanged,
+                        ),
+                      ),
                     ),
-                    child: AppTabBar(
-                      tabs: _tabs,
-                      selectedIndex: selectedTab,
-                      onChanged: _onTabChanged,
+                    if (selectedTab == 0)
+                      SliverPersistentHeader(
+                        pinned: true,
+                        delegate: StickyBarDelegate(
+                          extent: AppSearchAndChips.heightFor(_searchPadding),
+                          child: _buildSearchAndChips(context),
+                        ),
+                      ),
+                    if (selectedTab == 0)
+                      ..._buildAllSlivers(context)
+                    else
+                      ...savedCreatorsSlivers(context),
+                  ],
+                ),
+              ),
+              if (selectedTab == 0 && context.watch<AppState>().newCreatorsCount > 0)
+                Positioned(
+                  top: 12,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        context.read<AppState>().applyNewCreators();
+                        _resetScroll();
+                      },
+                      icon: const Icon(Icons.arrow_upward, size: 16),
+                      label: Text(
+                        '${context.watch<AppState>().newCreatorsCount} new profiles',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        elevation: 4,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                      ),
                     ),
                   ),
                 ),
-                if (selectedTab == 0)
-                  SliverPersistentHeader(
-                    pinned: true,
-                    delegate: StickyBarDelegate(
-                      extent: AppSearchAndChips.heightFor(_searchPadding),
-                      child: _buildSearchAndChips(context),
-                    ),
-                  ),
-                if (selectedTab == 0)
-                  ..._buildAllSlivers(context)
-                else
-                  ...savedCreatorsSlivers(context),
-              ],
-            ),
+            ],
           ),
         ),
       ),

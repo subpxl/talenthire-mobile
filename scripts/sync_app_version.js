@@ -4,10 +4,15 @@
  * - mobile/remote_config.json (Firebase Remote Config template)
  * - mobile/lib/core/services/app_version_service.dart (client fallbacks)
  *
+ * Sets Remote Config minimum build/version from pubspec.yaml.
+ * --force-update uses pubspec build number minus 1 (does not change pubspec.yaml)
+ * so the latest local build is not required until it is published.
+ *
  * Usage:
  *   node sync_app_version.js           # dry-run (prints planned changes)
- *   node sync_app_version.js --apply   # write files
+ *   node sync_app_version.js --apply   # write files (exact pubspec build)
  *   node sync_app_version.js --apply --deploy   # write + firebase deploy remoteconfig
+ *   node sync_app_version.js --force-update      # apply+deploy using pubspec build - 1
  */
 
 import { readFile, writeFile } from 'node:fs/promises';
@@ -34,10 +39,10 @@ function parsePubspecVersion(text) {
   return { versionName: match[1], buildNumber: Number(match[2], 10) };
 }
 
-function patchRemoteConfig(json, { versionName, buildNumber }) {
+function patchRemoteConfig(json, { versionName, buildNumber, sourceLabel }) {
   const next = structuredClone(json);
   const desc =
-    `Minimum build allowed to use the app. Synced from pubspec ${versionName}+${buildNumber}.`;
+    `Minimum build allowed to use the app. Synced from pubspec ${sourceLabel}.`;
   next.parameters.min_android_build.defaultValue.value = String(buildNumber);
   next.parameters.min_android_build.description = desc.replace(
     'build',
@@ -54,7 +59,7 @@ function patchRemoteConfig(json, { versionName, buildNumber }) {
   return next;
 }
 
-function patchVersionService(source, { versionName, buildNumber }) {
+function patchVersionService(source, { versionName, buildNumber, sourceLabel }) {
   let next = source;
   next = next.replace(
     /static const currentMinBuild = \d+;/,
@@ -65,28 +70,37 @@ function patchVersionService(source, { versionName, buildNumber }) {
     `static const currentMinVersion = '${versionName}';`,
   );
   next = next.replace(
-    /\/\/\/ Current production APK[^\n]*\n/,
-    `/// Synced from pubspec: versionName ${versionName}, build ${buildNumber}.\n`,
+    /\/\/\/ (?:Current production APK|Synced from pubspec)[^\n]*\n/,
+    `/// Synced from pubspec: versionName ${versionName}, min build ${buildNumber} (${sourceLabel}).\n`,
   );
   return next;
 }
 
 async function main() {
-  const apply = process.argv.includes('--apply');
-  const deploy = process.argv.includes('--deploy');
+  const forceUpdate = process.argv.includes('--force-update');
+  const apply = process.argv.includes('--apply') || forceUpdate;
+  const deploy = process.argv.includes('--deploy') || forceUpdate;
 
   const pubspec = await readFile(pubspecPath, 'utf8');
   const parsed = parsePubspecVersion(pubspec);
   const { versionName, buildNumber } = parsed;
+  const minBuild = forceUpdate ? Math.max(1, buildNumber - 1) : buildNumber;
+  const sourceLabel = forceUpdate
+    ? `${versionName}+${buildNumber} minus 1`
+    : `${versionName}+${buildNumber}`;
+  const targets = { versionName, buildNumber: minBuild, sourceLabel };
 
-  console.log(`Pubspec version: ${versionName}+${buildNumber}`);
+  console.log(`Pubspec version: ${versionName}+${buildNumber} (unchanged)`);
+  console.log(
+    `Force-update threshold: min build ${minBuild}, min version ${versionName} (${sourceLabel})`,
+  );
 
   const remoteRaw = await readFile(remoteConfigPath, 'utf8');
   const remoteJson = JSON.parse(remoteRaw);
-  const remoteNext = patchRemoteConfig(remoteJson, parsed);
+  const remoteNext = patchRemoteConfig(remoteJson, targets);
 
   const serviceRaw = await readFile(versionServicePath, 'utf8');
-  const serviceNext = patchVersionService(serviceRaw, parsed);
+  const serviceNext = patchVersionService(serviceRaw, targets);
 
   const remoteOut = `${JSON.stringify(remoteNext, null, 2)}\n`;
   const remoteChanged = remoteOut !== remoteRaw.endsWith('\n')

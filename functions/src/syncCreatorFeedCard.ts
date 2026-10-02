@@ -67,6 +67,7 @@ export function buildCreatorFeedCard(profile: JsonMap): JsonMap {
     collab_types: listFromSections(profile, 'collab_types'),
     content_types: listFromSections(profile, 'content_types'),
     is_verified: profile.is_verified === true,
+    profile_completed: profile.profile_completed === true,
     subscription_status: filled(profile.subscription_status) || 'free',
     platform_metrics: Array.isArray(profile.platform_metrics)
       ? profile.platform_metrics
@@ -107,6 +108,17 @@ export const syncCreatorFeedCard = functions
     }
 
     const profile = change.after.data() as JsonMap;
+    const accountStatus = String(profile.account_status ?? 'active').toLowerCase();
+    if (accountStatus === 'deleted') {
+      await userRef.set(
+        {
+          feed_card: admin.firestore.FieldValue.delete(),
+          feed_card_updated_at: admin.firestore.FieldValue.delete(),
+        },
+        {merge: true},
+      );
+      return null;
+    }
     const feedCard = buildCreatorFeedCard(profile);
     await userRef.set(
       {

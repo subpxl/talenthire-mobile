@@ -35,6 +35,7 @@ class CreatorProfile {
     required this.photos,
     this.isVerified = false,
     this.isPremium = false,
+    this.profileCompleted = false,
     this.aboutInfo = const [],
     this.workInfo = const [],
     this.platformMetrics = const [],
@@ -54,6 +55,7 @@ class CreatorProfile {
   final List<String> videoLinks;
   final bool isVerified;
   final bool isPremium;
+  final bool profileCompleted;
   final List<MapEntry<String, String>> aboutInfo;
   final List<MapEntry<String, String>> workInfo;
   final List<SocialPlatformMetric> platformMetrics;
@@ -65,6 +67,49 @@ class CreatorProfile {
 
   CreatorPhoto get cover =>
       photos.isNotEmpty ? photos.first : const CreatorPhoto();
+
+  bool get hasPhoto =>
+      photos.any((photo) => photo.url.trim().isNotEmpty);
+
+  int get photoCount =>
+      photos.where((photo) => photo.url.trim().isNotEmpty).length;
+
+  /// Count of filled profile fields used for the third listing tier.
+  int get detailsFilledScore {
+    var score = 0;
+    if (title.trim().isNotEmpty) score++;
+    if (location.trim().isNotEmpty) score++;
+    if (bio.trim().isNotEmpty) score++;
+    if (hasPhoto) score++;
+    score += aboutInfo.where((e) => e.value.trim().isNotEmpty).length;
+    score += workInfo.where((e) => e.value.trim().isNotEmpty).length;
+    if (collabTypes.isNotEmpty) score++;
+    if (contentTypes.isNotEmpty) score++;
+    return score;
+  }
+
+  /// Tiered ranking score for creators feed.
+  /// 1. Premium users (+100,000)
+  /// 2. Users with a photo (+10,000)
+  /// 3. Users without a photo (-5,000 penalty)
+  /// Within tiers, tie-breakers are decided by detailsFilledScore and profileCompleted.
+  int get profileScore {
+    int score = 0;
+    
+    if (isPremium) score += 100000;
+    
+    if (hasPhoto) {
+      score += 10000;
+      score += photoCount * 2;
+    } else {
+      score -= 5000;
+    }
+    
+    score += detailsFilledScore * 100;
+    if (profileCompleted) score += 50;
+    
+    return score;
+  }
 
   bool matchesSearch(String query) {
     final terms = query
@@ -154,6 +199,7 @@ class CreatorProfile {
       videoLinks: _videoLinksFromProfile(profile),
       isVerified: profile.isVerified || profile.isPremium,
       isPremium: profile.isPremium,
+      profileCompleted: profile.profileCompleted,
       bio: bio,
       aboutInfo: [
         if (gender.isNotEmpty) MapEntry('Gender', gender),
@@ -186,6 +232,7 @@ class CreatorProfile {
     final user = User.fromJson(data);
     final isCurrentUser = userId == currentUserId;
     if (!isCurrentUser && !user.isActive) return null;
+    if (!isCurrentUser && user.isAccountDeleted) return null;
 
     final city = (feedCard['city'] ?? '').toString();
     final gallery = _galleryFromFeedCard(feedCard);
@@ -220,6 +267,7 @@ class CreatorProfile {
         (feedCard['subscription_status'] ?? 'free').toString();
     final isPremium = subscriptionStatus == 'premium';
     final isVerified = feedCard['is_verified'] == true || isPremium;
+    final profileCompleted = feedCard['profile_completed'] == true;
 
     final metricsRaw = feedCard['platform_metrics'];
     final metrics = <SocialPlatformMetric>[];
@@ -254,6 +302,7 @@ class CreatorProfile {
       videoLinks: stringList(feedCard['video_links']),
       isVerified: isVerified,
       isPremium: isPremium,
+      profileCompleted: profileCompleted,
       bio: bio,
       aboutInfo: [
         if (gender.isNotEmpty) MapEntry('Gender', gender),
@@ -301,6 +350,7 @@ class CreatorProfile {
       photos: photos.isEmpty ? const [CreatorPhoto()] : photos,
       isVerified: json['is_verified'] == true || json['is_premium'] == true,
       isPremium: json['is_premium'] == true,
+      profileCompleted: json['profile_completed'] == true,
       aboutInfo: _entriesFromJson(json['about_info']),
       workInfo: _entriesFromJson(json['work_info']),
       platformMetrics: metrics,
@@ -321,6 +371,7 @@ class CreatorProfile {
         'photos': photos.map((photo) => photo.toJson()).toList(),
         'is_verified': isVerified,
         'is_premium': isPremium,
+        'profile_completed': profileCompleted,
         'about_info': _entriesToJson(aboutInfo),
         'work_info': _entriesToJson(workInfo),
         'platform_metrics':

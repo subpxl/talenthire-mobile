@@ -96,6 +96,7 @@ class PushNotificationService {
         importance: Importance.high,
       ),
     );
+    await androidPlugin?.requestNotificationsPermission();
 
     await _messaging.requestPermission(
       alert: true,

@@ -83,7 +83,8 @@ export const submitJobApplication = callable().https.onCall(async (data, context
     // Job and user/profile docs don't change during the apply window so we
     // can read them outside the transaction to avoid holding locks longer
     // than necessary.
-    const [userDoc, profileDoc, jobDoc, existingAppDoc, applicationsSnap] = await Promise.all([
+    const [userDoc, profileDoc, jobDoc, existingAppDoc, applicationsSnap] =
+      await Promise.all([
       db().collection('users').doc(userId).get(),
       db().collection('profiles').doc(userId).get(),
       db().collection('jobs').doc(jobId).get(),
@@ -115,7 +116,7 @@ export const submitJobApplication = callable().https.onCall(async (data, context
 
     const userCreatedAt =
       parseFlexibleDate(userDoc.data()?.created_at) ?? now;
-    const isPremium =
+    const hasActiveMandate =
       String(profileDoc.data()?.subscription_status ?? '') === 'premium';
 
     const quotaApplications: ApplyQuotaApplication[] = applicationsSnap.docs
@@ -129,7 +130,7 @@ export const submitJobApplication = callable().https.onCall(async (data, context
       }));
 
     const gate = evaluateApplyGate({
-      isPremium,
+      hasActiveMandate,
       accountCreatedAt: userCreatedAt,
       applications: quotaApplications,
       now,

@@ -64,7 +64,9 @@ class CreatorMasonrySliver extends StatelessWidget {
 
 Widget _card(BuildContext context, CreatorProfile creator, {int? index}) {
   return _KeepAliveCreatorTile(
-    key: index == 0 ? const Key('e2e_creator_card_first') : ValueKey(creator.id),
+    key: index == 0
+        ? Key('e2e_creator_card_first_${creator.id}')
+        : ValueKey(creator.id),
     creator: creator,
   );
 }

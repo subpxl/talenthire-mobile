@@ -1,6 +1,6 @@
 import 'model_helpers.dart';
 
-enum AccountStatus { active, inactive, suspended }
+enum AccountStatus { active, inactive, suspended, deleted }
 
 enum SubscriptionStatus { free, premium, expired }
 
